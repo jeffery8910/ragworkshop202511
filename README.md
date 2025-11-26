@@ -19,9 +19,12 @@
 
 n8n 建議部署於 Render (Docker)：
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/n8n-io/n8n-docker-caddy)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/jeffery8910/ragworkshop202511)
 
-> **注意**：這是 n8n 官方的 Docker 部署連結。部署後請將 Webhook URL 填回 Vercel 的 `N8N_WEBHOOK_URL` 變數中。
+> **注意**：
+> 1. 這是使用本專案內的 `n8n/render.yaml` 進行部署，確保環境設定正確。
+> 2. 部署完成後，請登入 n8n 並匯入 `n8n/workflow.json` 作為基礎工作流。
+> 3. 最後將 n8n 的 Webhook URL 填回 Vercel 的 `N8N_WEBHOOK_URL` 變數中。
 
 ## ✨ 主要功能 (Features)
 

@@ -90,6 +90,7 @@ async function processEvents(events: any[]) {
         }
 
         // 3. Async Handoff to n8n (Default RAG)
+
         if (process.env.N8N_WEBHOOK_URL) {
             await fetch(process.env.N8N_WEBHOOK_URL, {
                 method: 'POST',
@@ -97,6 +98,13 @@ async function processEvents(events: any[]) {
                 body: JSON.stringify({ events: [event] }) // Forward single event
             });
             await logConversation({ type: 'event', userId, text: '[Forwarded to n8n]', meta: { url: process.env.N8N_WEBHOOK_URL } });
+        } else {
+            // Fallback: If n8n is not configured, reply with a friendly message
+            await getClient().replyMessage(replyToken, {
+                type: 'text',
+                text: '⚠️ 系統提示：尚未設定 n8n Webhook URL，無法進行 AI 回覆。\n\n請檢查 .env.local 設定或部署狀態，確認 N8N_WEBHOOK_URL 已正確填寫。'
+            });
+            await logConversation({ type: 'error', userId, text: '[Missing N8N_WEBHOOK_URL]', meta: {} });
         }
     }
 }

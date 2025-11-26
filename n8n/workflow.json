@@ -1,0 +1,35 @@
+{
+  "name": "RAG Workshop Basic Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "af4c9b8e-1234-4567-8901-abcdef123456"
+    },
+    {
+      "parameters": {
+        "content": "## RAG Workshop Workflow\n這是一個基礎的 n8n 工作流範本。\n\n1. **Webhook**: 接收來自 LINE Bot 的訊息\n2. **AI Agent**: (請自行新增) 連接 OpenAI/Gemini 進行處理\n3. **HTTP Request**: (請自行新增) 將結果回傳給 LINE",
+        "height": 280,
+        "width": 340
+      },
+      "name": "Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        100
+      ]
+    }
+  ],
+  "connections": {}
+}
