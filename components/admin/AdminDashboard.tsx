@@ -70,7 +70,7 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                 )}
 
                 {activeTab === 'knowledge' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <UploadPanel />
                         <KnowledgeGraph />
                     </div>
