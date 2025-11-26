@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/db/mongo';
+import { getMongoClient } from '@/lib/db/mongo';
 import { getPineconeClient } from '@/lib/vector/pinecone';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
@@ -49,10 +49,15 @@ export async function GET() {
     };
 
     // 1. Check MongoDB
-    status.mongo = await measure(async () => {
-        const client = await clientPromise;
-        await client.db('admin').command({ ping: 1 });
-    });
+    const mongoUri = getConfig('MONGODB_URI');
+    if (mongoUri) {
+        status.mongo = await measure(async () => {
+            const client = await getMongoClient(mongoUri);
+            await client.db('admin').command({ ping: 1 });
+        });
+    } else {
+        status.mongo = { status: 'missing', latency: 0, message: 'MONGODB_URI is not defined' };
+    }
 
     // 2. Check Pinecone Connection
     if (status.pinecone.apiKey) {
@@ -71,7 +76,8 @@ export async function GET() {
     if (geminiKey) {
         status.llm.gemini = await measure(async () => {
             const genAI = new GoogleGenerativeAI(geminiKey);
-            const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+            // Use a generally available model for generateContent
+            const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
             await model.generateContent('ping');
         });
     } else {
