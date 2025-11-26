@@ -3,20 +3,24 @@
 import { useState } from 'react';
 import { Settings, Save, Database, Key, CheckCircle, AlertCircle, MessageSquare, Cpu } from 'lucide-react';
 
-export default function SetupPanel() {
+interface SetupPanelProps {
+    initialConfig: Record<string, string>;
+}
+
+export default function SetupPanel({ initialConfig }: SetupPanelProps) {
     const [config, setConfig] = useState({
-        MONGODB_URI: '',
-        MONGODB_DB_NAME: '',
-        PINECONE_API_KEY: '',
-        PINECONE_INDEX_NAME: '',
-        GEMINI_API_KEY: '',
-        OPENAI_API_KEY: '',
-        OPENROUTER_API_KEY: '',
-        EMBEDDING_PROVIDER: 'gemini',
-        EMBEDDING_MODEL: '',
-        CHAT_MODEL: '',
-        CHAT_TITLE: '',
-        WELCOME_MESSAGE: ''
+        MONGODB_URI: initialConfig['MONGODB_URI'] || '',
+        MONGODB_DB_NAME: initialConfig['MONGODB_DB_NAME'] || '',
+        PINECONE_API_KEY: initialConfig['PINECONE_API_KEY'] || '',
+        PINECONE_INDEX_NAME: initialConfig['PINECONE_INDEX_NAME'] || '',
+        GEMINI_API_KEY: initialConfig['GEMINI_API_KEY'] || '',
+        OPENAI_API_KEY: initialConfig['OPENAI_API_KEY'] || '',
+        OPENROUTER_API_KEY: initialConfig['OPENROUTER_API_KEY'] || '',
+        EMBEDDING_PROVIDER: initialConfig['EMBEDDING_PROVIDER'] || 'gemini',
+        EMBEDDING_MODEL: initialConfig['EMBEDDING_MODEL'] || '',
+        CHAT_MODEL: initialConfig['CHAT_MODEL'] || '',
+        CHAT_TITLE: initialConfig['CHAT_TITLE'] || '',
+        WELCOME_MESSAGE: initialConfig['WELCOME_MESSAGE'] || ''
     });
     const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('');

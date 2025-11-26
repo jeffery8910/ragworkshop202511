@@ -13,21 +13,26 @@ export default async function AdminPage() {
         'PINECONE_API_KEY', 'PINECONE_INDEX_NAME',
         'LINE_CHANNEL_SECRET', 'LINE_CHANNEL_ACCESS_TOKEN',
         'ADMIN_PASSWORD',
-        // Optional keys (checked here so they appear in EnvCheck correctly)
-        'GEMINI_API_KEY',
-        'OPENAI_API_KEY',
-        'OPENROUTER_API_KEY',
-        'N8N_WEBHOOK_URL'
+        'GEMINI_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY',
+        'N8N_WEBHOOK_URL',
+        'EMBEDDING_PROVIDER', 'EMBEDDING_MODEL', 'CHAT_MODEL',
+        'CHAT_TITLE', 'WELCOME_MESSAGE',
+        'RAG_TOP_K', 'TEMPERATURE', 'PROMPT_TEMPLATE'
     ];
 
     const missingKeys = checkKeys.filter(key => {
         const envVal = process.env[key]?.trim();
         const cookieVal = cookieStore.get(key)?.value?.trim();
-        // Check if value is defined and not empty string
         const hasEnv = !!envVal && envVal.length > 0;
         const hasCookie = !!cookieVal && cookieVal.length > 0;
         return !hasEnv && !hasCookie;
     });
 
-    return <AdminDashboard missingKeys={missingKeys} />;
+    // Prepare initial config for client components
+    const initialConfig: Record<string, string> = {};
+    checkKeys.forEach(key => {
+        initialConfig[key] = cookieStore.get(key)?.value || process.env[key] || '';
+    });
+
+    return <AdminDashboard missingKeys={missingKeys} initialConfig={initialConfig} />;
 }

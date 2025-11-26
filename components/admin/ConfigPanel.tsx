@@ -3,11 +3,15 @@
 import { useState } from 'react';
 import { Save } from 'lucide-react';
 
-export default function ConfigPanel() {
+interface ConfigPanelProps {
+    initialConfig: Record<string, string>;
+}
+
+export default function ConfigPanel({ initialConfig }: ConfigPanelProps) {
     const [config, setConfig] = useState({
-        temperature: 0.7,
-        promptTemplate: '',
-        topK: 5
+        temperature: parseFloat(initialConfig['TEMPERATURE'] || '0.7'),
+        promptTemplate: initialConfig['PROMPT_TEMPLATE'] || '',
+        topK: parseInt(initialConfig['RAG_TOP_K'] || '5')
     });
 
     const handleSave = async () => {

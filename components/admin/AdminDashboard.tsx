@@ -12,9 +12,10 @@ import KnowledgeGraph from '@/components/admin/KnowledgeGraph';
 
 interface AdminDashboardProps {
     missingKeys: string[];
+    initialConfig: Record<string, string>;
 }
 
-export default function AdminDashboard({ missingKeys }: AdminDashboardProps) {
+export default function AdminDashboard({ missingKeys, initialConfig }: AdminDashboardProps) {
     const [activeTab, setActiveTab] = useState('setup');
 
     const tabs = [
@@ -35,8 +36,8 @@ export default function AdminDashboard({ missingKeys }: AdminDashboardProps) {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-t-lg transition-colors font-medium text-sm ${activeTab === tab.id
-                                    ? 'bg-white text-blue-600 border border-b-0 border-gray-200 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                                ? 'bg-white text-blue-600 border border-b-0 border-gray-200 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                                 }`}
                         >
                             <Icon className="w-4 h-4" />
@@ -51,8 +52,8 @@ export default function AdminDashboard({ missingKeys }: AdminDashboardProps) {
                 {activeTab === 'setup' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <EnvCheck missingKeys={missingKeys} />
-                        <SetupPanel />
-                        <ConfigPanel />
+                        <SetupPanel initialConfig={initialConfig} />
+                        <ConfigPanel initialConfig={initialConfig} />
                     </div>
                 )}
 
