@@ -1,6 +1,7 @@
 import { generateText } from '@/lib/llm';
 import { searchPinecone } from '@/lib/vector/pinecone';
 import { getConversationHistory, saveMessage } from '@/lib/features/memory';
+import type { EmbeddingConfig, EmbeddingProvider } from '@/lib/vector/embedding';
 
 export interface RagConfig {
   pineconeApiKey?: string;
@@ -8,6 +9,7 @@ export interface RagConfig {
   geminiApiKey?: string;
   openaiApiKey?: string;
   openrouterApiKey?: string;
+  embeddingProvider?: EmbeddingProvider;
   topK?: number;
 }
 
@@ -21,6 +23,15 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
   };
 
   const llmConfig = getLlmConfig();
+
+  const embeddingConfig: EmbeddingConfig | undefined = config
+    ? {
+        provider: config.embeddingProvider,
+        geminiApiKey: config.geminiApiKey,
+        openaiApiKey: config.openaiApiKey,
+        openrouterApiKey: config.openrouterApiKey,
+      }
+    : undefined;
 
   // 1. Get History & Rewrite Query
   const history = await getConversationHistory(userId);
@@ -42,7 +53,13 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
   }
 
   // 2. Vector Search
-  const results = await searchPinecone(searchParam, config?.topK || 5, config?.pineconeApiKey, config?.pineconeIndex);
+  const results = await searchPinecone(
+    searchParam,
+    config?.topK || 5,
+    config?.pineconeApiKey,
+    config?.pineconeIndex,
+    embeddingConfig,
+  );
   const context = results.map(r => r.text).join('\n\n');
 
   // 3. Generate Answer

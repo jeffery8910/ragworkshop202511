@@ -1,5 +1,6 @@
 import { Pinecone } from '@pinecone-database/pinecone';
 import { getEmbedding } from './embedding';
+import type { EmbeddingConfig } from './embedding';
 
 let pinecone: Pinecone | null = null;
 
@@ -29,7 +30,13 @@ export async function getPineconeClient(dynamicApiKey?: string) {
     return pinecone;
 }
 
-export async function searchPinecone(query: string, topK = 5, dynamicApiKey?: string, dynamicIndexName?: string) {
+export async function searchPinecone(
+    query: string,
+    topK = 5,
+    dynamicApiKey?: string,
+    dynamicIndexName?: string,
+    embeddingConfig?: EmbeddingConfig,
+) {
     const apiKey = dynamicApiKey || process.env.PINECONE_API_KEY;
     const indexName = dynamicIndexName || process.env.PINECONE_INDEX_NAME || 'rag-index';
 
@@ -41,7 +48,7 @@ export async function searchPinecone(query: string, topK = 5, dynamicApiKey?: st
     try {
         const client = await getPineconeClient(dynamicApiKey);
         const index = client.index(indexName);
-        const vector = await getEmbedding(query);
+        const vector = await getEmbedding(query, embeddingConfig);
 
         const result = await index.query({
             vector,

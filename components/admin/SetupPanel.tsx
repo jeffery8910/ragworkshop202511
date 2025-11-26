@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings, Save, Database, Key, CheckCircle, AlertCircle, MessageSquare } from 'lucide-react';
+import { Settings, Save, Database, Key, CheckCircle, AlertCircle, MessageSquare, Cpu } from 'lucide-react';
 
 export default function SetupPanel() {
     const [config, setConfig] = useState({
@@ -12,6 +12,7 @@ export default function SetupPanel() {
         GEMINI_API_KEY: '',
         OPENAI_API_KEY: '',
         OPENROUTER_API_KEY: '',
+        EMBEDDING_PROVIDER: 'gemini',
         CHAT_TITLE: '',
         WELCOME_MESSAGE: ''
     });
@@ -19,6 +20,10 @@ export default function SetupPanel() {
     const [message, setMessage] = useState('');
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setConfig({ ...config, [e.target.name]: e.target.value });
+    };
+
+    const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setConfig({ ...config, [e.target.name]: e.target.value });
     };
 
@@ -159,6 +164,31 @@ export default function SetupPanel() {
                                 onChange={handleChange}
                                 className="w-full border rounded p-2 text-sm"
                             />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Embedding Provider Section */}
+                <div className="space-y-4">
+                    <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
+                        <Cpu className="w-4 h-4" /> Embedding Provider
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Provider</label>
+                            <select
+                                name="EMBEDDING_PROVIDER"
+                                value={config.EMBEDDING_PROVIDER}
+                                onChange={handleSelectChange}
+                                className="w-full border rounded p-2 text-sm"
+                            >
+                                <option value="gemini">Google Gemini</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="openrouter">OpenRouter</option>
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                                選擇用於向量嵌入的 AI 服務。Gemini 免費，OpenAI 需付費。
+                            </p>
                         </div>
                     </div>
                 </div>

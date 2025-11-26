@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { ragAnswer } from '@/lib/rag';
 import { getConversationTitle, saveConversationTitle } from '@/lib/features/memory';
 import { generateText } from '@/lib/llm';
+import type { EmbeddingProvider } from '@/lib/vector/embedding';
 
 export async function POST(req: NextRequest) {
     try {
@@ -13,12 +14,22 @@ export async function POST(req: NextRequest) {
 
         // Extract config from cookies
         const cookieStore = await cookies();
+
+        const embeddingProviderCookie = cookieStore.get('EMBEDDING_PROVIDER')?.value;
+        const validEmbeddingProviders: EmbeddingProvider[] = ['gemini', 'openai', 'openrouter'];
+        const embeddingProvider = validEmbeddingProviders.includes(
+            embeddingProviderCookie as EmbeddingProvider,
+        )
+            ? (embeddingProviderCookie as EmbeddingProvider)
+            : undefined;
+
         const config = {
             pineconeApiKey: cookieStore.get('PINECONE_API_KEY')?.value,
             pineconeIndex: cookieStore.get('PINECONE_INDEX_NAME')?.value,
             geminiApiKey: cookieStore.get('GEMINI_API_KEY')?.value,
             openaiApiKey: cookieStore.get('OPENAI_API_KEY')?.value,
             openrouterApiKey: cookieStore.get('OPENROUTER_API_KEY')?.value,
+            embeddingProvider,
             topK: cookieStore.get('RAG_TOP_K')?.value ? parseInt(cookieStore.get('RAG_TOP_K')?.value!) : 5
         };
 
