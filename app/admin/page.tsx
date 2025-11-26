@@ -21,9 +21,12 @@ export default async function AdminPage() {
     ];
 
     const missingKeys = checkKeys.filter(key => {
-        const inEnv = !!process.env[key];
-        const inCookie = !!cookieStore.get(key)?.value;
-        return !inEnv && !inCookie;
+        const envVal = process.env[key]?.trim();
+        const cookieVal = cookieStore.get(key)?.value?.trim();
+        // Check if value is defined and not empty string
+        const hasEnv = !!envVal && envVal.length > 0;
+        const hasCookie = !!cookieVal && cookieVal.length > 0;
+        return !hasEnv && !hasCookie;
     });
 
     return <AdminDashboard missingKeys={missingKeys} />;

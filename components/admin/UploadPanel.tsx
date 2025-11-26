@@ -70,7 +70,7 @@ export default function UploadPanel() {
                     accept=".pdf,.txt,.md"
                 />
                 <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500 mb-2">點擊或拖放 PDF/TXT 檔案至此</p>
+                <p className="text-gray-500 mb-2">點擊此處或拖放 PDF/TXT 檔案</p>
                 <p className="text-xs text-gray-400">支援多檔上傳</p>
             </div>
 
