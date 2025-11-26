@@ -25,6 +25,7 @@ interface Message {
     context?: any[];
     quizData?: QuizData;
     conceptCard?: ConceptCardData;
+    summaryCard?: SummaryCardData;
 }
 
 interface ChatInterfaceProps {
@@ -37,6 +38,13 @@ interface ChatInterfaceProps {
 
 interface ConceptCardData {
     type: 'card';
+    title: string;
+    bullets: string[];
+    highlight?: string;
+}
+
+interface SummaryCardData {
+    type: 'summary';
     title: string;
     bullets: string[];
     highlight?: string;
@@ -156,6 +164,25 @@ function ConceptCard({ data }: { data: ConceptCardData }) {
     );
 }
 
+function SummaryCard({ data }: { data: SummaryCardData }) {
+    return (
+        <div className="border border-gray-200 rounded-lg bg-[#f7f6f3] shadow-sm p-4 my-2">
+            <div className="flex items-center gap-2 mb-2 text-gray-800 font-semibold">
+                <FileText className="w-4 h-4" />
+                {data.title}
+            </div>
+            <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                {data.bullets.map((b, i) => <li key={i}>{b}</li>)}
+            </ul>
+            {data.highlight && (
+                <div className="mt-3 text-xs text-gray-700 bg-white border border-gray-200 rounded p-2">
+                    {data.highlight}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function ChatInterface({
     chatTitle,
     welcomeMessage,
@@ -209,6 +236,7 @@ export default function ChatInterface({
             let answerContent = data.answer;
             let quizData: QuizData | undefined;
             let conceptCard: ConceptCardData | undefined;
+            let summaryCard: SummaryCardData | undefined;
 
             // Try to parse JSON for quiz or card
             try {
@@ -223,6 +251,10 @@ export default function ChatInterface({
                         conceptCard = potentialJson as ConceptCardData;
                         answerContent = answerContent.replace(jsonMatch[0], '').trim();
                         if (!answerContent) answerContent = "為您生成了以下重點卡片：";
+                    } else if (potentialJson.type === 'summary' && Array.isArray(potentialJson.bullets)) {
+                        summaryCard = potentialJson as SummaryCardData;
+                        answerContent = answerContent.replace(jsonMatch[0], '').trim();
+                        if (!answerContent) answerContent = "以下是對話摘要：";
                     }
                 }
             } catch (err) {
@@ -234,7 +266,8 @@ export default function ChatInterface({
                 content: answerContent,
                 context: data.context,
                 quizData,
-                conceptCard
+                conceptCard,
+                summaryCard
             }]);
         } catch (error) {
             setMessages(prev => [...prev, { role: 'assistant', content: '抱歉，系統發生錯誤，請稍後再試。' }]);
@@ -252,7 +285,7 @@ export default function ChatInterface({
         {
             label: '對話摘要',
             icon: FileText,
-            prompt: '請用繁體中文寫出本次對話的 150 字內摘要，條列重點，純文字輸出即可。'
+            prompt: '請用 JSON 回傳本次對話摘要：{"type":"summary","title":"對話摘要","bullets":["重點1","重點2","重點3"],"highlight":"一句提醒"}，請只回傳 JSON，不要 Markdown。'
         },
         {
             label: '概念卡片',
@@ -321,6 +354,7 @@ export default function ChatInterface({
                                     <ReactMarkdown>{msg.content}</ReactMarkdown>
                                     {msg.quizData && <QuizCard data={msg.quizData} />}
                                     {msg.conceptCard && <ConceptCard data={msg.conceptCard} />}
+                                    {msg.summaryCard && <SummaryCard data={msg.summaryCard} />}
                                 </div>
 
                                 {/* Source Citations */}
