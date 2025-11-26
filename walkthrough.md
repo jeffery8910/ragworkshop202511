@@ -52,14 +52,31 @@ npm run dev
 3. 輸入 **「ping」** -> 應回傳 "Pong! 系統運作正常"。
 4. 輸入 **「什麼是極限？」** -> 應觸發 RAG 檢索並回傳答案。
 
-### 後台測試
-1. 進入 `/admin` -> 測試檔案上傳與參數調整。
-2. 進入 `/admin/status` -> 檢查所有服務連線狀態 (全綠燈即正常)。
+### 後台測試 (Admin Dashboard)
+1. **登入**: 進入 `/admin`，輸入密碼 (預設環境變數 `ADMIN_PASSWORD` 或使用動態設定)。
+2. **系統設定 (Setup)**:
+   - 在 **Setup Panel** 填寫 API Keys (Gemini/OpenAI/Pinecone/Mongo)。
+   - 選擇 **Embedding Provider** 與 **Model Name** (支援 Gemini/OpenAI/OpenRouter)。
+   - 設定 **Chat Title** 與 **Welcome Message**。
+   - 點擊 "Save & Connect" 儲存設定 (存於 Cookie)。
+3. **RAG 實驗室 (RAG Lab)**:
+   - 輸入測試問題，觀察 Query Rewrite 結果與檢索到的 Chunks。
+   - 調整 **Top K** 與 **Temperature** 參數，即時查看效果。
+4. **知識庫管理 (Knowledge)**:
+   - 查看 **Knowledge Graph** (2D 向量分佈)。
+   - 使用 **Upload Panel** 拖曳或點擊上傳檔案。
+5. **數據分析 (Analytics)**: 查看系統使用數據。
 
 ### 學生功能測試
 1. 進入 `/student` -> 查看學習儀表板、XP 與錯題分析。
 2. 測試 API: `/api/student/flashcard?topic=微積分` -> 應回傳 JSON 格式的卡片資料。
 
-## 4. 常見問題
+## 4. 進階 RAG 功能 (Advanced RAG)
+- **Auto-Generated Chat Title**: 首次對話時，AI 會根據問題自動生成標題。
+- **Dynamic TopK**: 可在後台動態調整檢索數量 (TopK)，無需重啟伺服器。
+- **Model Switching**: 支援在後台切換 Embedding 與 Chat 模型，並指定具體模型名稱 (如 `gemini-1.5-pro`, `gpt-4o`)。
+
+## 5. 常見問題
 - **Build 失敗？**: 請確認 `.env.local` 是否已填寫正確，或暫時忽略 (本專案已做防呆處理)。
 - **LINE 沒回應？**: 請檢查 Vercel Logs 或 `/admin/status` 確認 Webhook 是否正常。
+- **設定沒生效？**: 請確認是否已點擊 "Save & Connect" 並重新整理頁面。設定儲存於 Cookie，請勿清除瀏覽器 Cookie。
