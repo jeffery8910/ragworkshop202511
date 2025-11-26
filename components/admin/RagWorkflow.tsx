@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import './RagWorkflow.css';
 import {
     Upload,
     Scissors,
@@ -50,6 +51,7 @@ export default function RagWorkflow({ currentAction }: RagWorkflowProps) {
     const [activeStep, setActiveStep] = useState(0);
     const steps = useMemo(() => flows[flow], [flow]);
     const [autoPlay, setAutoPlay] = useState(false);
+    const [pulseStep, setPulseStep] = useState<string | null>(null);
 
     // Simple auto-play simulation
     useEffect(() => {
@@ -61,6 +63,37 @@ export default function RagWorkflow({ currentAction }: RagWorkflowProps) {
     }, [autoPlay, steps.length, activeStep]);
 
     const current = steps[activeStep];
+
+    // Map admin actions to flow steps to create an "interactive" feel
+    useEffect(() => {
+        if (!currentAction) return;
+
+        const lower = currentAction.toLowerCase();
+
+        const pick = (): { flow: FlowKey; id: string } | null => {
+            if (lower.includes('上傳') || lower.includes('檔案')) return { flow: 'upload', id: 'ingest' };
+            if (lower.includes('切片') || lower.includes('分段')) return { flow: 'upload', id: 'chunk' };
+            if (lower.includes('向量') || lower.includes('embedding')) return { flow: 'upload', id: 'embed' };
+            if (lower.includes('索引') || lower.includes('寫入')) return { flow: 'upload', id: 'index' };
+            if (lower.includes('視覺化') || lower.includes('更新向量')) return { flow: 'upload', id: 'ready' };
+
+            if (lower.includes('提問') || lower.includes('查詢') || lower.includes('檢索')) return { flow: 'query', id: 'retrieve' };
+            if (lower.includes('重寫')) return { flow: 'query', id: 'rewrite' };
+            if (lower.includes('摘要') || lower.includes('生成')) return { flow: 'query', id: 'generate' };
+            return null;
+        };
+
+        const mapped = pick();
+        if (mapped) {
+            setFlow(mapped.flow);
+            const idx = flows[mapped.flow].findIndex(s => s.id === mapped.id);
+            if (idx >= 0) {
+                setActiveStep(idx);
+                setPulseStep(mapped.id);
+                setTimeout(() => setPulseStep(null), 1200);
+            }
+        }
+    }, [currentAction]);
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100">
@@ -103,8 +136,9 @@ export default function RagWorkflow({ currentAction }: RagWorkflowProps) {
                             <button
                                 key={step.id}
                                 onClick={() => setActiveStep(idx)}
-                                className={`group w-full text-left p-3 rounded-lg border transition-colors h-full
-                                    ${active ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 bg-white hover:border-blue-200'}`}
+                        className={`group w-full text-left p-3 rounded-lg border transition-colors h-full
+                                    ${active ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 bg-white hover:border-blue-200'}
+                                    ${pulseStep === step.id ? 'ring-2 ring-blue-300 pulse' : ''}`}
                             >
                                 <div className="flex items-center gap-2 mb-1">
                                     <Icon className={`w-4 h-4 ${active ? 'text-blue-600' : 'text-gray-500'}`} />

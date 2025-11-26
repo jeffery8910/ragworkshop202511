@@ -63,7 +63,10 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                 : 'bg-purple-500 hover:bg-purple-700 hover:scale-150'
                         }`}
                         style={{ left: `${v.x}%`, top: `${v.y}%` }}
-                        onClick={() => setSelected(v)}
+                        onClick={() => {
+                            setSelected(v);
+                            onAction?.(`檢視節點 ${v.id}`);
+                        }}
                         title={`ID: ${v.id} | ${v.title} (${v.source})`}
                     />
                 ))}

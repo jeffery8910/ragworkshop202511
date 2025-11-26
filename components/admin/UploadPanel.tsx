@@ -27,12 +27,15 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
         e.stopPropagation();
         setDragActive(false);
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            setFiles(Array.from(e.dataTransfer.files));
+            const picked = Array.from(e.dataTransfer.files);
+            setFiles(picked);
+            onAction?.('已選擇檔案，準備上傳');
         }
     };
 
     const handleUpload = async () => {
         setUploading(true);
+        onAction?.('開始上傳/向量化');
         // TODO: Implement actual upload logic to API
         await new Promise(resolve => setTimeout(resolve, 2000));
         setUploading(false);
@@ -47,7 +50,9 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            setFiles(Array.from(e.target.files));
+            const picked = Array.from(e.target.files);
+            setFiles(picked);
+            onAction?.('已選擇檔案，準備上傳');
         }
     };
 
