@@ -171,9 +171,9 @@ export default function SetupPanel() {
                 {/* Embedding Provider Section */}
                 <div className="space-y-4">
                     <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <Cpu className="w-4 h-4" /> Embedding Provider
+                        <Cpu className="w-4 h-4" /> 模型設定 (Model Settings)
                     </h3>
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Provider</label>
                             <select
@@ -186,9 +186,28 @@ export default function SetupPanel() {
                                 <option value="openai">OpenAI</option>
                                 <option value="openrouter">OpenRouter</option>
                             </select>
-                            <p className="text-xs text-gray-500 mt-1">
-                                選擇用於向量嵌入的 AI 服務。Gemini 免費，OpenAI 需付費。
-                            </p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Model Name (Optional)</label>
+                            <input
+                                type="text"
+                                name="EMBEDDING_MODEL"
+                                value={(config as any).EMBEDDING_MODEL || ''}
+                                onChange={handleChange}
+                                placeholder="text-embedding-004"
+                                className="w-full border rounded p-2 text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Chat Model Name (Optional)</label>
+                            <input
+                                type="text"
+                                name="CHAT_MODEL"
+                                value={(config as any).CHAT_MODEL || ''}
+                                onChange={handleChange}
+                                placeholder="gemini-1.5-flash"
+                                className="w-full border rounded p-2 text-sm"
+                            />
                         </div>
                     </div>
                 </div>

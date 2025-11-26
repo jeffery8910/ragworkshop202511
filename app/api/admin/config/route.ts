@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
             'MONGODB_URI', 'MONGODB_DB_NAME',
             'PINECONE_API_KEY', 'PINECONE_INDEX_NAME',
             'GEMINI_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY',
-            'EMBEDDING_PROVIDER',
+            'EMBEDDING_PROVIDER', 'EMBEDDING_MODEL', 'CHAT_MODEL',
             'CHAT_TITLE', 'WELCOME_MESSAGE',
             'RAG_TOP_K',
             'TEMPERATURE', 'PROMPT_TEMPLATE'

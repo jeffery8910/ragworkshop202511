@@ -36,21 +36,41 @@ export default function UploadPanel() {
         alert('Upload Complete!');
     };
 
+    const onButtonClick = () => {
+        document.getElementById('file-upload')?.click();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setFiles(Array.from(e.target.files));
+        }
+    };
+
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="bg-white p-6 rounded-lg shadow-md h-full">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Upload className="w-5 h-5" /> 知識庫上傳
             </h2>
 
             <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
                     }`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
+                onClick={onButtonClick}
             >
-                <p className="text-gray-500 mb-2">拖放 PDF 或 TXT 檔案至此</p>
+                <input
+                    type="file"
+                    id="file-upload"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileChange}
+                    accept=".pdf,.txt,.md"
+                />
+                <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-500 mb-2">點擊或拖放 PDF/TXT 檔案至此</p>
                 <p className="text-xs text-gray-400">支援多檔上傳</p>
             </div>
 

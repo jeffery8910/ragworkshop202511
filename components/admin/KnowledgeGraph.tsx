@@ -46,7 +46,7 @@ export default function KnowledgeGraph() {
                 </button>
             </div>
 
-            <div className="relative w-full h-64 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mb-4">
+            <div className="relative w-full h-[400px] bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mb-4">
                 {/* Simple Scatter Plot Visualization */}
                 {vectors.map((v) => (
                     <div

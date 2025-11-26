@@ -69,9 +69,9 @@ export default function EnvCheck({ missingKeys }: EnvCheckProps) {
                                 <p className="text-xs text-gray-500 mb-2">至少需要填寫一個 LLM API Key</p>
                                 <ul className="list-disc list-inside space-y-1 text-gray-600">
                                     {optionalKeys.map(key => (
-                                        <li key={key} className={missingKeys.includes(key) ? "text-orange-500" : "text-green-600 flex items-center gap-1"}>
+                                        <li key={key} className={missingKeys.includes(key) ? "text-gray-400" : "text-green-600 flex items-center gap-1"}>
                                             {missingKeys.includes(key) ? (
-                                                <span>{key} (未設定)</span>
+                                                <span>{key} (未設定 - 使用預設值或忽略)</span>
                                             ) : (
                                                 <span className="flex items-center gap-1"><CheckCircle className="w-3 h-3" /> {key}</span>
                                             )}
