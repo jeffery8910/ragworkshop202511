@@ -13,6 +13,8 @@ export default function SetupPanel() {
         OPENAI_API_KEY: '',
         OPENROUTER_API_KEY: '',
         EMBEDDING_PROVIDER: 'gemini',
+        EMBEDDING_MODEL: '',
+        CHAT_MODEL: '',
         CHAT_TITLE: '',
         WELCOME_MESSAGE: ''
     });
@@ -168,10 +170,10 @@ export default function SetupPanel() {
                     </div>
                 </div>
 
-                {/* Embedding Provider Section */}
+                {/* Embedding Settings Section */}
                 <div className="space-y-4">
                     <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <Cpu className="w-4 h-4" /> 模型設定 (Model Settings)
+                        <Cpu className="w-4 h-4" /> Embedding 設定 (Embedding Settings)
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -188,26 +190,50 @@ export default function SetupPanel() {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Model Name (Optional)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Embedding Model Name (Optional)
+                                <a href="https://ai.google.dev/gemini-api/docs/models/gemini" target="_blank" rel="noopener noreferrer" className="ml-2 text-blue-500 text-xs hover:underline">Gemini Models</a>
+                                <span className="mx-1 text-gray-300">|</span>
+                                <a href="https://platform.openai.com/docs/models/embeddings" target="_blank" rel="noopener noreferrer" className="text-blue-500 text-xs hover:underline">OpenAI Models</a>
+                            </label>
                             <input
                                 type="text"
                                 name="EMBEDDING_MODEL"
-                                value={(config as any).EMBEDDING_MODEL || ''}
+                                value={config.EMBEDDING_MODEL}
                                 onChange={handleChange}
                                 placeholder="text-embedding-004"
                                 className="w-full border rounded p-2 text-sm"
                             />
                         </div>
+                    </div>
+                </div>
+
+                {/* Chat Model Settings Section */}
+                <div className="space-y-4">
+                    <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
+                        <MessageSquare className="w-4 h-4" /> 聊天模型設定 (Chat Model Settings)
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Chat Model Name (Optional)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Chat Model Name (Optional)
+                                <a href="https://ai.google.dev/gemini-api/docs/models/gemini" target="_blank" rel="noopener noreferrer" className="ml-2 text-blue-500 text-xs hover:underline">Gemini Models</a>
+                                <span className="mx-1 text-gray-300">|</span>
+                                <a href="https://platform.openai.com/docs/models" target="_blank" rel="noopener noreferrer" className="text-blue-500 text-xs hover:underline">OpenAI Models</a>
+                                <span className="mx-1 text-gray-300">|</span>
+                                <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="text-blue-500 text-xs hover:underline">OpenRouter Models</a>
+                            </label>
                             <input
                                 type="text"
                                 name="CHAT_MODEL"
-                                value={(config as any).CHAT_MODEL || ''}
+                                value={config.CHAT_MODEL}
                                 onChange={handleChange}
                                 placeholder="gemini-1.5-flash"
                                 className="w-full border rounded p-2 text-sm"
                             />
+                            <p className="text-xs text-gray-500 mt-1">
+                                若未填寫，系統將使用預設模型 (Gemini 1.5 Flash 或 GPT-3.5 Turbo)。
+                            </p>
                         </div>
                     </div>
                 </div>
