@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, BookOpen, Home } from 'lucide-react';
+import { Send, Bot, User, Loader2, BookOpen, Home, Sparkles, ListChecks, FileText } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 
@@ -24,6 +24,7 @@ interface Message {
     content: string;
     context?: any[];
     quizData?: QuizData;
+    conceptCard?: ConceptCardData;
 }
 
 interface ChatInterfaceProps {
@@ -32,6 +33,13 @@ interface ChatInterfaceProps {
     initialUserId?: string;
     initialUserName?: string;
     initialUserPicture?: string;
+}
+
+interface ConceptCardData {
+    type: 'card';
+    title: string;
+    bullets: string[];
+    highlight?: string;
 }
 
 function QuizCard({ data }: { data: QuizData }) {
@@ -129,6 +137,25 @@ function QuizCard({ data }: { data: QuizData }) {
     );
 }
 
+function ConceptCard({ data }: { data: ConceptCardData }) {
+    return (
+        <div className="bg-white border border-amber-200 rounded-xl p-4 shadow-sm my-2">
+            <div className="flex items-center gap-2 mb-2 text-amber-800 font-semibold">
+                <Sparkles className="w-4 h-4" />
+                {data.title}
+            </div>
+            <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                {data.bullets.map((b, i) => <li key={i}>{b}</li>)}
+            </ul>
+            {data.highlight && (
+                <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    {data.highlight}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function ChatInterface({
     chatTitle,
     welcomeMessage,
@@ -157,8 +184,11 @@ export default function ChatInterface({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() || loading) return;
+        await sendMessage(input);
+    };
 
-        const userMsg = input;
+    const sendMessage = async (text: string) => {
+        const userMsg = text;
         setInput('');
         setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
         setLoading(true);
@@ -178,29 +208,33 @@ export default function ChatInterface({
 
             let answerContent = data.answer;
             let quizData: QuizData | undefined;
+            let conceptCard: ConceptCardData | undefined;
 
-            // Try to parse JSON if it looks like a quiz
+            // Try to parse JSON for quiz or card
             try {
                 const jsonMatch = typeof answerContent === 'string' ? answerContent.match(/\{[\s\S]*\}/) : null;
                 if (jsonMatch) {
                     const potentialJson = JSON.parse(jsonMatch[0]);
                     if (potentialJson.type === 'quiz' && Array.isArray(potentialJson.questions)) {
                         quizData = potentialJson as QuizData;
-                        // Remove the JSON from the displayed text content if you want,
-                        // or keep it as a fallback. Here we'll hide it if successfully parsed.
                         answerContent = answerContent.replace(jsonMatch[0], '').trim();
                         if (!answerContent) answerContent = "為您生成了以下測驗：";
+                    } else if (potentialJson.type === 'card' && Array.isArray(potentialJson.bullets)) {
+                        conceptCard = potentialJson as ConceptCardData;
+                        answerContent = answerContent.replace(jsonMatch[0], '').trim();
+                        if (!answerContent) answerContent = "為您生成了以下重點卡片：";
                     }
                 }
             } catch (err) {
-                console.log('Failed to parse quiz JSON', err);
+                console.log('Failed to parse structured JSON', err);
             }
 
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: answerContent,
                 context: data.context,
-                quizData
+                quizData,
+                conceptCard
             }]);
         } catch (error) {
             setMessages(prev => [...prev, { role: 'assistant', content: '抱歉，系統發生錯誤，請稍後再試。' }]);
@@ -208,6 +242,24 @@ export default function ChatInterface({
             setLoading(false);
         }
     };
+
+    const quickActions = [
+        {
+            label: '生成測驗 JSON',
+            icon: ListChecks,
+            prompt: '請根據目前的對話或使用者最後一個問題，輸出一份 JSON 格式的測驗（type:"quiz"，至少 3 題，含 options、answer、explanation）。請只回傳 JSON，不要加 Markdown。'
+        },
+        {
+            label: '對話摘要',
+            icon: FileText,
+            prompt: '請用繁體中文寫出本次對話的 150 字內摘要，條列重點，純文字輸出即可。'
+        },
+        {
+            label: '概念卡片',
+            icon: Sparkles,
+            prompt: '請將目前主題整理為 JSON 卡片：{ "type":"card", "title":"主題", "bullets":["重點1","重點2","重點3"], "highlight":"一句關鍵提醒" }，請只回傳 JSON，不要 Markdown。'
+        }
+    ];
 
     return (
         <div className="flex h-screen bg-gray-50">
@@ -268,6 +320,7 @@ export default function ChatInterface({
                                     }`}>
                                     <ReactMarkdown>{msg.content}</ReactMarkdown>
                                     {msg.quizData && <QuizCard data={msg.quizData} />}
+                                    {msg.conceptCard && <ConceptCard data={msg.conceptCard} />}
                                 </div>
 
                                 {/* Source Citations */}
@@ -296,6 +349,25 @@ export default function ChatInterface({
                         </div>
                     )}
                     <div ref={messagesEndRef} />
+                </div>
+
+                {/* Quick actions */}
+                <div className="px-4 pb-2 flex flex-wrap gap-2 bg-white border-t border-b">
+                    {quickActions.map((action) => {
+                        const Icon = action.icon;
+                        return (
+                            <button
+                                key={action.label}
+                                type="button"
+                                onClick={() => sendMessage(action.prompt)}
+                                className="flex items-center gap-1 text-xs px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700"
+                                disabled={loading}
+                            >
+                                <Icon className="w-4 h-4" />
+                                {action.label}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {/* Input Area */}
