@@ -11,7 +11,8 @@ export default function ConfigPanel({ initialConfig }: ConfigPanelProps) {
     const [config, setConfig] = useState({
         temperature: parseFloat(initialConfig['TEMPERATURE'] || '0.7'),
         promptTemplate: initialConfig['PROMPT_TEMPLATE'] || '',
-        topK: parseInt(initialConfig['RAG_TOP_K'] || '5')
+        topK: parseInt(initialConfig['RAG_TOP_K'] || '5'),
+        n8nWebhook: initialConfig['N8N_WEBHOOK_URL'] || ''
     });
 
     const handleSave = async () => {
@@ -22,7 +23,8 @@ export default function ConfigPanel({ initialConfig }: ConfigPanelProps) {
                 body: JSON.stringify({
                     RAG_TOP_K: config.topK,
                     TEMPERATURE: config.temperature,
-                    PROMPT_TEMPLATE: config.promptTemplate
+                    PROMPT_TEMPLATE: config.promptTemplate,
+                    N8N_WEBHOOK_URL: config.n8nWebhook
                 })
             });
             if (!res.ok) throw new Error('Failed to save');
@@ -67,6 +69,21 @@ export default function ConfigPanel({ initialConfig }: ConfigPanelProps) {
                         className="w-full border rounded p-2 h-24 text-sm"
                         placeholder="預設系統提示詞..."
                     />
+                </div>
+
+                <div className="pt-4 border-t">
+                    <h3 className="text-sm font-bold text-gray-800 mb-3">N8N 自動化整合</h3>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">N8N Webhook URL</label>
+                    <input
+                        type="text"
+                        value={config.n8nWebhook}
+                        onChange={e => setConfig({ ...config, n8nWebhook: e.target.value })}
+                        placeholder="https://your-n8n-instance.com/webhook/..."
+                        className="w-full border rounded p-2 text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                        設置此 URL 以啟用 N8N 工作流整合 (例如：自動觸發資料處理或通知)
+                    </p>
                 </div>
 
                 <button

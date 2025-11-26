@@ -1,16 +1,40 @@
 import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/db/mongo';
 import { getPineconeClient } from '@/lib/vector/pinecone';
-import { generateText, getActiveProvider } from '@/lib/llm';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
+import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+    const cookieStore = await cookies();
+
+    // Helper to get config value (Env or Cookie)
+    const getConfig = (key: string) => process.env[key] || cookieStore.get(key)?.value || '';
+
     const status = {
         mongo: { status: 'unknown', latency: 0, message: '' },
-        pinecone: { status: 'unknown', latency: 0, message: '' },
-        llm: { status: 'unknown', latency: 0, message: '' },
-        line: { status: 'unknown', latency: 0, message: '' }
+        pinecone: {
+            apiKey: !!getConfig('PINECONE_API_KEY'),
+            indexName: !!getConfig('PINECONE_INDEX_NAME'),
+            connection: { status: 'unknown', latency: 0, message: '' }
+        },
+        llm: {
+            gemini: { status: 'unknown', latency: 0, message: '' },
+            openai: { status: 'unknown', latency: 0, message: '' },
+            openrouter: { status: 'unknown', latency: 0, message: '' }
+        },
+        line: {
+            messaging: {
+                secret: !!getConfig('LINE_CHANNEL_SECRET'),
+                token: !!getConfig('LINE_CHANNEL_ACCESS_TOKEN')
+            },
+            login: {
+                id: !!getConfig('LINE_LOGIN_CHANNEL_ID'),
+                secret: !!getConfig('LINE_LOGIN_CHANNEL_SECRET')
+            }
+        }
     };
 
     // Helper to measure latency
@@ -20,7 +44,7 @@ export async function GET() {
             await fn();
             return { status: 'ok', latency: Date.now() - start, message: 'Connected' };
         } catch (e: any) {
-            return { status: 'error', latency: Date.now() - start, message: e.message || 'Unknown error' };
+            return { status: 'error', latency: Date.now() - start, message: e.message || 'Error' };
         }
     };
 
@@ -30,31 +54,53 @@ export async function GET() {
         await client.db('admin').command({ ping: 1 });
     });
 
-    // 2. Check Pinecone
-    status.pinecone = await measure(async () => {
-        const pinecone = await getPineconeClient();
-        await pinecone.listIndexes();
-    });
-
-    // 3. Check LLM
-    status.llm = await measure(async () => {
-        const provider = getActiveProvider();
-        await generateText('ping');
-        return `Provider: ${provider}`; // Pass provider name if successful
-    });
-    if (status.llm.status === 'ok' && typeof status.llm.message !== 'string') {
-        // Fix message if it returned object (not needed here but good safety)
-        status.llm.message = `Connected (${getActiveProvider()})`;
-    } else if (status.llm.status === 'ok') {
-        status.llm.message = `Connected (${getActiveProvider()})`;
+    // 2. Check Pinecone Connection
+    if (status.pinecone.apiKey) {
+        status.pinecone.connection = await measure(async () => {
+            const pinecone = await getPineconeClient();
+            await pinecone.listIndexes();
+        });
+    } else {
+        status.pinecone.connection = { status: 'error', latency: 0, message: 'Missing API Key' };
     }
 
-    // 4. Check LINE
-    const cookieStore = await (await import('next/headers')).cookies();
-    if (process.env.LINE_CHANNEL_SECRET || cookieStore.get('LINE_CHANNEL_SECRET')) {
-        status.line = { status: 'ok', latency: 0, message: 'Credentials configured' };
+    // 3. Check LLMs individually
+
+    // Gemini
+    const geminiKey = getConfig('GEMINI_API_KEY');
+    if (geminiKey) {
+        status.llm.gemini = await measure(async () => {
+            const genAI = new GoogleGenerativeAI(geminiKey);
+            const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+            await model.generateContent('ping');
+        });
     } else {
-        status.line = { status: 'error', latency: 0, message: 'Missing credentials' };
+        status.llm.gemini = { status: 'missing', latency: 0, message: 'Key not set' };
+    }
+
+    // OpenAI
+    const openaiKey = getConfig('OPENAI_API_KEY');
+    if (openaiKey) {
+        status.llm.openai = await measure(async () => {
+            const openai = new OpenAI({ apiKey: openaiKey });
+            await openai.models.list();
+        });
+    } else {
+        status.llm.openai = { status: 'missing', latency: 0, message: 'Key not set' };
+    }
+
+    // OpenRouter
+    const openrouterKey = getConfig('OPENROUTER_API_KEY');
+    if (openrouterKey) {
+        status.llm.openrouter = await measure(async () => {
+            const openai = new OpenAI({
+                apiKey: openrouterKey,
+                baseURL: 'https://openrouter.ai/api/v1'
+            });
+            await openai.models.list();
+        });
+    } else {
+        status.llm.openrouter = { status: 'missing', latency: 0, message: 'Key not set' };
     }
 
     return NextResponse.json(status);

@@ -23,6 +23,7 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
         { id: 'rag-lab', label: 'RAG 實驗室 (Lab)', icon: FlaskConical },
         { id: 'knowledge', label: '知識庫管理 (Knowledge)', icon: Database },
         { id: 'analytics', label: '數據分析 (Analytics)', icon: BarChart3 },
+        { id: 'advanced', label: '進階設定 (Advanced)', icon: Settings },
     ];
 
     return (
@@ -53,6 +54,11 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <EnvCheck missingKeys={missingKeys} />
                         <SetupPanel initialConfig={initialConfig} />
+                    </div>
+                )}
+
+                {activeTab === 'advanced' && (
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <ConfigPanel initialConfig={initialConfig} />
                     </div>
                 )}
