@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Settings, Database, CheckCircle, AlertCircle, MessageSquare, Cpu, RefreshCw, Smartphone, Lock } from 'lucide-react';
+import { Settings, Database, CheckCircle, AlertCircle, Cpu, RefreshCw, Smartphone, Lock } from 'lucide-react';
 
 interface SetupPanelProps {
     initialConfig: Record<string, string>;
@@ -23,9 +23,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         LINE_LOGIN_CHANNEL_SECRET: initialConfig['LINE_LOGIN_CHANNEL_SECRET'] || '',
         EMBEDDING_PROVIDER: initialConfig['EMBEDDING_PROVIDER'] || 'gemini',
         EMBEDDING_MODEL: initialConfig['EMBEDDING_MODEL'] || '',
-        CHAT_MODEL: initialConfig['CHAT_MODEL'] || '',
-        CHAT_TITLE: initialConfig['CHAT_TITLE'] || '',
-        WELCOME_MESSAGE: initialConfig['WELCOME_MESSAGE'] || ''
+        CHAT_MODEL: initialConfig['CHAT_MODEL'] || ''
     });
 
     const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -235,37 +233,6 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                 name="LINE_LOGIN_CHANNEL_SECRET"
                                 value={config.LINE_LOGIN_CHANNEL_SECRET}
                                 onChange={handleChange}
-                                className="w-full border rounded p-2 text-sm"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Chat Customization Section */}
-                <div className="space-y-4">
-                    <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <MessageSquare className="w-4 h-4" /> 聊天介面客製
-                    </h3>
-                    <div className="grid grid-cols-1 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Chat Title</label>
-                            <input
-                                type="text"
-                                name="CHAT_TITLE"
-                                value={config.CHAT_TITLE}
-                                onChange={handleChange}
-                                placeholder="RAG 工作坊"
-                                className="w-full border rounded p-2 text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Welcome Message</label>
-                            <input
-                                type="text"
-                                name="WELCOME_MESSAGE"
-                                value={config.WELCOME_MESSAGE}
-                                onChange={handleChange}
-                                placeholder="你好！我是你的 AI 學習助手。"
                                 className="w-full border rounded p-2 text-sm"
                             />
                         </div>

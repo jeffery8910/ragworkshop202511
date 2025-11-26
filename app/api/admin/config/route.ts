@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
             'LINE_LOGIN_CHANNEL_ID', 'LINE_LOGIN_CHANNEL_SECRET',
             'GEMINI_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY',
             'EMBEDDING_PROVIDER', 'EMBEDDING_MODEL', 'CHAT_MODEL',
-            'CHAT_TITLE', 'WELCOME_MESSAGE',
             'RAG_TOP_K',
             'TEMPERATURE', 'PROMPT_TEMPLATE'
         ];
