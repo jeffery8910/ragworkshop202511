@@ -58,6 +58,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ...result, newTitle });
     } catch (error) {
         console.error('Chat API Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
     }
 }

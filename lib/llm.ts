@@ -33,7 +33,7 @@ export async function generateText(prompt: string, config?: Partial<LLMConfig>):
     for (const provider of providers) {
         try {
             // Check if API key exists for this provider before trying
-            if (!hasApiKey(provider)) {
+            if (!hasApiKey(provider, config)) {
                 continue;
             }
 
@@ -43,14 +43,14 @@ export async function generateText(prompt: string, config?: Partial<LLMConfig>):
                 // For fallback, we might want to ignore the specific model if it was intended for another provider
                 // But if it's the primary provider, we respect the config
                 const model = provider === primaryProvider ? config?.model : undefined;
-                return await generateGemini(prompt, model);
+                return await generateGemini(prompt, model, config?.apiKey);
             } else if (provider === 'openai') {
                 const model = provider === primaryProvider ? config?.model : undefined;
-                return await generateOpenAI(prompt, model, false);
+                return await generateOpenAI(prompt, model, false, config?.apiKey);
             } else {
                 // OpenRouter
                 const model = provider === primaryProvider ? config?.model : undefined;
-                return await generateOpenAI(prompt, model, true);
+                return await generateOpenAI(prompt, model, true, config?.apiKey);
             }
         } catch (error) {
             console.warn(`LLM Generation failed for provider ${provider}:`, error);
@@ -59,20 +59,29 @@ export async function generateText(prompt: string, config?: Partial<LLMConfig>):
         }
     }
 
-    return `[AI Generation Failed: ${lastError?.message || 'No providers available'}]`;
+    if (!lastError) {
+        return '[AI Error: No AI model providers are configured. Please set up an API key in the Admin Panel.]';
+    }
+
+    return `[AI Generation Failed: ${lastError.message}]`;
 }
 
-function hasApiKey(provider: LLMProvider): boolean {
+function hasApiKey(provider: LLMProvider, config?: Partial<LLMConfig>): boolean {
+    // Check config first if it matches the provider
+    if (config?.provider === provider && config.apiKey) return true;
+
+    // Then check specific config keys if passed (not implemented in interface but good practice)
+    // Or check environment variables
     switch (provider) {
-        case 'gemini': return !!process.env.GEMINI_API_KEY;
-        case 'openai': return !!process.env.OPENAI_API_KEY;
-        case 'openrouter': return !!process.env.OPENROUTER_API_KEY;
+        case 'gemini': return !!process.env.GEMINI_API_KEY || (config?.provider === 'gemini' && !!config.apiKey);
+        case 'openai': return !!process.env.OPENAI_API_KEY || (config?.provider === 'openai' && !!config.apiKey);
+        case 'openrouter': return !!process.env.OPENROUTER_API_KEY || (config?.provider === 'openrouter' && !!config.apiKey);
         default: return false;
     }
 }
 
-async function generateGemini(prompt: string, modelName = 'gemini-1.5-flash') {
-    const apiKey = process.env.GEMINI_API_KEY;
+async function generateGemini(prompt: string, modelName = 'gemini-1.5-flash', apiKeyOverride?: string) {
+    const apiKey = apiKeyOverride || process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
 
     // Handle OpenRouter style model names if passed to Gemini SDK
@@ -86,8 +95,8 @@ async function generateGemini(prompt: string, modelName = 'gemini-1.5-flash') {
     return result.response.text();
 }
 
-async function generateOpenAI(prompt: string, modelName?: string, isOpenRouter = false) {
-    const apiKey = isOpenRouter ? process.env.OPENROUTER_API_KEY : process.env.OPENAI_API_KEY;
+async function generateOpenAI(prompt: string, modelName?: string, isOpenRouter = false, apiKeyOverride?: string) {
+    const apiKey = apiKeyOverride || (isOpenRouter ? process.env.OPENROUTER_API_KEY : process.env.OPENAI_API_KEY);
     if (!apiKey) throw new Error(isOpenRouter ? 'OPENROUTER_API_KEY is not set' : 'OPENAI_API_KEY is not set');
 
     const baseURL = isOpenRouter ? 'https://openrouter.ai/api/v1' : undefined;
