@@ -9,6 +9,7 @@ import EnvCheck from '@/components/admin/EnvCheck';
 import SetupPanel from '@/components/admin/SetupPanel';
 import RagLabPanel from '@/components/admin/RagLabPanel';
 import KnowledgeGraph from '@/components/admin/KnowledgeGraph';
+import RagWorkflow from '@/components/admin/RagWorkflow';
 
 interface AdminDashboardProps {
     missingKeys: string[];
@@ -70,9 +71,10 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                 )}
 
                 {activeTab === 'knowledge' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-6xl">
                         <UploadPanel />
                         <KnowledgeGraph />
+                        <RagWorkflow />
                     </div>
                 )}
 
