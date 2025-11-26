@@ -31,13 +31,22 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
     const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('');
     const [testingProvider, setTestingProvider] = useState<string | null>(null);
-    const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
+    const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({
+        gemini: [],
+        openai: [],
+        openrouter: [],
+    });
+    const [chatProvider, setChatProvider] = useState<'gemini' | 'openai' | 'openrouter'>(
+        initialConfig['GEMINI_API_KEY'] ? 'gemini' :
+            initialConfig['OPENAI_API_KEY'] ? 'openai' :
+                initialConfig['OPENROUTER_API_KEY'] ? 'openrouter' : 'gemini'
+    );
 
     const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setConfig({ ...config, [e.target.name]: e.target.value });
     };
 
-    const handleTestConnection = async (provider: string) => {
+    const handleTestConnection = async (provider: 'gemini' | 'openai' | 'openrouter') => {
         setTestingProvider(provider);
         setMessage('');
         let apiKey = '';
@@ -292,27 +301,6 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             >
                                 測試連線 & 獲取模型
                             </button>
-                            {availableModels['gemini']?.length > 0 ? (
-                                <select
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
-                                    className="w-full border rounded p-2 text-sm bg-white"
-                                >
-                                    {availableModels['gemini'].map(m => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <input
-                                    type="text"
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
-                                    placeholder="gemini-1.5-flash"
-                                    className="w-full border rounded p-2 text-sm"
-                                />
-                            )}
                         </div>
 
                         {/* OpenAI */}
@@ -337,27 +325,6 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             >
                                 測試連線 & 獲取模型
                             </button>
-                            {availableModels['openai']?.length > 0 ? (
-                                <select
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
-                                    className="w-full border rounded p-2 text-sm bg-white"
-                                >
-                                    {availableModels['openai'].map(m => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <input
-                                    type="text"
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
-                                    placeholder="gpt-4o"
-                                    className="w-full border rounded p-2 text-sm"
-                                />
-                            )}
                         </div>
 
                         {/* OpenRouter */}
@@ -382,27 +349,62 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             >
                                 測試連線 & 獲取模型
                             </button>
-                            {availableModels['openrouter']?.length > 0 ? (
+                        </div>
+                    </div>
+
+                    {/* Chat Model Selection */}
+                    <div className="p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-800">選擇聊天模型</span>
+                            <span className="text-xs text-gray-500">(先填入對應的 API Key 並點「測試連線」取得模型列表)</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                            <div>
+                                <label className="block text-xs text-gray-600 mb-1">供應商</label>
                                 <select
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
+                                    value={chatProvider}
+                                    onChange={e => setChatProvider(e.target.value as any)}
                                     className="w-full border rounded p-2 text-sm bg-white"
                                 >
-                                    {availableModels['openrouter'].map(m => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
+                                    <option value="gemini">Google Gemini</option>
+                                    <option value="openai">OpenAI</option>
+                                    <option value="openrouter">OpenRouter</option>
                                 </select>
-                            ) : (
-                                <input
-                                    type="text"
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
-                                    placeholder="anthropic/claude-3.5-sonnet"
-                                    className="w-full border rounded p-2 text-sm"
-                                />
-                            )}
+                            </div>
+                            <div className="md:col-span-2 flex gap-2 items-end">
+                                <button
+                                    type="button"
+                                    onClick={() => handleTestConnection(chatProvider)}
+                                    disabled={testingProvider === chatProvider}
+                                    className="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {testingProvider === chatProvider ? '測試中...' : '測試連線並取得模型'}
+                                </button>
+                                <div className="flex-1">
+                                    <label className="block text-xs text-gray-600 mb-1">可用模型</label>
+                                    {availableModels[chatProvider]?.length ? (
+                                        <select
+                                            name="CHAT_MODEL"
+                                            value={config.CHAT_MODEL}
+                                            onChange={handleChange}
+                                            className="w-full border rounded p-2 text-sm bg-white"
+                                        >
+                                            {availableModels[chatProvider].map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            name="CHAT_MODEL"
+                                            value={config.CHAT_MODEL}
+                                            onChange={handleChange}
+                                            placeholder="尚未取得模型，請先測試連線"
+                                            className="w-full border rounded p-2 text-sm"
+                                        />
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
