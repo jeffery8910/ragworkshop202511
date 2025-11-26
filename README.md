@@ -9,7 +9,7 @@
 
 點擊下方按鈕一鍵部署至 Vercel：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYOUR_GITHUB_USERNAME%2FYOUR_REPO_NAME&env=LINE_CHANNEL_SECRET,LINE_CHANNEL_ACCESS_TOKEN,OPENAI_API_KEY,GEMINI_API_KEY,PINECONE_API_KEY,PINECONE_INDEX_NAME,MONGODB_URI,MONGODB_DB_NAME,N8N_WEBHOOK_URL)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjeffery8910%2Fragworkshop202511&env=LINE_CHANNEL_SECRET,LINE_CHANNEL_ACCESS_TOKEN,OPENAI_API_KEY,GEMINI_API_KEY,PINECONE_API_KEY,PINECONE_INDEX_NAME,MONGODB_URI,MONGODB_DB_NAME,N8N_WEBHOOK_URL)
 
 > **注意**：
 > 1. 請先將本專案 Push 至您的 GitHub Repository。
