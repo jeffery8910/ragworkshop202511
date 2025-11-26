@@ -9,12 +9,13 @@
 
 點擊下方按鈕一鍵部署至 Vercel：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjeffery8910%2Fragworkshop202511&env=MONGODB_URI,ADMIN_PASSWORD)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjeffery8910%2Fragworkshop202511&env=ADMIN_PASSWORD)
 
 > **注意**：
 > 1. 請先將本專案 Push 至您的 GitHub Repository。
-> 2. 點擊按鈕進行部署，建議至少填寫 `MONGODB_URI` 與 `ADMIN_PASSWORD`。
-> 3. 其他設定 (如 Pinecone, AI Key) 可於部署後至 Vercel Settings 或 Admin 後台補填。
+> 2. 點擊按鈕進行部署，建議至少填寫 `ADMIN_PASSWORD`。
+> 3. **資料庫設定**：部署後，建議至 Vercel Marketplace 安裝 **MongoDB Atlas** Integration，它會自動設定 `MONGODB_URI`。
+> 4. 其他設定 (如 Pinecone, AI Key) 可於部署後至 Vercel Settings 或 Admin 後台補填。
 
 ### 2. 部署 Backend (n8n) 至 Render
 
