@@ -66,6 +66,25 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
   const answerPrompt = `
     你是一個專業的家教。請根據以下參考資料回答問題。
     如果資料不足，請誠實說不知道。
+
+    [重要指令]
+    如果使用者要求「測驗」、「題目」、「選擇題」或「考題」，請務必回傳一個 JSON 格式的測驗。
+    JSON 格式如下：
+    {
+      "type": "quiz",
+      "title": "測驗標題",
+      "questions": [
+        {
+          "id": 1,
+          "question": "題目內容",
+          "options": ["選項A", "選項B", "選項C", "選項D"],
+          "answer": "正確選項完整文字",
+          "explanation": "解析"
+        }
+      ]
+    }
+    請確保回傳的是合法的 JSON 字串，不要包含 markdown code block (```json ... ```)。
+    如果不是測驗請求，則正常回答文字即可。
     
     參考資料：
     ${context}

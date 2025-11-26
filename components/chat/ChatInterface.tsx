@@ -4,15 +4,125 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2, BookOpen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
+interface QuizQuestion {
+    id: number;
+    question: string;
+    options: string[];
+    answer: string;
+    explanation: string;
+}
+
+interface QuizData {
+    type: 'quiz';
+    title: string;
+    questions: QuizQuestion[];
+}
+
 interface Message {
     role: 'user' | 'assistant';
     content: string;
     context?: any[];
+    quizData?: QuizData;
 }
 
 interface ChatInterfaceProps {
     chatTitle: string;
     welcomeMessage: string;
+}
+
+function QuizCard({ data }: { data: QuizData }) {
+    const [selectedOptions, setSelectedOptions] = useState<{ [key: number]: string }>({});
+    const [showResults, setShowResults] = useState<{ [key: number]: boolean }>({});
+
+    const handleOptionSelect = (questionId: number, option: string) => {
+        if (showResults[questionId]) return;
+        setSelectedOptions(prev => ({ ...prev, [questionId]: option }));
+    };
+
+    const handleCheckAnswer = (questionId: number) => {
+        setShowResults(prev => ({ ...prev, [questionId]: true }));
+    };
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6 my-2">
+            <div className="flex items-center gap-2 border-b pb-4">
+                <div className="bg-blue-100 p-2 rounded-lg">
+                    <BookOpen className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="font-bold text-lg text-gray-800">{data.title}</h3>
+            </div>
+
+            <div className="space-y-8">
+                {data.questions.map((q, idx) => (
+                    <div key={q.id} className="space-y-4">
+                        <div className="font-medium text-gray-800">
+                            <span className="text-blue-600 mr-2">Q{idx + 1}.</span>
+                            {q.question}
+                        </div>
+
+                        <div className="grid gap-2">
+                            {q.options.map((option, optIdx) => {
+                                const isSelected = selectedOptions[q.id] === option;
+                                const isCorrect = option === q.answer;
+                                const showResult = showResults[q.id];
+
+                                let className = "p-3 rounded-lg border text-left transition-all ";
+                                if (showResult) {
+                                    if (isCorrect) className += "bg-green-50 border-green-200 text-green-700 font-medium";
+                                    else if (isSelected) className += "bg-red-50 border-red-200 text-red-700";
+                                    else className += "bg-gray-50 border-gray-200 text-gray-500 opacity-60";
+                                } else {
+                                    if (isSelected) className += "bg-blue-50 border-blue-200 text-blue-700 ring-1 ring-blue-200";
+                                    else className += "hover:bg-gray-50 border-gray-200 text-gray-700";
+                                }
+
+                                return (
+                                    <button
+                                        key={optIdx}
+                                        onClick={() => handleOptionSelect(q.id, option)}
+                                        disabled={showResult}
+                                        className={className}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs
+                                                ${showResult && isCorrect ? 'bg-green-600 border-green-600 text-white' :
+                                                    showResult && isSelected && !isCorrect ? 'bg-red-600 border-red-600 text-white' :
+                                                        isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 text-gray-500'}
+                                            `}>
+                                                {String.fromCharCode(65 + optIdx)}
+                                            </div>
+                                            {option}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {!showResults[q.id] && selectedOptions[q.id] && (
+                            <button
+                                onClick={() => handleCheckAnswer(q.id)}
+                                className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                提交答案
+                            </button>
+                        )}
+
+                        {showResults[q.id] && (
+                            <div className={`p-4 rounded-lg text-sm ${selectedOptions[q.id] === q.answer ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                                <div className="font-bold mb-1">
+                                    {selectedOptions[q.id] === q.answer ? '🎉 答對了！' : '❌ 答錯了'}
+                                </div>
+                                <div className="text-gray-600">
+                                    <span className="font-semibold text-gray-700">解析：</span>
+                                    {q.explanation}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 }
 
 export default function ChatInterface({ chatTitle, welcomeMessage }: ChatInterfaceProps) {
@@ -55,10 +165,32 @@ export default function ChatInterface({ chatTitle, welcomeMessage }: ChatInterfa
                 setCurrentTitle(data.newTitle);
             }
 
+            let answerContent = data.answer;
+            let quizData: QuizData | undefined;
+
+            // Try to parse JSON if it looks like a quiz
+            try {
+                // Sometimes LLM might wrap JSON in markdown code blocks
+                const jsonMatch = answerContent.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const potentialJson = JSON.parse(jsonMatch[0]);
+                    if (potentialJson.type === 'quiz' && Array.isArray(potentialJson.questions)) {
+                        quizData = potentialJson as QuizData;
+                        // Remove the JSON from the displayed text content if you want, 
+                        // or keep it as a fallback. Here we'll hide it if successfully parsed.
+                        answerContent = answerContent.replace(jsonMatch[0], '').trim();
+                        if (!answerContent) answerContent = "為您生成了以下測驗：";
+                    }
+                }
+            } catch (e) {
+                console.log('Failed to parse quiz JSON', e);
+            }
+
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: data.answer,
-                context: data.context
+                content: answerContent,
+                context: data.context,
+                quizData
             }]);
         } catch (error) {
             setMessages(prev => [...prev, { role: 'assistant', content: '抱歉，系統發生錯誤，請稍後再試。' }]);
@@ -112,6 +244,7 @@ export default function ChatInterface({ chatTitle, welcomeMessage }: ChatInterfa
                                     : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
                                     }`}>
                                     <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                    {msg.quizData && <QuizCard data={msg.quizData} />}
                                 </div>
 
                                 {/* Source Citations */}

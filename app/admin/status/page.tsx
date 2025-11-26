@@ -24,24 +24,34 @@ export default function StatusPage() {
         checkStatus();
     }, []);
 
-    const StatusItem = ({ label, value }: { label: string, value: string }) => (
+    const StatusItem = ({ label, data }: { label: string, data: any }) => (
         <div className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm border">
-            <span className="font-medium text-gray-700">{label}</span>
-            <div className="flex items-center gap-2">
+            <div>
+                <span className="font-medium text-gray-700 block">{label}</span>
+                {data?.message && (
+                    <span className={`text-xs ${data.status === 'ok' ? 'text-gray-500' : 'text-red-500'}`}>
+                        {data.message}
+                    </span>
+                )}
+            </div>
+            <div className="flex items-center gap-3">
                 {loading ? (
                     <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                ) : value?.startsWith('ok') ? (
-                    <>
-                        <span className="text-green-600 text-sm font-bold">
-                            {value === 'ok' ? '連線正常' : `連線正常 ${value.replace('ok ', '')}`}
-                        </span>
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                    </>
+                ) : data?.status === 'ok' ? (
+                    <div className="text-right">
+                        <div className="flex items-center gap-2 justify-end">
+                            <span className="text-green-600 text-sm font-bold">連線正常</span>
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                        </div>
+                        {data.latency > 0 && (
+                            <span className="text-xs text-gray-400">{data.latency}ms</span>
+                        )}
+                    </div>
                 ) : (
-                    <>
+                    <div className="flex items-center gap-2">
                         <span className="text-red-600 text-sm font-bold">連線失敗</span>
                         <XCircle className="w-5 h-5 text-red-500" />
-                    </>
+                    </div>
                 )}
             </div>
         </div>
@@ -61,10 +71,10 @@ export default function StatusPage() {
             </div>
 
             <div className="space-y-4">
-                <StatusItem label="MongoDB Atlas (資料庫)" value={status?.mongo} />
-                <StatusItem label="Pinecone (向量資料庫)" value={status?.pinecone} />
-                <StatusItem label="LLM API (OpenRouter/Gemini)" value={status?.llm} />
-                <StatusItem label="LINE Messaging API" value={status?.line} />
+                <StatusItem label="MongoDB Atlas (資料庫)" data={status?.mongo} />
+                <StatusItem label="Pinecone (向量資料庫)" data={status?.pinecone} />
+                <StatusItem label="LLM API (OpenRouter/Gemini)" data={status?.llm} />
+                <StatusItem label="LINE Messaging API" data={status?.line} />
             </div>
         </div>
     );
