@@ -1,0 +1,30 @@
+services:
+  # n8n 網頁服務
+  - type: web
+    name: n8n-rag-workflow
+    env: docker
+    image: n8nio/n8n:latest
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: N8N_BASIC_AUTH_ACTIVE
+        value: true
+      - key: N8N_BASIC_AUTH_USER
+        value: admin
+      - key: N8N_BASIC_AUTH_PASSWORD
+        generateValue: true
+      - key: WEBHOOK_URL
+        sync: false
+      - key: N8N_ENCRYPTION_KEY
+        generateValue: true
+    disk:
+      name: n8n-data
+      mountPath: /home/node/.n8n
+      sizeGB: 1
+
+databases:
+  # 選用: 若未來需要擴展 n8n，可使用 Render 託管的 Redis
+  # 免費層級我們使用預設的 SQLite (儲存於磁碟) 或記憶體模式
+  # 但 n8n 官方建議生產環境使用 Postgres
+  # 針對本「工作坊」規模，使用預設 SQLite 即可
+  pass
