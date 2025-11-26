@@ -7,7 +7,7 @@ let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
 
 // Cache for dynamic clients to prevent connection leaks
-const clientCache: Record<string, Promise<MongoClient>> = {};
+const clientCache: Record<string, Promise<MongoClient> | undefined> = {};
 
 export async function getMongoClient(dynamicUri?: string): Promise<MongoClient> {
     const uri = dynamicUri || globalUri;

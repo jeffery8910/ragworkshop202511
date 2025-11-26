@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
             'GEMINI_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY',
             'EMBEDDING_PROVIDER',
             'CHAT_TITLE', 'WELCOME_MESSAGE',
-            'RAG_TOP_K'
+            'RAG_TOP_K',
+            'TEMPERATURE', 'PROMPT_TEMPLATE'
         ];
 
         keys.forEach(key => {

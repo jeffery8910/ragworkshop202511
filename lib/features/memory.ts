@@ -30,7 +30,6 @@ export async function saveMessage(userId: string, role: 'user' | 'assistant', co
         content,
         timestamp: new Date()
     });
-});
 }
 
 export async function saveConversationTitle(userId: string, title: string) {
