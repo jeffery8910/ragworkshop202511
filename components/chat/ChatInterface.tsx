@@ -316,10 +316,10 @@ export default function ChatInterface({
         await sendMessage(input);
     };
 
-    const sendMessage = async (text: string) => {
+    const sendMessage = async (text: string, displayText?: string) => {
         const userMsg = text;
         setInput('');
-        setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+        setMessages(prev => [...prev, { role: 'user', content: displayText || userMsg }]);
         setLoading(true);
 
         try {
@@ -382,22 +382,26 @@ export default function ChatInterface({
         {
             label: '生成測驗 JSON',
             icon: ListChecks,
-            prompt: 'You must return ONLY valid JSON. 請根據目前的對話或使用者最後一個問題，輸出一份 JSON 測驗：{"type":"quiz","title":"標題","questions":[{"id":1,"question":"題目","options":["A","B","C","D"],"answer":"正確選項","explanation":"解析"}]}。不要使用 Markdown，不能出現 ```。'
+            prompt: 'You must return ONLY valid JSON. 請根據目前的對話或使用者最後一個問題，輸出一份 JSON 測驗：{"type":"quiz","title":"標題","questions":[{"id":1,"question":"題目","options":["A","B","C","D"],"answer":"正確選項","explanation":"解析"}]}。不要使用 Markdown，不能出現 ```。',
+            display: '生成測驗 JSON 中...'
         },
         {
             label: '對話摘要',
             icon: FileText,
-            prompt: 'You must return ONLY valid JSON. 請回傳摘要 JSON：{"type":"summary","title":"對話摘要","bullets":["重點1","重點2","重點3"],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。'
+            prompt: 'You must return ONLY valid JSON. 請回傳摘要 JSON：{"type":"summary","title":"對話摘要","bullets":["重點1","重點2","重點3"],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
+            display: '生成對話摘要中...'
         },
         {
             label: '概念卡片',
             icon: Sparkles,
-            prompt: 'You must return ONLY valid JSON. 請回傳概念卡片 JSON：{"type":"card","title":"主題","bullets":["重點1","重點2","重點3"],"highlight":"一句關鍵提醒"}。不要使用 Markdown，不能出現 ```。'
+            prompt: 'You must return ONLY valid JSON. 請回傳概念卡片 JSON：{"type":"card","title":"主題","bullets":["重點1","重點2","重點3"],"highlight":"一句關鍵提醒"}。不要使用 Markdown，不能出現 ```。',
+            display: '生成概念卡片中...'
         },
         {
             label: '互動問答卡',
             icon: MessagesSquare,
-            prompt: 'You must return ONLY valid JSON. 請回傳問答卡 JSON：{"type":"card-qa","title":"主題","qa":[{"q":"問題1","a":"回答1"},{"q":"問題2","a":"回答2"}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。'
+            prompt: 'You must return ONLY valid JSON. 請回傳問答卡 JSON：{"type":"card-qa","title":"主題","qa":[{"q":"問題1","a":"回答1"},{"q":"問題2","a":"回答2"}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
+            display: '生成互動問答卡中...'
         }
     ];
 
@@ -506,7 +510,7 @@ export default function ChatInterface({
                             <button
                                 key={action.label}
                                 type="button"
-                                onClick={() => sendMessage(action.prompt)}
+                                onClick={() => sendMessage(action.prompt, action.display)}
                                 className="flex items-center gap-1 text-xs px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700"
                                 disabled={loading}
                             >
