@@ -121,6 +121,7 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
   return {
     answer,
     context: results,
-    rewrittenQuery: searchParam !== question ? searchParam : undefined
+    rewrittenQuery: searchParam !== question ? searchParam : undefined,
+    structuredPayloads: undefined // reserved for future enrichment by caller
   };
 }

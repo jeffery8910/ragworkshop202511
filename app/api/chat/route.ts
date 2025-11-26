@@ -4,6 +4,8 @@ import { ragAnswer } from '@/lib/rag';
 import { getConversationTitle, saveConversationTitle } from '@/lib/features/memory';
 import { generateText } from '@/lib/llm';
 import type { EmbeddingProvider } from '@/lib/vector/embedding';
+import { saveCard } from '@/lib/features/cards';
+import { z } from 'zod';
 
 export async function POST(req: NextRequest) {
     try {
@@ -57,6 +59,80 @@ export async function POST(req: NextRequest) {
 
         const result = await ragAnswer(uid, message, config);
 
+        // Server-side structured payload parsing for persistence
+        const quizSchema = z.object({
+            type: z.literal('quiz'),
+            title: z.string(),
+            questions: z.array(z.object({
+                id: z.union([z.number(), z.string()]),
+                question: z.string(),
+                options: z.array(z.string()).min(2),
+                answer: z.string(),
+                explanation: z.string()
+            })).min(1)
+        });
+        const conceptSchema = z.object({
+            type: z.literal('card'),
+            title: z.string(),
+            bullets: z.array(z.string()).min(1),
+            highlight: z.string().optional()
+        });
+        const summarySchema = z.object({
+            type: z.literal('summary'),
+            title: z.string(),
+            bullets: z.array(z.string()).min(1),
+            highlight: z.string().optional()
+        });
+        const qaCardSchema = z.object({
+            type: z.literal('card-qa'),
+            title: z.string(),
+            qa: z.array(z.object({ q: z.string(), a: z.string() })).min(1),
+            highlight: z.string().optional()
+        });
+        const abilitySchema = z.object({
+            type: z.literal('ability'),
+            title: z.string().optional(),
+            topics: z.array(z.object({
+                name: z.string(),
+                level: z.number().optional(),
+                progress: z.number().optional()
+            })).min(1),
+            highlight: z.string().optional()
+        });
+        const mistakeSchema = z.object({
+            type: z.literal('mistake'),
+            title: z.string().optional(),
+            items: z.array(z.object({
+                topic: z.string().optional(),
+                question: z.string(),
+                reason: z.string().optional(),
+                suggestion: z.string().optional()
+            })).min(1),
+            highlight: z.string().optional()
+        });
+
+        const tryParsePayload = (text?: string) => {
+            if (!text) return undefined;
+            const match = text.match(/\{[\s\S]*\}/);
+            if (!match) return undefined;
+            try {
+                const parsed = JSON.parse(match[0]);
+                if (quizSchema.safeParse(parsed).success) return quizSchema.parse(parsed);
+                if (conceptSchema.safeParse(parsed).success) return conceptSchema.parse(parsed);
+                if (summarySchema.safeParse(parsed).success) return summarySchema.parse(parsed);
+                if (qaCardSchema.safeParse(parsed).success) return qaCardSchema.parse(parsed);
+                if (abilitySchema.safeParse(parsed).success) return abilitySchema.parse(parsed);
+                if (mistakeSchema.safeParse(parsed).success) return mistakeSchema.parse(parsed);
+            } catch (err) {
+                console.warn('Server payload parse failed', err);
+            }
+            return undefined;
+        };
+
+        const payloads: any[] = [];
+        const p = tryParsePayload(result?.answer);
+        if (p) payloads.push(p);
+
         // Check and generate title if needed
         let newTitle = undefined;
         const currentTitle = await getConversationTitle(uid, {
@@ -83,7 +159,19 @@ export async function POST(req: NextRequest) {
             newTitle = title.trim();
         }
 
-        return NextResponse.json({ ...result, newTitle });
+        // Persist structured cards if present
+        try {
+            const cardPayloads = payloads.length ? payloads : result?.structuredPayloads as any[] | undefined;
+            if (cardPayloads?.length) {
+                for (const payload of cardPayloads) {
+                    await saveCard(uid, payload, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to save cards', err);
+        }
+
+        return NextResponse.json({ ...result, structuredPayloads: payloads, newTitle });
     } catch (error) {
         console.error('Chat API Error:', error);
         return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, BookOpen, Home, Sparkles, ListChecks, FileText, MessagesSquare } from 'lucide-react';
+import { Send, Bot, User, Loader2, BookOpen, Home, Sparkles, ListChecks, FileText, MessagesSquare, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import { z } from 'zod';
@@ -29,6 +29,8 @@ interface Message {
     summaryCard?: SummaryCardData;
     qaCard?: QACardData;
     parseError?: string;
+    abilityCard?: AbilityCardData;
+    mistakeCard?: MistakeCardData;
 }
 
 interface ChatInterfaceProps {
@@ -62,6 +64,33 @@ interface QACardData {
     type: 'card-qa';
     title: string;
     qa: QAPair[];
+    highlight?: string;
+}
+
+interface AbilityTopic {
+    name: string;
+    level?: number;
+    progress?: number;
+}
+
+interface AbilityCardData {
+    type: 'ability';
+    title?: string;
+    topics: AbilityTopic[];
+    highlight?: string;
+}
+
+interface MistakeItem {
+    topic?: string;
+    question: string;
+    reason?: string;
+    suggestion?: string;
+}
+
+interface MistakeCardData {
+    type: 'mistake';
+    title?: string;
+    items: MistakeItem[];
     highlight?: string;
 }
 
@@ -198,6 +227,72 @@ function SummaryCard({ data }: { data: SummaryCardData }) {
     );
 }
 
+function AbilityCard({ data }: { data: AbilityCardData }) {
+    return (
+        <div className="border border-indigo-200 rounded-lg bg-indigo-50 shadow-sm p-4 my-2">
+            <div className="flex items-center gap-2 mb-2 text-indigo-800 font-semibold">
+                <BookOpen className="w-4 h-4" />
+                {data.title || '學科能力分析'}
+            </div>
+            <div className="space-y-2 text-sm text-gray-800">
+                {data.topics.map((t, i) => (
+                    <div key={i} className="bg-white border border-indigo-100 rounded p-2 shadow-xs flex items-center justify-between">
+                        <div>
+                            <div className="font-medium text-gray-800">{t.name}</div>
+                            <div className="text-[11px] text-gray-500">Lv.{t.level ?? 1}</div>
+                        </div>
+                        <div className="w-24 bg-gray-100 rounded-full h-2">
+                            <div
+                                className="bg-indigo-500 h-2 rounded-full"
+                                style={{ width: `${t.progress ?? 50}%` }}
+                            />
+                        </div>
+                    </div>
+                ))}
+            </div>
+            {data.highlight && (
+                <div className="mt-3 text-xs text-indigo-700 bg-white border border-indigo-100 rounded p-2">
+                    {data.highlight}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function MistakeCard({ data }: { data: MistakeCardData }) {
+    return (
+        <div className="border border-red-200 rounded-lg bg-red-50 shadow-sm p-4 my-2">
+            <div className="flex items-center gap-2 mb-2 text-red-800 font-semibold">
+                <AlertCircle className="w-4 h-4" />
+                {data.title || '錯題分析與建議'}
+            </div>
+            <div className="space-y-3 text-sm text-gray-800">
+                {data.items.map((m, i) => (
+                    <div key={i} className="bg-white border border-red-100 rounded p-3 shadow-xs">
+                        <div className="text-xs text-gray-500 mb-1">{m.topic || '錯題'}</div>
+                        <div className="font-medium text-gray-900 mb-1">{m.question}</div>
+                        {m.reason && (
+                            <div className="bg-red-50 border border-red-100 text-xs text-red-700 rounded p-2 mb-1">
+                                <span className="font-semibold">錯誤原因：</span>{m.reason}
+                            </div>
+                        )}
+                        {m.suggestion && (
+                            <div className="bg-green-50 border border-green-100 text-xs text-green-700 rounded p-2">
+                                <span className="font-semibold">AI 建議：</span>{m.suggestion}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+            {data.highlight && (
+                <div className="mt-3 text-xs text-red-700 bg-white border border-red-100 rounded p-2">
+                    {data.highlight}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function QACard({ data }: { data: QACardData }) {
     return (
         <div className="border border-blue-200 rounded-lg bg-blue-50 shadow-sm p-4 my-2">
@@ -259,7 +354,36 @@ const qaCardSchema = z.object({
     highlight: z.string().optional()
 });
 
-type StructuredPayload = z.infer<typeof quizSchema> | z.infer<typeof conceptSchema> | z.infer<typeof summarySchema> | z.infer<typeof qaCardSchema>;
+const abilitySchema = z.object({
+    type: z.literal('ability'),
+    title: z.string().optional(),
+    topics: z.array(z.object({
+        name: z.string(),
+        level: z.number().optional(),
+        progress: z.number().optional()
+    })).min(1),
+    highlight: z.string().optional()
+});
+
+const mistakeSchema = z.object({
+    type: z.literal('mistake'),
+    title: z.string().optional(),
+    items: z.array(z.object({
+        topic: z.string().optional(),
+        question: z.string(),
+        reason: z.string().optional(),
+        suggestion: z.string().optional()
+    })).min(1),
+    highlight: z.string().optional()
+});
+
+type StructuredPayload =
+    z.infer<typeof quizSchema>
+    | z.infer<typeof conceptSchema>
+    | z.infer<typeof summarySchema>
+    | z.infer<typeof qaCardSchema>
+    | z.infer<typeof abilitySchema>
+    | z.infer<typeof mistakeSchema>;
 
 function extractStructuredPayload(text: string): { payload?: StructuredPayload; cleaned: string; error?: string } {
     const match = text.match(/\{[\s\S]*\}/);
@@ -277,6 +401,12 @@ function extractStructuredPayload(text: string): { payload?: StructuredPayload; 
         }
         if (qaCardSchema.safeParse(parsed).success) {
             return { payload: qaCardSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+        }
+        if (abilitySchema.safeParse(parsed).success) {
+            return { payload: abilitySchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+        }
+        if (mistakeSchema.safeParse(parsed).success) {
+            return { payload: mistakeSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
         }
         return { cleaned: text, error: 'JSON 內容與預期格式不符，未顯示卡片。' };
     } catch (err: any) {
@@ -340,6 +470,8 @@ export default function ChatInterface({
             let conceptCard: ConceptCardData | undefined;
             let summaryCard: SummaryCardData | undefined;
             let qaCard: QACardData | undefined;
+            let abilityCard: AbilityCardData | undefined;
+            let mistakeCard: MistakeCardData | undefined;
             let parseError: string | undefined;
 
             if (typeof answerContent === 'string') {
@@ -357,6 +489,12 @@ export default function ChatInterface({
                 } else if (payload?.type === 'card-qa') {
                     qaCard = payload as QACardData;
                     if (!answerContent) answerContent = '以下是問答卡片：';
+                } else if (payload?.type === 'ability') {
+                    abilityCard = payload as AbilityCardData;
+                    if (!answerContent) answerContent = '以下是學科能力分析：';
+                } else if (payload?.type === 'mistake') {
+                    mistakeCard = payload as MistakeCardData;
+                    if (!answerContent) answerContent = '以下是錯題分析：';
                 }
                 if (error) parseError = error;
             }
@@ -369,6 +507,8 @@ export default function ChatInterface({
                 conceptCard,
                 summaryCard,
                 qaCard,
+                abilityCard,
+                mistakeCard,
                 parseError
             }]);
         } catch (error) {
@@ -402,6 +542,18 @@ export default function ChatInterface({
             icon: MessagesSquare,
             prompt: 'You must return ONLY valid JSON. 請回傳問答卡 JSON：{"type":"card-qa","title":"主題","qa":[{"q":"問題1","a":"回答1"},{"q":"問題2","a":"回答2"}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
             display: '生成互動問答卡中...'
+        },
+        {
+            label: '學科能力分析',
+            icon: BookOpen,
+            prompt: 'You must return ONLY valid JSON. 請回傳學科能力分析 JSON：{"type":"ability","title":"學科能力分析","topics":[{"name":"數學","level":2,"progress":65},{"name":"物理","level":1,"progress":40}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
+            display: '生成學科能力分析中...'
+        },
+        {
+            label: '錯題分析與建議',
+            icon: AlertCircle,
+            prompt: 'You must return ONLY valid JSON. 請回傳錯題分析 JSON：{"type":"mistake","title":"錯題分析","items":[{"topic":"幾何","question":"三角形相似條件？","reason":"混淆AA與SSS","suggestion":"先複習 AA 判定並做 3 題練習"},{"topic":"微積分","question":"什麼是導數？","reason":"概念模糊","suggestion":"用極限定義推一次"}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
+            display: '生成錯題分析中...'
         }
     ];
 
@@ -467,6 +619,8 @@ export default function ChatInterface({
                                     {msg.conceptCard && <ConceptCard data={msg.conceptCard} />}
                                     {msg.summaryCard && <SummaryCard data={msg.summaryCard} />}
                                     {msg.qaCard && <QACard data={msg.qaCard} />}
+                                    {msg.abilityCard && <AbilityCard data={msg.abilityCard} />}
+                                    {msg.mistakeCard && <MistakeCard data={msg.mistakeCard} />}
                                     {msg.parseError && (
                                         <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2">
                                             {msg.parseError}
