@@ -32,14 +32,19 @@ export async function POST(req: NextRequest) {
             embeddingProvider,
             embeddingModel: cookieStore.get('EMBEDDING_MODEL')?.value,
             chatModel: cookieStore.get('CHAT_MODEL')?.value,
-            topK: cookieStore.get('RAG_TOP_K')?.value ? parseInt(cookieStore.get('RAG_TOP_K')?.value!) : 5
+            topK: cookieStore.get('RAG_TOP_K')?.value ? parseInt(cookieStore.get('RAG_TOP_K')?.value!) : 5,
+            mongoUri: cookieStore.get('MONGODB_URI')?.value,
+            mongoDbName: cookieStore.get('MONGODB_DB_NAME')?.value,
         };
 
         const result = await ragAnswer(uid, message, config);
 
         // Check and generate title if needed
         let newTitle = undefined;
-        const currentTitle = await getConversationTitle(uid);
+        const currentTitle = await getConversationTitle(uid, {
+            mongoUri: config.mongoUri,
+            dbName: config.mongoDbName
+        });
         if (!currentTitle) {
             const titlePrompt = `
             請根據使用者的問題，生成一個簡短的對話標題 (5個字以內)。
@@ -53,7 +58,10 @@ export async function POST(req: NextRequest) {
             } as any; // Type casting for simplicity here, ideally strict typed
 
             const title = await generateText(titlePrompt, { ...llmConfig, model: 'google/gemini-flash-1.5' });
-            await saveConversationTitle(uid, title.trim());
+            await saveConversationTitle(uid, title.trim(), {
+                mongoUri: config.mongoUri,
+                dbName: config.mongoDbName
+            });
             newTitle = title.trim();
         }
 

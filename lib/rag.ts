@@ -13,6 +13,8 @@ export interface RagConfig {
   embeddingModel?: string;
   chatModel?: string;
   topK?: number;
+  mongoUri?: string;
+  mongoDbName?: string;
 }
 
 export async function ragAnswer(userId: string, question: string, config?: RagConfig) {
@@ -37,7 +39,15 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
     : undefined;
 
   // 1. Get History & Rewrite Query
-  const history = await getConversationHistory(userId);
+  let history: { role: 'user' | 'assistant'; content: string; }[] = [];
+  try {
+    history = await getConversationHistory(userId, 5, {
+      mongoUri: config?.mongoUri,
+      dbName: config?.mongoDbName
+    });
+  } catch (err) {
+    console.warn('Skipping conversation history because MongoDB is not configured or unreachable.', err);
+  }
   let searchParam = question;
 
   if (history.length > 0) {
@@ -95,8 +105,18 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
   const answer = await generateText(answerPrompt, llmConfig);
 
   // 4. Save History
-  await saveMessage(userId, 'user', question);
-  await saveMessage(userId, 'assistant', answer);
+  try {
+    await saveMessage(userId, 'user', question, {
+      mongoUri: config?.mongoUri,
+      dbName: config?.mongoDbName
+    });
+    await saveMessage(userId, 'assistant', answer, {
+      mongoUri: config?.mongoUri,
+      dbName: config?.mongoDbName
+    });
+  } catch (err) {
+    console.warn('Skipping history save because MongoDB is not configured or unreachable.', err);
+  }
 
   return {
     answer,

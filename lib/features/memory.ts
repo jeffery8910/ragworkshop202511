@@ -1,13 +1,23 @@
-import clientPromise from '@/lib/db/mongo';
+import clientPromise, { getMongoClient } from '@/lib/db/mongo';
 
 export interface Message {
     role: 'user' | 'assistant';
     content: string;
 }
 
-export async function getConversationHistory(userId: string, limit = 5): Promise<Message[]> {
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
+interface DbConfig {
+    mongoUri?: string;
+    dbName?: string;
+}
+
+async function getDb(config?: DbConfig) {
+    const client = await getMongoClient(config?.mongoUri);
+    const dbName = config?.dbName || process.env.MONGODB_DB_NAME || 'rag_db';
+    return client.db(dbName);
+}
+
+export async function getConversationHistory(userId: string, limit = 5, config?: DbConfig): Promise<Message[]> {
+    const db = await getDb(config);
     const collection = db.collection('history');
 
     const docs = await collection.find({ userId })
@@ -21,9 +31,8 @@ export async function getConversationHistory(userId: string, limit = 5): Promise
     }));
 }
 
-export async function saveMessage(userId: string, role: 'user' | 'assistant', content: string) {
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
+export async function saveMessage(userId: string, role: 'user' | 'assistant', content: string, config?: DbConfig) {
+    const db = await getDb(config);
     await db.collection('history').insertOne({
         userId,
         role,
@@ -32,9 +41,8 @@ export async function saveMessage(userId: string, role: 'user' | 'assistant', co
     });
 }
 
-export async function saveConversationTitle(userId: string, title: string) {
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
+export async function saveConversationTitle(userId: string, title: string, config?: DbConfig) {
+    const db = await getDb(config);
     // Upsert title for the user
     await db.collection('conversations').updateOne(
         { userId },
@@ -43,9 +51,8 @@ export async function saveConversationTitle(userId: string, title: string) {
     );
 }
 
-export async function getConversationTitle(userId: string): Promise<string | null> {
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
+export async function getConversationTitle(userId: string, config?: DbConfig): Promise<string | null> {
+    const db = await getDb(config);
     const doc = await db.collection('conversations').findOne({ userId });
     return doc ? doc.title : null;
 }

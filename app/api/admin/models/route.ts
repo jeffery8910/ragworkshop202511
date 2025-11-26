@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ models });
     } catch (error) {
         console.error('Model fetch error:', error);
-        return NextResponse.json({ error: '連線失敗或 API Key 無效' }, { status: 500 });
+        const message = error instanceof Error ? error.message : '連線失敗或 API Key 無效';
+        return NextResponse.json({ error: message }, { status: 400 });
     }
 }
