@@ -1,8 +1,11 @@
 import AdminDashboard from '@/components/admin/AdminDashboard';
+import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
-export default function AdminPage() {
+export default async function AdminPage() {
+    const cookieStore = await cookies();
+
     // Server-side check of environment variables
     // We check ALL keys here so EnvCheck knows what's missing
     const checkKeys = [
@@ -17,7 +20,11 @@ export default function AdminPage() {
         'N8N_WEBHOOK_URL'
     ];
 
-    const missingKeys = checkKeys.filter(key => !process.env[key]);
+    const missingKeys = checkKeys.filter(key => {
+        const inEnv = !!process.env[key];
+        const inCookie = !!cookieStore.get(key)?.value;
+        return !inEnv && !inCookie;
+    });
 
     return <AdminDashboard missingKeys={missingKeys} />;
 }
