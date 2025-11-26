@@ -35,13 +35,13 @@ n8n 建議部署於 Render (Docker)：
   - **父子索引 (Parent-Child Indexing)**: 提升檢索上下文完整性。
   - **元數據增強 (Auto-Metadata)**: 自動提取關鍵字與摘要。
 - **🎓 智慧學習系統**:
-  - **學生儀表板**: 視覺化 XP 經驗值、錯題分析。
-  - **重點卡片生成**: 自動生成精美單字卡 (Flashcards)。
-  - **適性化測驗**: 根據程度動態調整題目。
+  - **學生儀表板 (Dashboard)**: 視覺化學習數據 (XP, Level, 錯題分析)，採用 **JSON -> React** 動態渲染架構。
+  - **重點卡片 (Flashcard)**: AI 自動生成精美單字卡 (`/student/flashcard`)。
+  - **適性化測驗 (Quiz)**: 根據主題生成測驗題與詳解 (`/student/quiz`)。
 - **🛠️ 強大後台**:
+  - **安全登入**: 專屬管理員登入頁面 (`/admin/login`)，支援 Session Cookie 驗證。
   - **檔案上傳**: 支援 PDF/TXT 拖曳上傳與向量化。
-  - **系統監控**: 即時檢查 MongoDB, Pinecone, LLM 連線狀態。
-  - **安全驗證**: Admin 頁面 Basic Auth 保護。
+  - **系統監控**: 即時檢查 MongoDB, Pinecone, LLM 連線狀態與環境變數。
 
 ## 🛠️ 本地開發 (Local Development)
 
