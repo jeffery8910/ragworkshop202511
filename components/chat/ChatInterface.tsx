@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, BookOpen, Home, Sparkles, ListChecks, FileText } from 'lucide-react';
+import { Send, Bot, User, Loader2, BookOpen, Home, Sparkles, ListChecks, FileText, MessagesSquare } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
+import { z } from 'zod';
 
 interface QuizQuestion {
     id: number;
@@ -26,6 +27,7 @@ interface Message {
     quizData?: QuizData;
     conceptCard?: ConceptCardData;
     summaryCard?: SummaryCardData;
+    qaCard?: QACardData;
 }
 
 interface ChatInterfaceProps {
@@ -47,6 +49,18 @@ interface SummaryCardData {
     type: 'summary';
     title: string;
     bullets: string[];
+    highlight?: string;
+}
+
+interface QAPair {
+    q: string;
+    a: string;
+}
+
+interface QACardData {
+    type: 'card-qa';
+    title: string;
+    qa: QAPair[];
     highlight?: string;
 }
 
@@ -183,6 +197,92 @@ function SummaryCard({ data }: { data: SummaryCardData }) {
     );
 }
 
+function QACard({ data }: { data: QACardData }) {
+    return (
+        <div className="border border-blue-200 rounded-lg bg-blue-50 shadow-sm p-4 my-2">
+            <div className="flex items-center gap-2 mb-3 text-blue-800 font-semibold">
+                <MessagesSquare className="w-4 h-4" />
+                {data.title}
+            </div>
+            <div className="space-y-3 text-sm text-gray-800">
+                {data.qa.map((item, i) => (
+                    <div key={i} className="bg-white border border-blue-100 rounded p-3 shadow-sm">
+                        <div className="font-medium text-blue-800 mb-1">Q{i + 1}: {item.q}</div>
+                        <div className="text-gray-700">A: {item.a}</div>
+                    </div>
+                ))}
+            </div>
+            {data.highlight && (
+                <div className="mt-3 text-xs text-blue-700 bg-white border border-blue-100 rounded p-2">
+                    {data.highlight}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// Zod schemas to validate structured JSON payloads from LLM
+const quizSchema = z.object({
+    type: z.literal('quiz'),
+    title: z.string(),
+    questions: z.array(z.object({
+        id: z.union([z.number(), z.string()]).transform((v) => Number(v)),
+        question: z.string(),
+        options: z.array(z.string()).min(2),
+        answer: z.string(),
+        explanation: z.string()
+    })).min(1)
+});
+
+const conceptSchema = z.object({
+    type: z.literal('card'),
+    title: z.string(),
+    bullets: z.array(z.string()).min(1),
+    highlight: z.string().optional()
+});
+
+const summarySchema = z.object({
+    type: z.literal('summary'),
+    title: z.string(),
+    bullets: z.array(z.string()).min(1),
+    highlight: z.string().optional()
+});
+
+const qaCardSchema = z.object({
+    type: z.literal('card-qa'),
+    title: z.string(),
+    qa: z.array(z.object({
+        q: z.string(),
+        a: z.string()
+    })).min(1),
+    highlight: z.string().optional()
+});
+
+type StructuredPayload = z.infer<typeof quizSchema> | z.infer<typeof conceptSchema> | z.infer<typeof summarySchema> | z.infer<typeof qaCardSchema>;
+
+function extractStructuredPayload(text: string): { payload?: StructuredPayload; cleaned: string } {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return { cleaned: text };
+    try {
+        const parsed = JSON.parse(match[0]);
+        if (quizSchema.safeParse(parsed).success) {
+            return { payload: quizSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+        }
+        if (conceptSchema.safeParse(parsed).success) {
+            return { payload: conceptSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+        }
+        if (summarySchema.safeParse(parsed).success) {
+            return { payload: summarySchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+        }
+        if (qaCardSchema.safeParse(parsed).success) {
+            return { payload: qaCardSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+        }
+    } catch (err) {
+        console.log('Structured JSON parse failed', err);
+    }
+    return { cleaned: text };
+}
+
 export default function ChatInterface({
     chatTitle,
     welcomeMessage,
@@ -237,28 +337,24 @@ export default function ChatInterface({
             let quizData: QuizData | undefined;
             let conceptCard: ConceptCardData | undefined;
             let summaryCard: SummaryCardData | undefined;
+            let qaCard: QACardData | undefined;
 
-            // Try to parse JSON for quiz or card
-            try {
-                const jsonMatch = typeof answerContent === 'string' ? answerContent.match(/\{[\s\S]*\}/) : null;
-                if (jsonMatch) {
-                    const potentialJson = JSON.parse(jsonMatch[0]);
-                    if (potentialJson.type === 'quiz' && Array.isArray(potentialJson.questions)) {
-                        quizData = potentialJson as QuizData;
-                        answerContent = answerContent.replace(jsonMatch[0], '').trim();
-                        if (!answerContent) answerContent = "為您生成了以下測驗：";
-                    } else if (potentialJson.type === 'card' && Array.isArray(potentialJson.bullets)) {
-                        conceptCard = potentialJson as ConceptCardData;
-                        answerContent = answerContent.replace(jsonMatch[0], '').trim();
-                        if (!answerContent) answerContent = "為您生成了以下重點卡片：";
-                    } else if (potentialJson.type === 'summary' && Array.isArray(potentialJson.bullets)) {
-                        summaryCard = potentialJson as SummaryCardData;
-                        answerContent = answerContent.replace(jsonMatch[0], '').trim();
-                        if (!answerContent) answerContent = "以下是對話摘要：";
-                    }
+            if (typeof answerContent === 'string') {
+                const { payload, cleaned } = extractStructuredPayload(answerContent);
+                answerContent = cleaned;
+                if (payload?.type === 'quiz') {
+                    quizData = payload as QuizData;
+                    if (!answerContent) answerContent = '為您生成了以下測驗：';
+                } else if (payload?.type === 'card') {
+                    conceptCard = payload as ConceptCardData;
+                    if (!answerContent) answerContent = '為您生成了以下重點卡片：';
+                } else if (payload?.type === 'summary') {
+                    summaryCard = payload as SummaryCardData;
+                    if (!answerContent) answerContent = '以下是對話摘要：';
+                } else if (payload?.type === 'card-qa') {
+                    qaCard = payload as QACardData;
+                    if (!answerContent) answerContent = '以下是問答卡片：';
                 }
-            } catch (err) {
-                console.log('Failed to parse structured JSON', err);
             }
 
             setMessages(prev => [...prev, {
@@ -267,7 +363,8 @@ export default function ChatInterface({
                 context: data.context,
                 quizData,
                 conceptCard,
-                summaryCard
+                summaryCard,
+                qaCard
             }]);
         } catch (error) {
             setMessages(prev => [...prev, { role: 'assistant', content: '抱歉，系統發生錯誤，請稍後再試。' }]);
@@ -280,17 +377,22 @@ export default function ChatInterface({
         {
             label: '生成測驗 JSON',
             icon: ListChecks,
-            prompt: '請根據目前的對話或使用者最後一個問題，輸出一份 JSON 格式的測驗（type:"quiz"，至少 3 題，含 options、answer、explanation）。請只回傳 JSON，不要加 Markdown。'
+            prompt: 'You must return ONLY valid JSON. 請根據目前的對話或使用者最後一個問題，輸出一份 JSON 測驗：{"type":"quiz","title":"標題","questions":[{"id":1,"question":"題目","options":["A","B","C","D"],"answer":"正確選項","explanation":"解析"}]}。不要使用 Markdown，不能出現 ```。'
         },
         {
             label: '對話摘要',
             icon: FileText,
-            prompt: '請用 JSON 回傳本次對話摘要：{"type":"summary","title":"對話摘要","bullets":["重點1","重點2","重點3"],"highlight":"一句提醒"}，請只回傳 JSON，不要 Markdown。'
+            prompt: 'You must return ONLY valid JSON. 請回傳摘要 JSON：{"type":"summary","title":"對話摘要","bullets":["重點1","重點2","重點3"],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。'
         },
         {
             label: '概念卡片',
             icon: Sparkles,
-            prompt: '請將目前主題整理為 JSON 卡片：{ "type":"card", "title":"主題", "bullets":["重點1","重點2","重點3"], "highlight":"一句關鍵提醒" }，請只回傳 JSON，不要 Markdown。'
+            prompt: 'You must return ONLY valid JSON. 請回傳概念卡片 JSON：{"type":"card","title":"主題","bullets":["重點1","重點2","重點3"],"highlight":"一句關鍵提醒"}。不要使用 Markdown，不能出現 ```。'
+        },
+        {
+            label: '互動問答卡',
+            icon: MessagesSquare,
+            prompt: 'You must return ONLY valid JSON. 請回傳問答卡 JSON：{"type":"card-qa","title":"主題","qa":[{"q":"問題1","a":"回答1"},{"q":"問題2","a":"回答2"}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。'
         }
     ];
 
@@ -355,6 +457,7 @@ export default function ChatInterface({
                                     {msg.quizData && <QuizCard data={msg.quizData} />}
                                     {msg.conceptCard && <ConceptCard data={msg.conceptCard} />}
                                     {msg.summaryCard && <SummaryCard data={msg.summaryCard} />}
+                                    {msg.qaCard && <QACard data={msg.qaCard} />}
                                 </div>
 
                                 {/* Source Citations */}

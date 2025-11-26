@@ -40,9 +40,11 @@ export async function POST(req: NextRequest) {
         } else if (provider === 'openai') {
             const openai = new OpenAI({ apiKey });
             const list = await openai.models.list();
-            models = list.data.map(m => m.id).filter(id =>
-                id.startsWith('gpt') || id.startsWith('o') || id.startsWith('text-embedding')
-            ).sort();
+            const chatWhitelistPrefixes = ['gpt', 'o', 'chatgpt'];
+            models = list.data
+                .map(m => m.id)
+                .filter(id => chatWhitelistPrefixes.some(p => id.startsWith(p)))
+                .sort();
         } else if (provider === 'openrouter') {
             const res = await fetch('https://openrouter.ai/api/v1/models', {
                 headers: {
@@ -51,7 +53,10 @@ export async function POST(req: NextRequest) {
             });
             if (!res.ok) throw new Error('Failed to fetch OpenRouter models');
             const data = await res.json();
-            models = data.data.map((m: any) => m.id).sort();
+            models = data.data
+                .map((m: any) => m.id)
+                .filter((id: string) => !id.toLowerCase().includes('embed') && !id.toLowerCase().includes('rerank'))
+                .sort();
 
             // Add a free-tier fallback shortlist for convenience
             const freeDefaults = [
