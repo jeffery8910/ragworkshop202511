@@ -19,6 +19,7 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ missingKeys, initialConfig }: AdminDashboardProps) {
     const [activeTab, setActiveTab] = useState('setup');
     const [flowEvent, setFlowEvent] = useState<string | null>(null);
+    const [knowledgeSubTab, setKnowledgeSubTab] = useState<'viz' | 'advanced' | 'lab'>('viz');
 
     const tabs = [
         { id: 'setup', label: '系統設定 (Setup)', icon: Settings },
@@ -73,9 +74,45 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
 
                 {activeTab === 'knowledge' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-6xl">
-                        <RagWorkflow currentAction={flowEvent} />
-                        <KnowledgeGraph onAction={setFlowEvent} />
-                        <UploadPanel onAction={setFlowEvent} />
+                        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
+                            {[
+                                { id: 'viz', label: '知識庫視覺化' },
+                                { id: 'advanced', label: '進階設定（資料庫）' },
+                                { id: 'lab', label: 'RAG 實驗室模擬' },
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setKnowledgeSubTab(tab.id as any)}
+                                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                                        knowledgeSubTab === tab.id
+                                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {knowledgeSubTab === 'viz' && (
+                            <div className="space-y-4">
+                                <RagWorkflow currentAction={flowEvent} />
+                                <KnowledgeGraph onAction={setFlowEvent} />
+                                <UploadPanel onAction={setFlowEvent} />
+                            </div>
+                        )}
+
+                        {knowledgeSubTab === 'advanced' && (
+                            <div className="space-y-4">
+                                <ConfigPanel initialConfig={initialConfig} />
+                            </div>
+                        )}
+
+                        {knowledgeSubTab === 'lab' && (
+                            <div className="space-y-4">
+                                <RagLabPanel />
+                            </div>
+                        )}
                     </div>
                 )}
 
