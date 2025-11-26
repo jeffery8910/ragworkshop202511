@@ -1,3 +1,11 @@
+'use client';
+
+import { useState } from 'react';
+import { Settings, Database, Key, CheckCircle, AlertCircle, MessageSquare, Cpu, RefreshCw, Smartphone } from 'lucide-react';
+
+interface SetupPanelProps {
+    initialConfig: Record<string, string>;
+}
 
 export default function SetupPanel({ initialConfig }: SetupPanelProps) {
     const [config, setConfig] = useState({
