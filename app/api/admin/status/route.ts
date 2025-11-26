@@ -76,8 +76,8 @@ export async function GET() {
     if (geminiKey) {
         status.llm.gemini = await measure(async () => {
             const genAI = new GoogleGenerativeAI(geminiKey);
-            // Use a generally available model for generateContent
-            const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            // Use the current generally available generateContent model
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
             await model.generateContent('ping');
         });
     } else {
