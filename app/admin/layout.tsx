@@ -1,30 +1,24 @@
-import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { Home } from 'lucide-react';
+import Link from 'next/link';
 
 export default function AdminLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    // Note: Basic Auth is usually handled at middleware or edge, 
-    // but for simple app router, we can check headers or use middleware.
-    // Since we can't easily do Basic Auth prompt in Layout (it needs to be response),
-    // we usually use Middleware.ts.
-    // For now, let's assume Middleware handles it or we use a simple login page.
-    // BUT, to keep it simple and "Basic Auth" style, Middleware is best.
-
     return (
         <div className="min-h-screen bg-gray-100">
-            <nav className="bg-white shadow-sm p-4">
-                <div className="container mx-auto flex justify-between">
-                    <h1 className="text-xl font-bold">RAG Admin</h1>
-                    <div className="space-x-4">
-                        <a href="/admin" className="text-gray-600 hover:text-black">Dashboard</a>
-                        <a href="/admin/status" className="text-gray-600 hover:text-black">Status</a>
-                    </div>
+            <nav className="bg-white shadow-sm border-b px-6 py-4 flex items-center justify-between">
+                <div className="font-bold text-xl text-gray-800">RAG Admin Panel</div>
+                <div className="flex items-center gap-4">
+                    <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                        <Home className="w-4 h-4" />
+                        <span>回到首頁 (Back to Chat)</span>
+                    </Link>
+                    <div className="text-sm text-gray-500">v2.0.0</div>
                 </div>
             </nav>
-            <main className="container mx-auto p-4">
+            <main className="p-6 max-w-7xl mx-auto">
                 {children}
             </main>
         </div>

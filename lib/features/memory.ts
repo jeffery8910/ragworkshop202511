@@ -30,4 +30,23 @@ export async function saveMessage(userId: string, role: 'user' | 'assistant', co
         content,
         timestamp: new Date()
     });
+});
+}
+
+export async function saveConversationTitle(userId: string, title: string) {
+    const client = await clientPromise;
+    const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
+    // Upsert title for the user
+    await db.collection('conversations').updateOne(
+        { userId },
+        { $set: { title, updatedAt: new Date() } },
+        { upsert: true }
+    );
+}
+
+export async function getConversationTitle(userId: string): Promise<string | null> {
+    const client = await clientPromise;
+    const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
+    const doc = await db.collection('conversations').findOne({ userId });
+    return doc ? doc.title : null;
 }

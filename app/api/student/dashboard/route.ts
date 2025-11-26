@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/db/mongo';
+import { cookies } from 'next/headers';
+import { getMongoClient } from '@/lib/db/mongo';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const client = await clientPromise;
-        const db = client.db(process.env.MONGODB_DB_NAME || 'rag_workshop');
+        const cookieStore = await cookies();
+        const mongoUri = cookieStore.get('MONGODB_URI')?.value;
+        const dbName = cookieStore.get('MONGODB_DB_NAME')?.value || process.env.MONGODB_DB_NAME || 'rag_workshop';
+
+        const client = await getMongoClient(mongoUri);
+        const db = client.db(dbName);
 
         // Fetch latest student stats
         // In a real app, we would filter by userId. Here we take the latest or a specific demo user.

@@ -1,17 +1,20 @@
 import Link from 'next/link';
 import { Bot, GraduationCap, Settings, ArrowRight } from 'lucide-react';
+import { cookies } from 'next/headers';
 
-export default function Home() {
+export default async function Home() {
+  const cookieStore = await cookies();
+  const chatTitle = cookieStore.get('CHAT_TITLE')?.value || 'RAG 工作坊';
+  const welcomeMessage = cookieStore.get('WELCOME_MESSAGE')?.value || '結合 Next.js 與 n8n 的進階混合式 RAG 架構。\n支援多模型切換、結構化輸出與適性化學習系統。';
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col items-center justify-center p-4">
       <div className="text-center mb-12">
         <h1 className="text-5xl font-extrabold text-gray-900 mb-4 tracking-tight">
-          RAG <span className="text-blue-600">工作坊</span>
+          {chatTitle}
         </h1>
-        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          結合 Next.js 與 n8n 的進階混合式 RAG 架構。
-          <br />
-          支援多模型切換、結構化輸出與適性化學習系統。
+        <p className="text-xl text-gray-600 max-w-2xl mx-auto whitespace-pre-line">
+          {welcomeMessage}
         </p>
       </div>
 
