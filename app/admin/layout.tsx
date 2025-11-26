@@ -24,6 +24,10 @@ export default function AdminLayout({
                 <div className="p-6 border-b">
                     <h1 className="text-2xl font-bold text-gray-900">RAG Admin</h1>
                     <p className="text-xs text-gray-500 mt-1">v2.0.0</p>
+                    <Link href="/" className="flex items-center gap-2 text-sm text-gray-500 hover:text-blue-600 transition-colors mt-2">
+                        <Home className="w-3 h-3" />
+                        回到首頁 (Back to Chat)
+                    </Link>
                 </div>
 
                 <nav className="flex-1 p-4 space-y-2">
@@ -40,13 +44,6 @@ export default function AdminLayout({
                         系統狀態
                     </Link>
                 </nav>
-
-                <div className="p-4 border-t">
-                    <Link href="/" className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 transition-colors">
-                        <Home className="w-4 h-4" />
-                        回到首頁 (Back to Chat)
-                    </Link>
-                </div>
             </aside>
 
             {/* Main Content */}

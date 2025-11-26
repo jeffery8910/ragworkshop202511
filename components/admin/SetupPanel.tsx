@@ -233,64 +233,168 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                 {/* LLM Section */}
                 <div className="space-y-4">
                     <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <Key className="w-4 h-4" /> AI 模型金鑰 (擇一填寫即可)
+                        <Cpu className="w-4 h-4" /> 模型設定 (LLM & Embedding)
                     </h3>
-                    <div className="grid grid-cols-1 gap-4">
-                        {['gemini', 'openai', 'openrouter'].map(provider => (
-                            <div key={provider} className="flex items-end gap-2">
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">{provider} API Key</label>
-                                    <input
-                                        type="password"
-                                        name={`${provider.toUpperCase()}_API_KEY`}
-                                        value={(config as any)[`${provider.toUpperCase()}_API_KEY`]}
-                                        onChange={handleChange}
-                                        className="w-full border rounded p-2 text-sm"
-                                    />
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => handleTestConnection(provider)}
-                                    disabled={testingProvider === provider}
-                                    className="bg-gray-100 text-gray-700 px-3 py-2 rounded border hover:bg-gray-200 text-sm flex items-center gap-1 h-[38px]"
-                                >
-                                    {testingProvider === provider ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                    測試 & 取得模型
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
 
-                {/* Embedding Settings Section */}
-                <div className="space-y-4">
-                    <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <Cpu className="w-4 h-4" /> Embedding 設定
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Gemini */}
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="font-bold text-blue-800">Google Gemini</span>
+                                {testingProvider === 'gemini' && <RefreshCw className="w-3 h-3 animate-spin text-blue-600" />}
+                            </div>
+                            <input
+                                type="password"
+                                name="GEMINI_API_KEY"
+                                value={config.GEMINI_API_KEY}
+                                onChange={handleChange}
+                                placeholder="AIzaSy..."
+                                className="w-full border rounded p-2 text-sm mb-2"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => handleTestConnection('gemini')}
+                                disabled={testingProvider === 'gemini'}
+                                className="w-full bg-blue-600 text-white text-xs py-1 rounded hover:bg-blue-700 disabled:opacity-50 mb-2"
+                            >
+                                測試連線 & 獲取模型
+                            </button>
+                            {availableModels['gemini']?.length > 0 ? (
+                                <select
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    className="w-full border rounded p-2 text-sm bg-white"
+                                >
+                                    {availableModels['gemini'].map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input
+                                    type="text"
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    placeholder="gemini-1.5-flash"
+                                    className="w-full border rounded p-2 text-sm"
+                                />
+                            )}
+                        </div>
+
+                        {/* OpenAI */}
+                        <div className="p-4 bg-green-50 rounded-lg border border-green-100">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="font-bold text-green-800">OpenAI</span>
+                                {testingProvider === 'openai' && <RefreshCw className="w-3 h-3 animate-spin text-green-600" />}
+                            </div>
+                            <input
+                                type="password"
+                                name="OPENAI_API_KEY"
+                                value={config.OPENAI_API_KEY}
+                                onChange={handleChange}
+                                placeholder="sk-..."
+                                className="w-full border rounded p-2 text-sm mb-2"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => handleTestConnection('openai')}
+                                disabled={testingProvider === 'openai'}
+                                className="w-full bg-green-600 text-white text-xs py-1 rounded hover:bg-green-700 disabled:opacity-50 mb-2"
+                            >
+                                測試連線 & 獲取模型
+                            </button>
+                            {availableModels['openai']?.length > 0 ? (
+                                <select
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    className="w-full border rounded p-2 text-sm bg-white"
+                                >
+                                    {availableModels['openai'].map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input
+                                    type="text"
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    placeholder="gpt-4o"
+                                    className="w-full border rounded p-2 text-sm"
+                                />
+                            )}
+                        </div>
+
+                        {/* OpenRouter */}
+                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="font-bold text-purple-800">OpenRouter</span>
+                                {testingProvider === 'openrouter' && <RefreshCw className="w-3 h-3 animate-spin text-purple-600" />}
+                            </div>
+                            <input
+                                type="password"
+                                name="OPENROUTER_API_KEY"
+                                value={config.OPENROUTER_API_KEY}
+                                onChange={handleChange}
+                                placeholder="sk-or-..."
+                                className="w-full border rounded p-2 text-sm mb-2"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => handleTestConnection('openrouter')}
+                                disabled={testingProvider === 'openrouter'}
+                                className="w-full bg-purple-600 text-white text-xs py-1 rounded hover:bg-purple-700 disabled:opacity-50 mb-2"
+                            >
+                                測試連線 & 獲取模型
+                            </button>
+                            {availableModels['openrouter']?.length > 0 ? (
+                                <select
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    className="w-full border rounded p-2 text-sm bg-white"
+                                >
+                                    {availableModels['openrouter'].map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input
+                                    type="text"
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    placeholder="anthropic/claude-3.5-sonnet"
+                                    className="w-full border rounded p-2 text-sm"
+                                />
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Provider</label>
                             <select
                                 name="EMBEDDING_PROVIDER"
                                 value={config.EMBEDDING_PROVIDER}
                                 onChange={handleChange}
-                                className="w-full border rounded p-2 text-sm"
+                                className="w-full border rounded p-2 text-sm bg-white"
                             >
                                 <option value="gemini">Google Gemini</option>
                                 <option value="openai">OpenAI</option>
-                                <option value="openrouter">OpenRouter</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Model Name</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Model</label>
                             {availableModels[config.EMBEDDING_PROVIDER]?.length > 0 ? (
                                 <select
                                     name="EMBEDDING_MODEL"
                                     value={config.EMBEDDING_MODEL}
                                     onChange={handleChange}
-                                    className="w-full border rounded p-2 text-sm"
+                                    className="w-full border rounded p-2 text-sm bg-white"
                                 >
-                                    <option value="">請選擇模型...</option>
                                     {availableModels[config.EMBEDDING_PROVIDER].map(m => (
                                         <option key={m} value={m}>{m}</option>
                                     ))}
@@ -301,49 +405,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                     name="EMBEDDING_MODEL"
                                     value={config.EMBEDDING_MODEL}
                                     onChange={handleChange}
-                                    placeholder="例如: text-embedding-004"
-                                    className="w-full border rounded p-2 text-sm"
-                                />
-                            )}
-                            <p className="text-xs text-gray-500 mt-1">Pinecone 僅負責儲存，需由此處設定 Embedding 模型。</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Chat Model Settings Section */}
-                <div className="space-y-4">
-                    <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <MessageSquare className="w-4 h-4" /> 聊天模型設定
-                    </h3>
-                    <div className="grid grid-cols-1 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Chat Model Name</label>
-                            {/* We try to infer which provider is being used for chat based on keys, or just show all if fetched */}
-                            {/* Since chat provider isn't explicitly selected like embedding, we can show a combined list or just rely on the user testing the key they want to use */}
-                            {/* For simplicity, let's show a dropdown if ANY models are fetched, or just input */}
-                            {Object.values(availableModels).flat().length > 0 ? (
-                                <select
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
-                                    className="w-full border rounded p-2 text-sm"
-                                >
-                                    <option value="">請選擇模型...</option>
-                                    {Object.entries(availableModels).map(([provider, models]) => (
-                                        <optgroup key={provider} label={provider}>
-                                            {models.map(m => (
-                                                <option key={m} value={m}>{m}</option>
-                                            ))}
-                                        </optgroup>
-                                    ))}
-                                </select>
-                            ) : (
-                                <input
-                                    type="text"
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
-                                    placeholder="例如: gemini-1.5-flash"
+                                    placeholder="text-embedding-004"
                                     className="w-full border rounded p-2 text-sm"
                                 />
                             )}
