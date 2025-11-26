@@ -10,27 +10,30 @@ export interface RagConfig {
   openaiApiKey?: string;
   openrouterApiKey?: string;
   embeddingProvider?: EmbeddingProvider;
+  embeddingModel?: string;
+  chatModel?: string;
   topK?: number;
 }
 
 export async function ragAnswer(userId: string, question: string, config?: RagConfig) {
   // Helper to create LLM config
   const getLlmConfig = () => {
-    if (config?.geminiApiKey) return { provider: 'gemini' as const, apiKey: config.geminiApiKey };
-    if (config?.openaiApiKey) return { provider: 'openai' as const, apiKey: config.openaiApiKey };
-    if (config?.openrouterApiKey) return { provider: 'openrouter' as const, apiKey: config.openrouterApiKey };
-    return undefined;
+    if (config?.geminiApiKey) return { provider: 'gemini' as const, apiKey: config.geminiApiKey, model: config.chatModel };
+    if (config?.openaiApiKey) return { provider: 'openai' as const, apiKey: config.openaiApiKey, model: config.chatModel };
+    if (config?.openrouterApiKey) return { provider: 'openrouter' as const, apiKey: config.openrouterApiKey, model: config.chatModel };
+    return { model: config?.chatModel };
   };
 
   const llmConfig = getLlmConfig();
 
   const embeddingConfig: EmbeddingConfig | undefined = config
     ? {
-        provider: config.embeddingProvider,
-        geminiApiKey: config.geminiApiKey,
-        openaiApiKey: config.openaiApiKey,
-        openrouterApiKey: config.openrouterApiKey,
-      }
+      provider: config.embeddingProvider,
+      geminiApiKey: config.geminiApiKey,
+      openaiApiKey: config.openaiApiKey,
+      openrouterApiKey: config.openrouterApiKey,
+      modelName: config.embeddingModel,
+    }
     : undefined;
 
   // 1. Get History & Rewrite Query
@@ -45,11 +48,8 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
       
       只回傳重寫後的問題，不要有其他文字。
     `;
-    // We need to pass API keys to generateText via env vars override or config
-    // generateText supports config.provider and config.apiKey?
-    // Let's check lib/llm.ts. It supports config.provider, apiKey, model.
-    // Yes.
-    searchParam = await generateText(rewritePrompt, { ...llmConfig, model: 'google/gemini-flash-1.5' });
+    // Use the configured chat model for rewriting as well, or fallback to a cheap one if not specified
+    searchParam = await generateText(rewritePrompt, { ...llmConfig });
   }
 
   // 2. Vector Search
@@ -68,6 +68,8 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
     如果資料不足，請誠實說不知道。
     
     參考資料：
+    ${context}
+    
     問題：${searchParam}
   `;
 

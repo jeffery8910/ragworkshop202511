@@ -8,6 +8,7 @@ export interface EmbeddingConfig {
     openaiApiKey?: string;
     geminiApiKey?: string;
     openrouterApiKey?: string;
+    modelName?: string;
 }
 
 export async function getEmbedding(text: string, config?: EmbeddingConfig): Promise<number[]> {
@@ -33,11 +34,11 @@ export async function getEmbedding(text: string, config?: EmbeddingConfig): Prom
             console.log(`Attempting embedding with provider: ${provider}`);
 
             if (provider === 'gemini') {
-                return await generateGeminiEmbedding(text, config?.geminiApiKey);
+                return await generateGeminiEmbedding(text, config?.geminiApiKey, config?.modelName);
             } else if (provider === 'openai') {
-                return await generateOpenAIEmbedding(text, config?.openaiApiKey);
+                return await generateOpenAIEmbedding(text, config?.openaiApiKey, config?.modelName);
             } else if (provider === 'openrouter') {
-                return await generateOpenRouterEmbedding(text, config?.openrouterApiKey);
+                return await generateOpenRouterEmbedding(text, config?.openrouterApiKey, config?.modelName);
             }
         } catch (error) {
             console.warn(`Embedding generation failed for provider ${provider}:`, error);
@@ -78,18 +79,18 @@ function hasEmbeddingApiKey(provider: EmbeddingProvider, config?: EmbeddingConfi
     }
 }
 
-async function generateGeminiEmbedding(text: string, apiKey?: string): Promise<number[]> {
+async function generateGeminiEmbedding(text: string, apiKey?: string, modelName?: string): Promise<number[]> {
     const key = apiKey || process.env.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY is not set');
 
     const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+    const model = genAI.getGenerativeModel({ model: modelName || 'text-embedding-004' });
 
     const result = await model.embedContent(text);
     return result.embedding.values;
 }
 
-async function generateOpenAIEmbedding(text: string, apiKey?: string): Promise<number[]> {
+async function generateOpenAIEmbedding(text: string, apiKey?: string, modelName?: string): Promise<number[]> {
     const key = apiKey || process.env.OPENAI_API_KEY;
     if (!key) throw new Error('OPENAI_API_KEY is not set');
 
@@ -98,14 +99,14 @@ async function generateOpenAIEmbedding(text: string, apiKey?: string): Promise<n
     });
 
     const response = await openai.embeddings.create({
-        model: 'text-embedding-3-small',
+        model: modelName || 'text-embedding-3-small',
         input: text.replace(/\n/g, ' '),
     });
 
     return response.data[0].embedding;
 }
 
-async function generateOpenRouterEmbedding(text: string, apiKey?: string): Promise<number[]> {
+async function generateOpenRouterEmbedding(text: string, apiKey?: string, modelName?: string): Promise<number[]> {
     const key = apiKey || process.env.OPENROUTER_API_KEY;
     if (!key) throw new Error('OPENROUTER_API_KEY is not set');
 
@@ -115,7 +116,7 @@ async function generateOpenRouterEmbedding(text: string, apiKey?: string): Promi
     });
 
     const response = await openai.embeddings.create({
-        model: 'openai/text-embedding-3-small',
+        model: modelName || 'openai/text-embedding-3-small',
         input: text.replace(/\n/g, ' '),
     });
 

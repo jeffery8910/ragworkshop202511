@@ -30,6 +30,8 @@ export async function POST(req: NextRequest) {
             openaiApiKey: cookieStore.get('OPENAI_API_KEY')?.value,
             openrouterApiKey: cookieStore.get('OPENROUTER_API_KEY')?.value,
             embeddingProvider,
+            embeddingModel: cookieStore.get('EMBEDDING_MODEL')?.value,
+            chatModel: cookieStore.get('CHAT_MODEL')?.value,
             topK: cookieStore.get('RAG_TOP_K')?.value ? parseInt(cookieStore.get('RAG_TOP_K')?.value!) : 5
         };
 
