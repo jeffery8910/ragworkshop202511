@@ -9,12 +9,12 @@
 
 點擊下方按鈕一鍵部署至 Vercel：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjeffery8910%2Fragworkshop202511&env=MONGODB_URI,MONGODB_DB_NAME,PINECONE_API_KEY,PINECONE_INDEX_NAME,GEMINI_API_KEY,OPENAI_API_KEY,OPENROUTER_API_KEY,ADMIN_PASSWORD,LINE_CHANNEL_SECRET,LINE_CHANNEL_ACCESS_TOKEN)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjeffery8910%2Fragworkshop202511&env=MONGODB_URI,ADMIN_PASSWORD)
 
 > **注意**：
 > 1. 請先將本專案 Push 至您的 GitHub Repository。
-> 2. 點擊按鈕進行部署，**Vercel 會提示您輸入環境變數** (如 `MONGODB_URI`, `PINECONE_API_KEY`, `ADMIN_PASSWORD` 等)。
-> 3. 部署完成後，可進入 **Admin 後台** (`/admin`) 進一步確認系統狀態。
+> 2. 點擊按鈕進行部署，建議至少填寫 `MONGODB_URI` 與 `ADMIN_PASSWORD`。
+> 3. 其他設定 (如 Pinecone, AI Key) 可於部署後至 Vercel Settings 或 Admin 後台補填。
 
 ### 2. 部署 Backend (n8n) 至 Render
 
