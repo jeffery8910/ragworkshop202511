@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trophy, Zap, BookOpen, AlertCircle } from 'lucide-react';
+import { Trophy, Zap, BookOpen, AlertCircle, Home } from 'lucide-react';
+import Link from 'next/link';
 
 interface Topic {
     name: string;
@@ -56,7 +57,16 @@ export default function StudentDashboard() {
     return (
         <div className="min-h-screen bg-gray-50 p-4">
             <header className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold text-gray-800">學習儀表板</h1>
+                <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-bold text-gray-800">學習儀表板</h1>
+                    <Link
+                        href="/"
+                        className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                        <Home className="w-4 h-4" />
+                        回到首頁
+                    </Link>
+                </div>
                 <div className="flex items-center gap-2 bg-yellow-100 px-3 py-1 rounded-full">
                     <Trophy className="w-5 h-5 text-yellow-600" />
                     <span className="font-bold text-yellow-700">Lv.{level}</span>
