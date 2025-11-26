@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, BookOpen } from 'lucide-react';
+import { Send, Bot, User, Loader2, BookOpen, Home } from 'lucide-react';
+import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 
 interface QuizQuestion {
@@ -236,9 +237,18 @@ export default function ChatInterface({
                             <span className="text-xs text-gray-500">使用者：{initialUserName}</span>
                         )}
                     </div>
-                    <div className="text-xs text-green-600 flex items-center gap-1">
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        線上 (Online)
+                    <div className="flex items-center gap-3">
+                        <Link
+                            href="/"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                        >
+                            <Home className="w-4 h-4" />
+                            回到首頁
+                        </Link>
+                        <div className="text-xs text-green-600 flex items-center gap-1">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            線上 (Online)
+                        </div>
                     </div>
                 </div>
 
