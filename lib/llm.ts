@@ -9,8 +9,16 @@ interface LLMConfig {
     model?: string;
 }
 
+export function getActiveProvider(): LLMProvider {
+    if (process.env.LLM_PROVIDER) return process.env.LLM_PROVIDER as LLMProvider;
+    if (process.env.OPENROUTER_API_KEY) return 'openrouter';
+    if (process.env.OPENAI_API_KEY) return 'openai';
+    if (process.env.GEMINI_API_KEY) return 'gemini';
+    return 'openrouter'; // Default fallback
+}
+
 export async function generateText(prompt: string, config?: Partial<LLMConfig>): Promise<string> {
-    const provider = config?.provider || (process.env.LLM_PROVIDER as LLMProvider) || 'openrouter';
+    const provider = config?.provider || getActiveProvider();
 
     try {
         if (provider === 'gemini') {

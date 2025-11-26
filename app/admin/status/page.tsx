@@ -30,9 +30,11 @@ export default function StatusPage() {
             <div className="flex items-center gap-2">
                 {loading ? (
                     <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                ) : value === 'ok' ? (
+                ) : value?.startsWith('ok') ? (
                     <>
-                        <span className="text-green-600 text-sm font-bold">連線正常</span>
+                        <span className="text-green-600 text-sm font-bold">
+                            {value === 'ok' ? '連線正常' : `連線正常 ${value.replace('ok ', '')}`}
+                        </span>
                         <CheckCircle className="w-5 h-5 text-green-500" />
                     </>
                 ) : (

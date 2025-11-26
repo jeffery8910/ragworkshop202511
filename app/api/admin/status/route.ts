@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/db/mongo';
 import { getPineconeClient } from '@/lib/vector/pinecone';
-import { generateText } from '@/lib/llm';
+import { generateText, getActiveProvider } from '@/lib/llm';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,10 +31,11 @@ export async function GET() {
         status.pinecone = 'error';
     }
 
-    // 3. Check LLM (OpenRouter/OpenAI)
+    // 3. Check LLM (OpenRouter/OpenAI/Gemini)
     try {
-        await generateText('ping', { model: 'google/gemini-flash-1.5' });
-        status.llm = 'ok';
+        const provider = getActiveProvider();
+        await generateText('ping');
+        status.llm = `ok (${provider})`;
     } catch (e) {
         status.llm = 'error';
     }
