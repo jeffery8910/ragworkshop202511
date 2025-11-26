@@ -39,12 +39,27 @@ export async function POST(req: NextRequest) {
             }
         } else if (provider === 'openai') {
             const openai = new OpenAI({ apiKey });
-            const list = await openai.models.list();
-            const chatWhitelistPrefixes = ['gpt', 'o', 'chatgpt'];
-            models = list.data
-                .map(m => m.id)
-                .filter(id => chatWhitelistPrefixes.some(p => id.startsWith(p)))
-                .sort();
+            try {
+                const list = await openai.models.list();
+                const chatWhitelist = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'];
+                const embedWhitelist = ['text-embedding-3-large', 'text-embedding-3-small'];
+                models = list.data
+                    .map(m => m.id)
+                    .filter(id =>
+                        chatWhitelist.some(c => id.startsWith(c)) ||
+                        embedWhitelist.some(e => id.startsWith(e))
+                    )
+                    .sort();
+            } catch (err) {
+                models = [
+                    'gpt-4.1',
+                    'gpt-4.1-mini',
+                    'gpt-4o',
+                    'gpt-4o-mini',
+                    'text-embedding-3-large',
+                    'text-embedding-3-small'
+                ];
+            }
         } else if (provider === 'openrouter') {
             const res = await fetch('https://openrouter.ai/api/v1/models', {
                 headers: {

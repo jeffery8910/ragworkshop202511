@@ -37,6 +37,24 @@ export async function POST(req: NextRequest) {
             mongoDbName: cookieStore.get('MONGODB_DB_NAME')?.value,
         };
 
+        // Validate chat model against provider to avoid unsupported IDs or embeddings
+        const validateChatModel = (provider?: string, model?: string) => {
+            if (!model || !provider) return true; // allow fallback to default behavior
+            const m = model.toLowerCase();
+            if (m.includes('embedding') || m.includes('embed') || m.includes('rerank')) return false;
+            if (provider === 'gemini') return m.startsWith('gemini');
+            if (provider === 'openai') return m.startsWith('gpt') || m.startsWith('o') || m.startsWith('chatgpt');
+            if (provider === 'openrouter') return true; // already filter embeddings out in model list API
+            return true;
+        };
+
+        if (!validateChatModel(
+            config.geminiApiKey ? 'gemini' : config.openaiApiKey ? 'openai' : config.openrouterApiKey ? 'openrouter' : undefined,
+            config.chatModel
+        )) {
+            return NextResponse.json({ error: 'CHAT_MODEL 與供應商不匹配，或為 embedding / rerank 型模型。請重新選擇。' }, { status: 400 });
+        }
+
         const result = await ragAnswer(uid, message, config);
 
         // Check and generate title if needed

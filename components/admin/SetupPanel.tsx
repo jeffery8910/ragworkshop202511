@@ -68,7 +68,11 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
 
             if (res.ok) {
                 setAvailableModels(prev => ({ ...prev, [provider]: data.models }));
-                alert(`連線成功！已取得 ${data.models.length} 個模型。`);
+                // 如果尚未選取聊天模型，預設帶入第一個可用項
+                if (!config.CHAT_MODEL && data.models?.length) {
+                    setConfig(prev => ({ ...prev, CHAT_MODEL: data.models[0] }));
+                }
+                alert(`連線成功！已取得 ${data.models.length} 個模型，並已套用預設模型。`);
             } else {
                 alert(`連線失敗: ${data.error}`);
             }
@@ -268,6 +272,18 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             >
                                 測試連線 & 獲取模型
                             </button>
+                            {availableModels['gemini']?.length > 0 ? (
+                                <select
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    className="w-full border rounded p-2 text-sm bg-white"
+                                >
+                                    {availableModels['gemini'].map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            ) : null}
                         </div>
 
                         {/* OpenAI */}
@@ -366,7 +382,13 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                             name="CHAT_MODEL"
                                             value={config.CHAT_MODEL}
                                             onChange={handleChange}
-                                            placeholder="尚未取得模型，請先測試連線"
+                                            placeholder={
+                                                chatProvider === 'gemini'
+                                                    ? 'gemini-2.5-flash'
+                                                    : chatProvider === 'openai'
+                                                        ? 'gpt-4.1'
+                                                        : 'mistralai/Mistral-7B-Instruct:free'
+                                            }
                                             className="w-full border rounded p-2 text-sm"
                                         />
                                     )}

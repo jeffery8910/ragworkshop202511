@@ -28,6 +28,7 @@ interface Message {
     conceptCard?: ConceptCardData;
     summaryCard?: SummaryCardData;
     qaCard?: QACardData;
+    parseError?: string;
 }
 
 interface ChatInterfaceProps {
@@ -260,7 +261,7 @@ const qaCardSchema = z.object({
 
 type StructuredPayload = z.infer<typeof quizSchema> | z.infer<typeof conceptSchema> | z.infer<typeof summarySchema> | z.infer<typeof qaCardSchema>;
 
-function extractStructuredPayload(text: string): { payload?: StructuredPayload; cleaned: string } {
+function extractStructuredPayload(text: string): { payload?: StructuredPayload; cleaned: string; error?: string } {
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return { cleaned: text };
     try {
@@ -277,10 +278,11 @@ function extractStructuredPayload(text: string): { payload?: StructuredPayload; 
         if (qaCardSchema.safeParse(parsed).success) {
             return { payload: qaCardSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
         }
-    } catch (err) {
+        return { cleaned: text, error: 'JSON 內容與預期格式不符，未顯示卡片。' };
+    } catch (err: any) {
         console.log('Structured JSON parse failed', err);
+        return { cleaned: text, error: 'JSON 解析失敗，未顯示卡片。' };
     }
-    return { cleaned: text };
 }
 
 export default function ChatInterface({
@@ -338,9 +340,10 @@ export default function ChatInterface({
             let conceptCard: ConceptCardData | undefined;
             let summaryCard: SummaryCardData | undefined;
             let qaCard: QACardData | undefined;
+            let parseError: string | undefined;
 
             if (typeof answerContent === 'string') {
-                const { payload, cleaned } = extractStructuredPayload(answerContent);
+                const { payload, cleaned, error } = extractStructuredPayload(answerContent);
                 answerContent = cleaned;
                 if (payload?.type === 'quiz') {
                     quizData = payload as QuizData;
@@ -355,6 +358,7 @@ export default function ChatInterface({
                     qaCard = payload as QACardData;
                     if (!answerContent) answerContent = '以下是問答卡片：';
                 }
+                if (error) parseError = error;
             }
 
             setMessages(prev => [...prev, {
@@ -364,7 +368,8 @@ export default function ChatInterface({
                 quizData,
                 conceptCard,
                 summaryCard,
-                qaCard
+                qaCard,
+                parseError
             }]);
         } catch (error) {
             setMessages(prev => [...prev, { role: 'assistant', content: '抱歉，系統發生錯誤，請稍後再試。' }]);
@@ -458,6 +463,11 @@ export default function ChatInterface({
                                     {msg.conceptCard && <ConceptCard data={msg.conceptCard} />}
                                     {msg.summaryCard && <SummaryCard data={msg.summaryCard} />}
                                     {msg.qaCard && <QACard data={msg.qaCard} />}
+                                    {msg.parseError && (
+                                        <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2">
+                                            {msg.parseError}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Source Citations */}
