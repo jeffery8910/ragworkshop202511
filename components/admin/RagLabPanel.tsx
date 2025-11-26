@@ -18,6 +18,7 @@ export default function RagLabPanel() {
     const [query, setQuery] = useState('');
     const [result, setResult] = useState<RagResult | null>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -25,6 +26,7 @@ export default function RagLabPanel() {
 
         setLoading(true);
         setResult(null);
+        setError(null);
 
         try {
             // We reuse the chat API but we might need to adjust it to return debug info
@@ -36,14 +38,19 @@ export default function RagLabPanel() {
                     message: query,
                     userId: 'admin-debug-user' // Use a specific ID for debug history
                 }),
+                cache: 'no-store'
             });
 
+            const data = await res.json();
+
             if (res.ok) {
-                const data = await res.json();
                 setResult(data);
+            } else {
+                setError(data.error || '查詢失敗，請稍後再試');
             }
         } catch (error) {
             console.error('RAG Debug error:', error);
+            setError('呼叫 /api/chat 時發生錯誤，請檢查伺服器日誌或環境變數設定。');
         } finally {
             setLoading(false);
         }
@@ -78,6 +85,12 @@ export default function RagLabPanel() {
                 </button>
             </form>
 
+            {error && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {error}
+                </div>
+            )}
+
             {result && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     {/* 1. Query Rewrite Flow */}
@@ -102,22 +115,28 @@ export default function RagLabPanel() {
                         <h3 className="text-md font-semibold text-gray-700 mb-3 flex items-center gap-2">
                             <Database className="w-4 h-4" /> 檢索到的知識片段 (Top 5)
                         </h3>
-                        <div className="grid gap-3">
-                            {result.context.map((chunk, idx) => (
-                                <div key={idx} className="bg-blue-50 p-3 rounded border border-blue-100 text-sm">
-                                    <div className="flex justify-between items-center mb-1">
-                                        <span className="font-bold text-blue-800">Chunk #{idx + 1}</span>
-                                        <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded text-xs">
-                                            Score: {chunk.score.toFixed(4)}
-                                        </span>
+                        {result.context?.length ? (
+                            <div className="grid gap-3">
+                                {result.context.map((chunk, idx) => (
+                                    <div key={idx} className="bg-blue-50 p-3 rounded border border-blue-100 text-sm">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-bold text-blue-800">Chunk #{idx + 1}</span>
+                                            <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded text-xs">
+                                                Score: {chunk.score.toFixed(4)}
+                                            </span>
+                                        </div>
+                                        <p className="text-gray-700 mb-2 line-clamp-3">{chunk.text}</p>
+                                        <div className="text-xs text-gray-500">
+                                            來源: {chunk.source} {chunk.page ? `(Page: ${chunk.page})` : ''}
+                                        </div>
                                     </div>
-                                    <p className="text-gray-700 mb-2 line-clamp-3">{chunk.text}</p>
-                                    <div className="text-xs text-gray-500">
-                                        來源: {chunk.source} (Page: {chunk.page})
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-sm text-gray-500 border border-dashed border-gray-300 rounded p-3">
+                                沒有取得檢索片段，請確認向量資料庫設定或問題內容。
+                            </div>
+                        )}
                     </div>
 
                     {/* 3. Final Answer */}
