@@ -9,12 +9,12 @@
 
 點擊下方按鈕一鍵部署至 Vercel：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjeffery8910%2Fragworkshop202511&env=LINE_CHANNEL_SECRET,LINE_CHANNEL_ACCESS_TOKEN,PINECONE_API_KEY,PINECONE_INDEX_NAME,MONGODB_URI,MONGODB_DB_NAME,N8N_WEBHOOK_URL)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjeffery8910%2Fragworkshop202511)
 
 > **注意**：
 > 1. 請先將本專案 Push 至您的 GitHub Repository。
-> 2. 點擊按鈕後，Vercel 會自動讀取 Repo 並要求填寫環境變數。
-> 3. **💡 建議同時填寫 `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`**。系統具備 **自動 Fallback 機制**，當主要模型 (如 Gemini) 失敗時，會自動切換至備用模型，確保服務不中斷。
+> 2. 點擊按鈕進行部署 (初始部署無需設定環境變數)。
+> 3. 部署完成後，請進入 **Admin 後台** 查看「系統設定檢查」，並依照提示至 Vercel Settings 填寫必要的 API Keys (如 `MONGODB_URI`, `PINECONE_API_KEY` 等)。
 
 ### 2. 部署 Backend (n8n) 至 Render
 
