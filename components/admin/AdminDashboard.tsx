@@ -18,6 +18,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ missingKeys, initialConfig }: AdminDashboardProps) {
     const [activeTab, setActiveTab] = useState('setup');
+    const [flowEvent, setFlowEvent] = useState<string | null>(null);
 
     const tabs = [
         { id: 'setup', label: '系統設定 (Setup)', icon: Settings },
@@ -71,10 +72,10 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                 )}
 
                 {activeTab === 'knowledge' && (
-                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-6xl">
-                        <UploadPanel />
-                        <KnowledgeGraph />
-                        <RagWorkflow />
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-6xl">
+                        <RagWorkflow currentAction={flowEvent} />
+                        <KnowledgeGraph onAction={setFlowEvent} />
+                        <UploadPanel onAction={setFlowEvent} />
                     </div>
                 )}
 

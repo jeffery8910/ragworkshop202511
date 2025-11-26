@@ -12,7 +12,11 @@ const MOCK_VECTORS = Array.from({ length: 20 }, (_, i) => ({
     source: i % 2 === 0 ? 'calculus_intro.pdf' : 'physics_basics.pdf'
 }));
 
-export default function KnowledgeGraph() {
+interface KnowledgeGraphProps {
+    onAction?: (msg: string) => void;
+}
+
+export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [loading, setLoading] = useState(false);
     const [vectors, setVectors] = useState(MOCK_VECTORS);
     const [selected, setSelected] = useState<typeof MOCK_VECTORS[number] | null>(MOCK_VECTORS[0]);
@@ -30,6 +34,7 @@ export default function KnowledgeGraph() {
             setVectors(refreshed);
             setSelected(refreshed[0]);
             setLoading(false);
+            onAction?.('更新向量視覺化');
         }, 1000);
     };
 

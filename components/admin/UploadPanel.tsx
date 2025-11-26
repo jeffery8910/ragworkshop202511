@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 
-export default function UploadPanel() {
+interface UploadPanelProps {
+    onAction?: (msg: string) => void;
+}
+
+export default function UploadPanel({ onAction }: UploadPanelProps) {
     const [dragActive, setDragActive] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
@@ -34,6 +38,7 @@ export default function UploadPanel() {
         setUploading(false);
         setFiles([]);
         alert('Upload Complete!');
+        onAction?.('檔案上傳並向量化完成');
     };
 
     const onButtonClick = () => {

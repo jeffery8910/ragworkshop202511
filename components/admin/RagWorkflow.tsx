@@ -41,7 +41,11 @@ const flows: Record<FlowKey, Array<{
     ],
 };
 
-export default function RagWorkflow() {
+interface RagWorkflowProps {
+    currentAction?: string | null;
+}
+
+export default function RagWorkflow({ currentAction }: RagWorkflowProps) {
     const [flow, setFlow] = useState<FlowKey>('query');
     const [activeStep, setActiveStep] = useState(0);
     const steps = useMemo(() => flows[flow], [flow]);
@@ -64,6 +68,11 @@ export default function RagWorkflow() {
                 <div>
                     <h2 className="text-lg font-semibold">RAG 運作流程 (互動示意)</h2>
                     <p className="text-sm text-gray-500">依照正在操作的情境切換流程，點擊節點可查看詳情。</p>
+                    {currentAction && (
+                        <div className="mt-2 inline-flex items-center gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                            最新操作：{currentAction}
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-2">
                     <select
