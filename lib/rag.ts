@@ -83,7 +83,7 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
         }
       ]
     }
-    請確保回傳的是合法的 JSON 字串，不要包含 markdown code block (```json ... ```)。
+    請確保回傳的是合法的 JSON 字串，不要使用三個反引號或任何 markdown code block 包住 JSON。
     如果不是測驗請求，則正常回答文字即可。
     
     參考資料：
