@@ -423,8 +423,14 @@ export default function ChatInterface({
     initialUserPicture
 }: ChatInterfaceProps) {
     const userId = initialUserId || 'web-user-demo';
+    const apiConfigured = typeof welcomeMessage === 'string' && welcomeMessage.trim().length > 0;
     const [messages, setMessages] = useState<Message[]>([
-        { role: 'assistant', content: welcomeMessage }
+        {
+            role: 'assistant',
+            content: apiConfigured
+                ? welcomeMessage
+                : '系統尚未設定聊天模型或 API Key，請聯絡網站管理員於後台填寫相關設定。',
+        },
     ]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
