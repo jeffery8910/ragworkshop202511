@@ -12,11 +12,12 @@ interface Message {
 
 interface ChatInterfaceProps {
     chatTitle: string;
+    welcomeMessage: string;
 }
 
-export default function ChatInterface({ chatTitle }: ChatInterfaceProps) {
+export default function ChatInterface({ chatTitle, welcomeMessage }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([
-        { role: 'assistant', content: '你好！我是你的 AI 學習助手。有什麼我可以幫你的嗎？' }
+        { role: 'assistant', content: welcomeMessage }
     ]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);

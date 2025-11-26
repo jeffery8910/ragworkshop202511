@@ -1,11 +1,3 @@
-'use client';
-
-import { useState } from 'react';
-import { Settings, Save, Database, Key, CheckCircle, AlertCircle, MessageSquare, Cpu } from 'lucide-react';
-
-interface SetupPanelProps {
-    initialConfig: Record<string, string>;
-}
 
 export default function SetupPanel({ initialConfig }: SetupPanelProps) {
     const [config, setConfig] = useState({
@@ -16,21 +8,57 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         GEMINI_API_KEY: initialConfig['GEMINI_API_KEY'] || '',
         OPENAI_API_KEY: initialConfig['OPENAI_API_KEY'] || '',
         OPENROUTER_API_KEY: initialConfig['OPENROUTER_API_KEY'] || '',
+        LINE_CHANNEL_SECRET: initialConfig['LINE_CHANNEL_SECRET'] || '',
+        LINE_CHANNEL_ACCESS_TOKEN: initialConfig['LINE_CHANNEL_ACCESS_TOKEN'] || '',
         EMBEDDING_PROVIDER: initialConfig['EMBEDDING_PROVIDER'] || 'gemini',
         EMBEDDING_MODEL: initialConfig['EMBEDDING_MODEL'] || '',
         CHAT_MODEL: initialConfig['CHAT_MODEL'] || '',
         CHAT_TITLE: initialConfig['CHAT_TITLE'] || '',
         WELCOME_MESSAGE: initialConfig['WELCOME_MESSAGE'] || ''
     });
+
     const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('');
+    const [testingProvider, setTestingProvider] = useState<string | null>(null);
+    const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setConfig({ ...config, [e.target.name]: e.target.value });
     };
 
-    const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setConfig({ ...config, [e.target.name]: e.target.value });
+    const handleTestConnection = async (provider: string) => {
+        setTestingProvider(provider);
+        setMessage('');
+        let apiKey = '';
+        if (provider === 'gemini') apiKey = config.GEMINI_API_KEY;
+        if (provider === 'openai') apiKey = config.OPENAI_API_KEY;
+        if (provider === 'openrouter') apiKey = config.OPENROUTER_API_KEY;
+
+        if (!apiKey) {
+            alert('請先輸入 API Key');
+            setTestingProvider(null);
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/admin/models', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ provider, apiKey })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                setAvailableModels(prev => ({ ...prev, [provider]: data.models }));
+                alert(`連線成功！已取得 ${data.models.length} 個模型。`);
+            } else {
+                alert(`連線失敗: ${data.error}`);
+            }
+        } catch (e) {
+            alert('連線測試發生錯誤');
+        } finally {
+            setTestingProvider(null);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -50,7 +78,6 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
             if (res.ok) {
                 setStatus('success');
                 setMessage('設定已儲存並連線成功！');
-                // Optional: Reload page to reflect changes in other components
                 setTimeout(() => window.location.reload(), 1500);
             } else {
                 setStatus('error');
@@ -70,7 +97,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
             </h2>
 
             <p className="text-gray-600 mb-6 text-sm">
-                若您未在部署時設定環境變數，請在此輸入必要的連線資訊。系統將會把設定儲存於安全的 Cookie 中。
+                請輸入必要的連線資訊。點擊「測試連線」可驗證 Key 並取得可用模型列表。
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -135,38 +162,28 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     </div>
                 </div>
 
-                {/* LLM Section */}
+                {/* LINE Settings Section */}
                 <div className="space-y-4">
                     <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <Key className="w-4 h-4" /> AI 模型金鑰 (擇一填寫即可)
+                        <Smartphone className="w-4 h-4" /> LINE Bot 設定
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Channel Secret</label>
                             <input
                                 type="password"
-                                name="GEMINI_API_KEY"
-                                value={config.GEMINI_API_KEY}
+                                name="LINE_CHANNEL_SECRET"
+                                value={config.LINE_CHANNEL_SECRET}
                                 onChange={handleChange}
                                 className="w-full border rounded p-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">OpenAI API Key</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Channel Access Token</label>
                             <input
                                 type="password"
-                                name="OPENAI_API_KEY"
-                                value={config.OPENAI_API_KEY}
-                                onChange={handleChange}
-                                className="w-full border rounded p-2 text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">OpenRouter API Key</label>
-                            <input
-                                type="password"
-                                name="OPENROUTER_API_KEY"
-                                value={config.OPENROUTER_API_KEY}
+                                name="LINE_CHANNEL_ACCESS_TOKEN"
+                                value={config.LINE_CHANNEL_ACCESS_TOKEN}
                                 onChange={handleChange}
                                 className="w-full border rounded p-2 text-sm"
                             />
@@ -174,10 +191,73 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     </div>
                 </div>
 
+                {/* Chat Customization Section */}
+                <div className="space-y-4">
+                    <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
+                        <MessageSquare className="w-4 h-4" /> 聊天介面客製
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Chat Title</label>
+                            <input
+                                type="text"
+                                name="CHAT_TITLE"
+                                value={config.CHAT_TITLE}
+                                onChange={handleChange}
+                                placeholder="RAG 工作坊"
+                                className="w-full border rounded p-2 text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Welcome Message</label>
+                            <input
+                                type="text"
+                                name="WELCOME_MESSAGE"
+                                value={config.WELCOME_MESSAGE}
+                                onChange={handleChange}
+                                placeholder="你好！我是你的 AI 學習助手。"
+                                className="w-full border rounded p-2 text-sm"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* LLM Section */}
+                <div className="space-y-4">
+                    <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
+                        <Key className="w-4 h-4" /> AI 模型金鑰 (擇一填寫即可)
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                        {['gemini', 'openai', 'openrouter'].map(provider => (
+                            <div key={provider} className="flex items-end gap-2">
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">{provider} API Key</label>
+                                    <input
+                                        type="password"
+                                        name={`${provider.toUpperCase()}_API_KEY`}
+                                        value={(config as any)[`${provider.toUpperCase()}_API_KEY`]}
+                                        onChange={handleChange}
+                                        className="w-full border rounded p-2 text-sm"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTestConnection(provider)}
+                                    disabled={testingProvider === provider}
+                                    className="bg-gray-100 text-gray-700 px-3 py-2 rounded border hover:bg-gray-200 text-sm flex items-center gap-1 h-[38px]"
+                                >
+                                    {testingProvider === provider ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                    測試 & 取得模型
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
                 {/* Embedding Settings Section */}
                 <div className="space-y-4">
                     <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <Cpu className="w-4 h-4" /> Embedding 設定 (Embedding Settings)
+                        <Cpu className="w-4 h-4" /> Embedding 設定
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -185,7 +265,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             <select
                                 name="EMBEDDING_PROVIDER"
                                 value={config.EMBEDDING_PROVIDER}
-                                onChange={handleSelectChange}
+                                onChange={handleChange}
                                 className="w-full border rounded p-2 text-sm"
                             >
                                 <option value="gemini">Google Gemini</option>
@@ -194,20 +274,30 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Embedding Model Name (Optional)
-                                <a href="https://ai.google.dev/gemini-api/docs/models/gemini" target="_blank" rel="noopener noreferrer" className="ml-2 text-blue-500 text-xs hover:underline">Gemini Models</a>
-                                <span className="mx-1 text-gray-300">|</span>
-                                <a href="https://platform.openai.com/docs/models/embeddings" target="_blank" rel="noopener noreferrer" className="text-blue-500 text-xs hover:underline">OpenAI Models</a>
-                            </label>
-                            <input
-                                type="text"
-                                name="EMBEDDING_MODEL"
-                                value={config.EMBEDDING_MODEL}
-                                onChange={handleChange}
-                                placeholder="text-embedding-004"
-                                className="w-full border rounded p-2 text-sm"
-                            />
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Model Name</label>
+                            {availableModels[config.EMBEDDING_PROVIDER]?.length > 0 ? (
+                                <select
+                                    name="EMBEDDING_MODEL"
+                                    value={config.EMBEDDING_MODEL}
+                                    onChange={handleChange}
+                                    className="w-full border rounded p-2 text-sm"
+                                >
+                                    <option value="">請選擇模型...</option>
+                                    {availableModels[config.EMBEDDING_PROVIDER].map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input
+                                    type="text"
+                                    name="EMBEDDING_MODEL"
+                                    value={config.EMBEDDING_MODEL}
+                                    onChange={handleChange}
+                                    placeholder="例如: text-embedding-004"
+                                    className="w-full border rounded p-2 text-sm"
+                                />
+                            )}
+                            <p className="text-xs text-gray-500 mt-1">Pinecone 僅負責儲存，需由此處設定 Embedding 模型。</p>
                         </div>
                     </div>
                 </div>
@@ -215,29 +305,40 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                 {/* Chat Model Settings Section */}
                 <div className="space-y-4">
                     <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <MessageSquare className="w-4 h-4" /> 聊天模型設定 (Chat Model Settings)
+                        <MessageSquare className="w-4 h-4" /> 聊天模型設定
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Chat Model Name (Optional)
-                                <a href="https://ai.google.dev/gemini-api/docs/models/gemini" target="_blank" rel="noopener noreferrer" className="ml-2 text-blue-500 text-xs hover:underline">Gemini Models</a>
-                                <span className="mx-1 text-gray-300">|</span>
-                                <a href="https://platform.openai.com/docs/models" target="_blank" rel="noopener noreferrer" className="text-blue-500 text-xs hover:underline">OpenAI Models</a>
-                                <span className="mx-1 text-gray-300">|</span>
-                                <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="text-blue-500 text-xs hover:underline">OpenRouter Models</a>
-                            </label>
-                            <input
-                                type="text"
-                                name="CHAT_MODEL"
-                                value={config.CHAT_MODEL}
-                                onChange={handleChange}
-                                placeholder="gemini-1.5-flash"
-                                className="w-full border rounded p-2 text-sm"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                                若未填寫，系統將使用預設模型 (Gemini 1.5 Flash 或 GPT-3.5 Turbo)。
-                            </p>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Chat Model Name</label>
+                            {/* We try to infer which provider is being used for chat based on keys, or just show all if fetched */}
+                            {/* Since chat provider isn't explicitly selected like embedding, we can show a combined list or just rely on the user testing the key they want to use */}
+                            {/* For simplicity, let's show a dropdown if ANY models are fetched, or just input */}
+                            {Object.values(availableModels).flat().length > 0 ? (
+                                <select
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    className="w-full border rounded p-2 text-sm"
+                                >
+                                    <option value="">請選擇模型...</option>
+                                    {Object.entries(availableModels).map(([provider, models]) => (
+                                        <optgroup key={provider} label={provider}>
+                                            {models.map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input
+                                    type="text"
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    placeholder="例如: gemini-1.5-flash"
+                                    className="w-full border rounded p-2 text-sm"
+                                />
+                            )}
                         </div>
                     </div>
                 </div>

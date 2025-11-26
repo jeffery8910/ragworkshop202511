@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { cookies } from 'next/headers';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,10 +13,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "RAG 工作坊",
-  description: "進階 RAG 工作坊專案 (Next.js + n8n)",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const cookieStore = await cookies();
+  const title = cookieStore.get('CHAT_TITLE')?.value || "RAG 工作坊";
+  return {
+    title: title,
+    description: "進階 RAG 工作坊專案 (Next.js + n8n)",
+  };
+}
 
 export default function RootLayout({
   children,

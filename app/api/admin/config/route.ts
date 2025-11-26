@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
         const keys = [
             'MONGODB_URI', 'MONGODB_DB_NAME',
             'PINECONE_API_KEY', 'PINECONE_INDEX_NAME',
+            'LINE_CHANNEL_SECRET', 'LINE_CHANNEL_ACCESS_TOKEN',
             'GEMINI_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY',
             'EMBEDDING_PROVIDER', 'EMBEDDING_MODEL', 'CHAT_MODEL',
             'CHAT_TITLE', 'WELCOME_MESSAGE',
