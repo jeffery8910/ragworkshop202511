@@ -84,7 +84,7 @@ async function generateGeminiEmbedding(text: string, apiKey?: string): Promise<n
 
     const genAI = new GoogleGenerativeAI(key);
     const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-    
+
     const result = await model.embedContent(text);
     return result.embedding.values;
 }
