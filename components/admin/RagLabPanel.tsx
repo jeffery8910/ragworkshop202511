@@ -93,6 +93,38 @@ export default function RagLabPanel() {
 
             {result && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* 0. Vector Result Chart */}
+                    <div>
+                        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                            <Database className="w-4 h-4" /> 檢索結果可視化
+                        </h3>
+                        {result.context?.length ? (
+                            <div className="space-y-2 bg-white border border-gray-200 rounded-lg p-3">
+                                {result.context.map((chunk, idx) => {
+                                    const pct = Math.max(5, Math.min(100, chunk.score * 100));
+                                    return (
+                                        <div key={idx} className="space-y-1">
+                                            <div className="flex justify-between text-xs text-gray-600">
+                                                <span>Chunk #{idx + 1} - {chunk.source || '未知來源'}</span>
+                                                <span>Score {(chunk.score ?? 0).toFixed(4)}</span>
+                                            </div>
+                                            <div className="w-full bg-gray-100 rounded-full h-2">
+                                                <div
+                                                    className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                                                    style={{ width: `${pct}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="text-sm text-gray-500 bg-white border border-dashed border-gray-200 rounded p-3">
+                                尚未取得檢索結果。
+                            </div>
+                        )}
+                    </div>
+
                     {/* 1. Query Rewrite Flow */}
                     <div className="flex items-center gap-4 text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
                         <div className="flex items-center gap-2">
