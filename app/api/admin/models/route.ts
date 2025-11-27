@@ -82,6 +82,14 @@ export async function POST(req: NextRequest) {
             freeDefaults.forEach(id => {
                 if (!models.includes(id)) models.unshift(id);
             });
+        } else if (provider === 'pinecone') {
+            // Pinecone inference curated list (no public list API yet)
+            models = [
+                'multilingual-e5-large',
+                'llama-text-embed-v2',
+                'jina-embeddings-v4',
+                'bge-m3'
+            ];
         } else {
             return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
         }

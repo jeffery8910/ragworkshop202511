@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
         // Extract config from cookies
 
         const embeddingProviderCookie = cookieStore.get('EMBEDDING_PROVIDER')?.value;
-        const validEmbeddingProviders: EmbeddingProvider[] = ['gemini', 'openai', 'openrouter'];
+        const validEmbeddingProviders: EmbeddingProvider[] = ['gemini', 'openai', 'openrouter', 'pinecone'];
         const embeddingProvider = validEmbeddingProviders.includes(
             embeddingProviderCookie as EmbeddingProvider,
         )
@@ -30,11 +30,11 @@ export async function POST(req: NextRequest) {
             : undefined;
 
         const config = {
-            pineconeApiKey: cookieStore.get('PINECONE_API_KEY')?.value,
             pineconeIndex: cookieStore.get('PINECONE_INDEX_NAME')?.value,
             geminiApiKey: cookieStore.get('GEMINI_API_KEY')?.value,
             openaiApiKey: cookieStore.get('OPENAI_API_KEY')?.value,
             openrouterApiKey: cookieStore.get('OPENROUTER_API_KEY')?.value,
+            pineconeApiKey: cookieStore.get('PINECONE_API_KEY')?.value,
             embeddingProvider,
             embeddingModel: cookieStore.get('EMBEDDING_MODEL')?.value,
             chatModel: cookieStore.get('CHAT_MODEL')?.value,
@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
             if (provider === 'gemini') return m.includes('embedding') || m.startsWith('text-embedding');
             if (provider === 'openai') return m.includes('embedding');
             if (provider === 'openrouter') return true; // openrouter list already filtered
+            if (provider === 'pinecone') return true; // rely on inference model list; we accept any provided
             return true;
         };
 

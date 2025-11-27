@@ -33,18 +33,20 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         gemini: [],
         openai: [],
         openrouter: [],
+        pinecone: [],
     });
-    const [chatProvider, setChatProvider] = useState<'gemini' | 'openai' | 'openrouter'>(
+    const [chatProvider, setChatProvider] = useState<'gemini' | 'openai' | 'openrouter' | 'pinecone'>(
         initialConfig['GEMINI_API_KEY'] ? 'gemini' :
             initialConfig['OPENAI_API_KEY'] ? 'openai' :
-                initialConfig['OPENROUTER_API_KEY'] ? 'openrouter' : 'gemini'
+                initialConfig['OPENROUTER_API_KEY'] ? 'openrouter' :
+                    initialConfig['PINECONE_API_KEY'] ? 'pinecone' : 'gemini'
     );
 
     const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setConfig({ ...config, [e.target.name]: e.target.value });
     };
 
-    const handleTestConnection = async (provider: 'gemini' | 'openai' | 'openrouter') => {
+    const handleTestConnection = async (provider: 'gemini' | 'openai' | 'openrouter' | 'pinecone') => {
         setTestingProvider(provider);
         setMessage('');
         let apiKey = '';
@@ -358,11 +360,12 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                     onChange={e => setChatProvider(e.target.value as any)}
                                     className="w-full border rounded p-2 text-sm bg-white"
                                 >
-                                    <option value="gemini">Google Gemini</option>
-                                    <option value="openai">OpenAI</option>
-                                    <option value="openrouter">OpenRouter</option>
-                                </select>
-                            </div>
+                                <option value="gemini">Google Gemini</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="openrouter">OpenRouter</option>
+                                <option value="pinecone">Pinecone Inference</option>
+                            </select>
+                        </div>
                             <div className="md:col-span-2 flex gap-2 items-end">
                                 <button
                                     type="button"
@@ -374,34 +377,36 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                 </button>
                                 <div className="flex-1">
                                     <label className="block text-xs text-gray-600 mb-1">可用模型</label>
-                                    {availableModels[chatProvider]?.length ? (
-                                        <select
-                                            name="CHAT_MODEL"
-                                            value={config.CHAT_MODEL}
-                                            onChange={handleChange}
-                                            className="w-full border rounded p-2 text-sm bg-white"
-                                        >
-                                            {availableModels[chatProvider].map(m => (
-                                                <option key={m} value={m}>{m}</option>
-                                            ))}
-                                        </select>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            name="CHAT_MODEL"
-                                            value={config.CHAT_MODEL}
-                                            onChange={handleChange}
-                                            placeholder={
-                                                chatProvider === 'gemini'
-                                                    ? 'gemini-2.5-flash'
-                                                    : chatProvider === 'openai'
-                                                        ? 'gpt-4.1'
-                                                        : 'mistralai/Mistral-7B-Instruct:free'
-                                            }
-                                            className="w-full border rounded p-2 text-sm"
-                                        />
-                                    )}
-                                </div>
+                            {availableModels[chatProvider]?.length ? (
+                                <select
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    className="w-full border rounded p-2 text-sm bg-white"
+                                >
+                                    {availableModels[chatProvider].map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input
+                                    type="text"
+                                    name="CHAT_MODEL"
+                                    value={config.CHAT_MODEL}
+                                    onChange={handleChange}
+                                    placeholder={
+                                        chatProvider === 'gemini'
+                                            ? 'gemini-2.5-flash'
+                                            : chatProvider === 'openai'
+                                                ? 'gpt-4.1'
+                                                : chatProvider === 'pinecone'
+                                                    ? 'multilingual-e5-large'
+                                                    : 'mistralai/Mistral-7B-Instruct:free'
+                                    }
+                                    className="w-full border rounded p-2 text-sm"
+                                />
+                            )}
+                        </div>
                             </div>
                         </div>
                     </div>
@@ -417,6 +422,8 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             >
                                 <option value="gemini">Google Gemini</option>
                                 <option value="openai">OpenAI</option>
+                                <option value="pinecone">Pinecone Inference</option>
+                                <option value="openrouter">OpenRouter</option>
                             </select>
                         </div>
                         <div>
