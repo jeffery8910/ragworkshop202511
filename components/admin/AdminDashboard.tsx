@@ -95,10 +95,16 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                         </div>
 
                         {knowledgeSubTab === 'viz' && (
-                            <div className="space-y-4">
-                                <RagWorkflow currentAction={flowEvent} />
-                                <UploadPanel onAction={setFlowEvent} />
-                                <KnowledgeGraph onAction={setFlowEvent} />
+                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                                <div className="xl:col-span-1">
+                                    <RagWorkflow currentAction={flowEvent} />
+                                </div>
+                                <div className="xl:col-span-1">
+                                    <UploadPanel onAction={setFlowEvent} />
+                                </div>
+                                <div className="xl:col-span-1">
+                                    <KnowledgeGraph onAction={setFlowEvent} />
+                                </div>
                             </div>
                         )}
 
