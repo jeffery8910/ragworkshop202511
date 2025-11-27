@@ -22,6 +22,10 @@ export async function saveCard(userId: string, payload: CardPayload, opts?: Save
     payload,
     createdAt: new Date(),
   });
+
+  // TTL cleanup: remove cards older than 30 days
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  await db.collection('cards').deleteMany({ userId, createdAt: { $lt: thirtyDaysAgo } });
 }
 
 export async function getCardsByUser(userId: string, opts?: SaveOptions, limit = 20, filter?: Record<string, any>) {

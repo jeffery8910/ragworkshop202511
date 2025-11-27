@@ -10,6 +10,7 @@ import SetupPanel from '@/components/admin/SetupPanel';
 import RagLabPanel from '@/components/admin/RagLabPanel';
 import KnowledgeGraph from '@/components/admin/KnowledgeGraph';
 import RagWorkflow from '@/components/admin/RagWorkflow';
+import CardManager from '@/components/admin/CardManager';
 
 interface AdminDashboardProps {
     missingKeys: string[];
@@ -19,7 +20,7 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ missingKeys, initialConfig }: AdminDashboardProps) {
     const [activeTab, setActiveTab] = useState('setup');
     const [flowEvent, setFlowEvent] = useState<string | null>(null);
-    const [knowledgeSubTab, setKnowledgeSubTab] = useState<'viz' | 'advanced' | 'lab'>('viz');
+    const [knowledgeSubTab, setKnowledgeSubTab] = useState<'viz' | 'advanced' | 'lab' | 'cards'>('viz');
 
     const tabs = [
         { id: 'setup', label: '系統設定 (Setup)', icon: Settings },
@@ -79,6 +80,7 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                                 { id: 'viz', label: '知識庫視覺化' },
                                 { id: 'advanced', label: '進階設定（資料庫）' },
                                 { id: 'lab', label: 'RAG 實驗室模擬' },
+                                { id: 'cards', label: '卡片管理' },
                             ].map(tab => (
                                 <button
                                     key={tab.id}
@@ -120,6 +122,12 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                         {knowledgeSubTab === 'lab' && (
                             <div className="space-y-4">
                                 <RagLabPanel />
+                            </div>
+                        )}
+
+                        {knowledgeSubTab === 'cards' && (
+                            <div className="space-y-4">
+                                <CardManager />
                             </div>
                         )}
                     </div>
