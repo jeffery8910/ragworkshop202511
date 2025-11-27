@@ -10,6 +10,13 @@ interface RagResult {
         text: string;
         source: string;
         page?: number;
+        indexedAt?: number | string;
+        metadata?: {
+            text_length?: number;
+            indexed_at?: number | string;
+            chunk_id?: string;
+            [key: string]: any;
+        };
     }>;
     rewrittenQuery?: string;
 }
@@ -20,6 +27,18 @@ export default function RagLabPanel() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const normalizedScores = result?.context?.length
+        ? result.context.map(c => c.score)
+        : [];
+    const maxScore = normalizedScores.length ? Math.max(...normalizedScores) : 1;
+
+    const sourceCounts = result?.context?.reduce<Record<string, number>>((acc, c) => {
+        const key = c.source || '未知來源';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+    }, {}) || {};
+    const totalSources = Object.values(sourceCounts).reduce((a, b) => a + b, 0) || 1;
+
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!query.trim()) return;
@@ -29,8 +48,6 @@ export default function RagLabPanel() {
         setError(null);
 
         try {
-            // We reuse the chat API but we might need to adjust it to return debug info
-            // The chat API currently returns { answer, context, rewrittenQuery } (after our recent update)
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -123,6 +140,49 @@ export default function RagLabPanel() {
                                 尚未取得檢索結果。
                             </div>
                         )}
+                    </div>
+
+                    {/* 0b. Score vs Rank / Source 分布 */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2">Score vs Rank</h4>
+                            {result.context?.length ? result.context.map((c, i) => {
+                                const pct = maxScore ? (c.score / maxScore) * 100 : 0;
+                                return (
+                                    <div key={i} className="space-y-1 mb-2">
+                                        <div className="flex justify-between text-xs text-gray-500">
+                                            <span># {i + 1}</span>
+                                            <span>{c.score.toFixed(4)}</span>
+                                        </div>
+                                        <div className="w-full bg-gray-100 rounded-full h-2">
+                                            <div className="h-2 rounded-full bg-blue-500" style={{ width: `${pct}%` }}></div>
+                                        </div>
+                                    </div>
+                                );
+                            }) : <div className="text-xs text-gray-500">尚無資料</div>}
+                        </div>
+
+                        <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2">來源分布</h4>
+                            {Object.keys(sourceCounts).length ? (
+                                <div className="space-y-2">
+                                    {Object.entries(sourceCounts).map(([src, cnt], idx) => {
+                                        const pct = (cnt / totalSources) * 100;
+                                        return (
+                                            <div key={idx} className="space-y-1">
+                                                <div className="flex justify-between text-xs text-gray-500">
+                                                    <span>{src}</span>
+                                                    <span>{cnt} / {totalSources}</span>
+                                                </div>
+                                                <div className="w-full bg-gray-100 rounded-full h-2">
+                                                    <div className="h-2 rounded-full bg-purple-500" style={{ width: `${pct}%` }}></div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : <div className="text-xs text-gray-500">尚無資料</div>}
+                        </div>
                     </div>
 
                     {/* 1. Query Rewrite Flow */}
