@@ -9,7 +9,9 @@ const MOCK_VECTORS = Array.from({ length: 20 }, (_, i) => ({
     x: Math.random() * 100,
     y: Math.random() * 100,
     title: `Chunk ${i + 1}`,
-    source: i % 2 === 0 ? 'calculus_intro.pdf' : 'physics_basics.pdf'
+    source: i % 2 === 0 ? 'calculus_intro.pdf' : 'physics_basics.pdf',
+    len: 180 + Math.floor(Math.random() * 400),
+    indexedAt: Date.now() - Math.floor(Math.random() * 1000 * 60 * 60 * 24),
 }));
 
 interface KnowledgeGraphProps {
@@ -29,7 +31,9 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                 x: Math.random() * 100,
                 y: Math.random() * 100,
                 title: `Chunk ${i + 1}`,
-                source: i % 3 === 0 ? 'history.pdf' : 'science.pdf'
+                source: i % 3 === 0 ? 'history.pdf' : 'science.pdf',
+                len: 180 + Math.floor(Math.random() * 400),
+                indexedAt: Date.now() - Math.floor(Math.random() * 1000 * 60 * 60 * 24),
             }));
             setVectors(refreshed);
             setSelected(refreshed[0]);
@@ -98,6 +102,14 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                 <div className="flex justify-between text-sm text-gray-700">
                                     <span className="text-gray-500">座標</span>
                                     <span>{selected.x.toFixed(2)}, {selected.y.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm text-gray-700">
+                                    <span className="text-gray-500">Chunk 長度</span>
+                                    <span>{selected.len ?? '-'} chars</span>
+                                </div>
+                                <div className="flex justify-between text-sm text-gray-700">
+                                    <span className="text-gray-500">索引時間</span>
+                                    <span>{selected.indexedAt ? new Date(selected.indexedAt).toLocaleString() : '-'}</span>
                                 </div>
                                 <div className="flex justify-between text-sm text-gray-700">
                                     <span className="text-gray-500">相似度</span>

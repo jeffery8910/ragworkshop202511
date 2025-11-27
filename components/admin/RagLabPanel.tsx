@@ -158,8 +158,10 @@ export default function RagLabPanel() {
                                             </span>
                                         </div>
                                         <p className="text-gray-700 mb-2 line-clamp-3">{chunk.text}</p>
-                                        <div className="text-xs text-gray-500">
-                                            來源: {chunk.source} {chunk.page ? `(Page: ${chunk.page})` : ''}
+                                        <div className="text-xs text-gray-500 flex flex-wrap gap-3">
+                                            <span>長度: {(chunk.text || '').length} chars</span>
+                                            { (chunk as any).indexedAt && <span>索引時間: {new Date((chunk as any).indexedAt).toLocaleString()}</span>}
+                                            <span>來源: {chunk.source} {chunk.page ? `(Page: ${chunk.page})` : ''}</span>
                                         </div>
                                     </div>
                                 ))}
