@@ -1,5 +1,6 @@
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import { cookies } from 'next/headers';
+import { Suspense } from 'react';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,5 +35,9 @@ export default async function AdminPage() {
         initialConfig[key] = cookieStore.get(key)?.value || process.env[key] || '';
     });
 
-    return <AdminDashboard missingKeys={missingKeys} initialConfig={initialConfig} />;
+    return (
+        <Suspense fallback={<div className="p-6">載入中...</div>}>
+            <AdminDashboard missingKeys={missingKeys} initialConfig={initialConfig} />
+        </Suspense>
+    );
 }
