@@ -469,6 +469,10 @@ export default function ChatInterface({
 
             const data = await res.json();
 
+            if (!res.ok) {
+                throw new Error(data?.error || '聊天服務回應失敗，請稍後再試');
+            }
+
             if (data.newTitle) {
                 setCurrentTitle(data.newTitle);
             }
@@ -481,6 +485,10 @@ export default function ChatInterface({
             let abilityCard: AbilityCardData | undefined;
             let mistakeCard: MistakeCardData | undefined;
             let parseError: string | undefined;
+
+            if (!answerContent) {
+                throw new Error(data?.error || '沒有收到模型回覆，請重新選擇聊天模型或檢查 API Key');
+            }
 
             if (typeof answerContent === 'string') {
                 const { payload, cleaned, error } = extractStructuredPayload(answerContent);
@@ -519,8 +527,9 @@ export default function ChatInterface({
                 mistakeCard,
                 parseError
             }]);
-        } catch (error) {
-            setMessages(prev => [...prev, { role: 'assistant', content: '抱歉，系統發生錯誤，請稍後再試。' }]);
+        } catch (error: any) {
+            const msg = error?.message || '抱歉，系統發生錯誤，請稍後再試。';
+            setMessages(prev => [...prev, { role: 'assistant', content: msg }]);
         } finally {
             setLoading(false);
         }
