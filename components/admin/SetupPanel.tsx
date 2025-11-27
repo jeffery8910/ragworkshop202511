@@ -72,7 +72,16 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                 if (!config.CHAT_MODEL && data.models?.length && chatProvider === provider) {
                     setConfig(prev => ({ ...prev, CHAT_MODEL: data.models[0] }));
                 }
-                alert(`連線成功！已取得 ${data.models.length} 個模型，並已套用預設模型。`);
+                // 自動儲存目前設定，避免測試後還要再按一次儲存
+                await fetch('/api/admin/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...config,
+                        CHAT_MODEL: config.CHAT_MODEL || data.models?.[0] || ''
+                    }),
+                });
+                alert(`連線成功並已儲存！已取得 ${data.models.length} 個模型。`);
             } else {
                 alert(`連線失敗: ${data.error}`);
             }
