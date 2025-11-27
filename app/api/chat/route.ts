@@ -30,17 +30,19 @@ export async function POST(req: NextRequest) {
             : undefined;
 
         const config = {
-            pineconeIndex: cookieStore.get('PINECONE_INDEX_NAME')?.value,
-            geminiApiKey: cookieStore.get('GEMINI_API_KEY')?.value,
-            openaiApiKey: cookieStore.get('OPENAI_API_KEY')?.value,
-            openrouterApiKey: cookieStore.get('OPENROUTER_API_KEY')?.value,
-            pineconeApiKey: cookieStore.get('PINECONE_API_KEY')?.value,
+            pineconeIndex: cookieStore.get('PINECONE_INDEX_NAME')?.value || process.env.PINECONE_INDEX_NAME,
+            geminiApiKey: cookieStore.get('GEMINI_API_KEY')?.value || process.env.GEMINI_API_KEY,
+            openaiApiKey: cookieStore.get('OPENAI_API_KEY')?.value || process.env.OPENAI_API_KEY,
+            openrouterApiKey: cookieStore.get('OPENROUTER_API_KEY')?.value || process.env.OPENROUTER_API_KEY,
+            pineconeApiKey: cookieStore.get('PINECONE_API_KEY')?.value || process.env.PINECONE_API_KEY,
             embeddingProvider,
-            embeddingModel: cookieStore.get('EMBEDDING_MODEL')?.value,
-            chatModel: cookieStore.get('CHAT_MODEL')?.value,
-            topK: cookieStore.get('RAG_TOP_K')?.value ? parseInt(cookieStore.get('RAG_TOP_K')?.value!) : 5,
-            mongoUri: cookieStore.get('MONGODB_URI')?.value,
-            mongoDbName: cookieStore.get('MONGODB_DB_NAME')?.value,
+            embeddingModel: cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL,
+            chatModel: cookieStore.get('CHAT_MODEL')?.value || process.env.CHAT_MODEL,
+            topK: cookieStore.get('RAG_TOP_K')?.value
+                ? parseInt(cookieStore.get('RAG_TOP_K')?.value!)
+                : (process.env.RAG_TOP_K ? parseInt(process.env.RAG_TOP_K) : 5),
+            mongoUri: cookieStore.get('MONGODB_URI')?.value || process.env.MONGODB_URI,
+            mongoDbName: cookieStore.get('MONGODB_DB_NAME')?.value || process.env.MONGODB_DB_NAME,
         };
 
         // Validate chat model against provider to avoid unsupported IDs or embeddings

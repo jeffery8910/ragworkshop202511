@@ -12,6 +12,8 @@ export default function EnvCheck({ missingKeys }: EnvCheckProps) {
         'PINECONE_INDEX_NAME',
         'LINE_CHANNEL_SECRET',
         'LINE_CHANNEL_ACCESS_TOKEN',
+        'LINE_LOGIN_CHANNEL_ID',
+        'LINE_LOGIN_CHANNEL_SECRET',
         'ADMIN_PASSWORD'
     ];
 
