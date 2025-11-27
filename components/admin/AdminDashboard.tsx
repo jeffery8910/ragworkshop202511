@@ -97,8 +97,8 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                         {knowledgeSubTab === 'viz' && (
                             <div className="space-y-4">
                                 <RagWorkflow currentAction={flowEvent} />
-                                <KnowledgeGraph onAction={setFlowEvent} />
                                 <UploadPanel onAction={setFlowEvent} />
+                                <KnowledgeGraph onAction={setFlowEvent} />
                             </div>
                         )}
 
