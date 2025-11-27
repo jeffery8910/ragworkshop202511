@@ -39,7 +39,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     };
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md h-full">
+        <div className="bg-white p-6 rounded-xl shadow-md h-full">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                     <Network className="w-5 h-5 text-purple-600" /> 知識庫視覺化 (Knowledge Graph)
@@ -53,7 +53,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                 </button>
             </div>
 
-            <div className="relative w-full h-72 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mb-4">
+            <div className="relative w-full h-80 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden mb-4">
                 {vectors.map((v) => (
                     <div
                         key={v.id}
@@ -75,41 +75,56 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-2 space-y-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-3">
                     <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                        <FileText className="w-4 h-4" /> 索引檔案列表
+                        <FileText className="w-4 h-4" /> 節點詳細
                     </h3>
-                    <div className="text-sm text-gray-600 space-y-1 max-h-40 overflow-y-auto">
-                        <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span>calculus_intro.pdf</span>
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Indexed</span>
-                        </div>
-                        <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span>physics_basics.pdf</span>
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Indexed</span>
-                        </div>
-                        <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span>history_of_math.txt</span>
-                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Processing</span>
-                        </div>
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-2">
+                        {selected ? (
+                            <>
+                                <div className="flex justify-between text-sm text-gray-700">
+                                    <span className="text-gray-500">ID</span>
+                                    <span>{selected.id}</span>
+                                </div>
+                                <div className="flex justify-between text-sm text-gray-700">
+                                    <span className="text-gray-500">標題</span>
+                                    <span>{selected.title}</span>
+                                </div>
+                                <div className="flex justify-between text-sm text-gray-700">
+                                    <span className="text-gray-500">來源</span>
+                                    <span>{selected.source}</span>
+                                </div>
+                                <div className="flex justify-between text-sm text-gray-700">
+                                    <span className="text-gray-500">座標</span>
+                                    <span>{selected.x.toFixed(2)}, {selected.y.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm text-gray-700">
+                                    <span className="text-gray-500">相似度</span>
+                                    <span>{(100 - Math.abs(selected.x - selected.y)).toFixed(2)}%</span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                    * 模擬資料；實際可返回 chunk 長度、向量維度、索引時間等欄位。
+                                </div>
+                            </>
+                        ) : (
+                            <div className="text-sm text-gray-500">點擊圖上節點查看資訊</div>
+                        )}
                     </div>
                 </div>
 
-                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                        <Info className="w-4 h-4 text-blue-600" /> 節點資訊
+                <div className="space-y-3">
+                    <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <Info className="w-4 h-4 text-blue-600" /> 索引檔案列表
+                    </h3>
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-2 max-h-64 overflow-auto">
+                        {['calculus_intro.pdf', 'physics_basics.pdf', 'history_of_math.txt'].map((f, i) => (
+                            <div key={i} className="flex justify-between items-center p-2 bg-gray-50 rounded border border-gray-100">
+                                <span className="text-sm text-gray-700">{f}</span>
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Indexed</span>
+                            </div>
+                        ))}
                     </div>
-                    {selected ? (
-                        <div className="text-sm text-gray-700 space-y-1">
-                            <div className="flex justify-between"><span className="text-gray-500">ID</span><span>{selected.id}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-500">標題</span><span>{selected.title}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-500">來源</span><span>{selected.source}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-500">座標</span><span>{selected.x.toFixed(2)}, {selected.y.toFixed(2)}</span></div>
-                        </div>
-                    ) : (
-                        <div className="text-sm text-gray-500">點擊圖上的節點以查看詳細資訊。</div>
-                    )}
                 </div>
             </div>
 
