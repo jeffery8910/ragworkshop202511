@@ -61,6 +61,7 @@ export async function searchPinecone(
             text: match.metadata?.text as string,
             source: match.metadata?.source as string,
             page: match.metadata?.page as number,
+            metadata: match.metadata as Record<string, any> | undefined,
         }));
     } catch (error) {
         console.error('Pinecone search error:', error);
