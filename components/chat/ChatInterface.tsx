@@ -600,16 +600,29 @@ export default function ChatInterface({
         <div className="flex h-screen bg-gray-50">
             {/* Sidebar (Optional, hidden on mobile) */}
             <div className="hidden md:flex w-64 flex-col bg-white border-r p-4">
-                <div className="flex items-center gap-2 mb-8 px-2">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                        <Bot className="w-5 h-5 text-white" />
+                <div className="flex items-center justify-between mb-8 px-2">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                            <Bot className="w-5 h-5 text-white" />
+                        </div>
+                        <span className="font-bold text-lg truncate" title={currentTitle}>{currentTitle}</span>
                     </div>
-                    <span className="font-bold text-lg truncate" title={currentTitle}>{currentTitle}</span>
                 </div>
-                <div className="flex-1 overflow-y-auto">
-                    <div className="text-xs font-semibold text-gray-400 mb-2 px-2">最近對話</div>
-                    <div className="p-2 bg-blue-50 text-blue-700 rounded text-sm cursor-pointer truncate">
-                        {currentTitle}
+
+                <div className="space-y-3">
+                    <Link
+                        href="/"
+                        className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-lg border border-blue-100"
+                    >
+                        <Home className="w-4 h-4" />
+                        回到首頁
+                    </Link>
+
+                    <div className="flex-1 overflow-y-auto">
+                        <div className="text-xs font-semibold text-gray-400 mb-2 px-2">最近對話</div>
+                        <div className="p-2 bg-blue-50 text-blue-700 rounded text-sm cursor-pointer truncate">
+                            {currentTitle}
+                        </div>
                     </div>
                 </div>
             </div>
