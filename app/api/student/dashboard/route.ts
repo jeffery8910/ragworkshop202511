@@ -20,7 +20,7 @@ export async function GET() {
         const stats = await db.collection('student_stats').findOne({}, { sort: { _id: -1 } });
 
         // Build topics, mistakes, summaries from cards
-        const cards = await getCardsByUser(userId, { mongoUri, dbName }, 30);
+        const cards = await getCardsByUser(userId, { mongoUri, dbName }, 100);
         const latestAbility = cards.find(c => c.type === 'ability');
         const abilityTopics = latestAbility?.payload?.topics?.map((t: any) => ({
             name: t.name,
@@ -39,7 +39,10 @@ export async function GET() {
             }))
         );
 
-        const summaryCards = cards.filter(c => c.type === 'summary').map(c => c.payload);
+        const summaryCards = cards
+            .filter(c => c.type === 'summary')
+            .slice(0, 5)
+            .map(c => c.payload);
 
         // fallback to stats if no card data
         const topics = abilityTopics.length ? abilityTopics : (stats?.topics || []);

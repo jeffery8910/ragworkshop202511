@@ -4,7 +4,7 @@ import { ragAnswer } from '@/lib/rag';
 import { getConversationTitle, saveConversationTitle } from '@/lib/features/memory';
 import { generateText } from '@/lib/llm';
 import type { EmbeddingProvider } from '@/lib/vector/embedding';
-import { saveCard } from '@/lib/features/cards';
+import { saveCard, pruneCards, logCardError } from '@/lib/features/cards';
 import { z } from 'zod';
 import { generateAndSaveShortMemory } from '@/lib/features/memoryCards';
 
@@ -12,11 +12,14 @@ export async function POST(req: NextRequest) {
     try {
         const { message, userId } = await req.json();
 
+        const cookieStore = await cookies();
         // Use a fixed userId for web demo if not provided
-        const uid = userId || 'web-user-demo';
+        const uid = userId || cookieStore.get('line_user_id')?.value || 'web-user-demo';
+        if (!uid) {
+            return NextResponse.json({ error: 'userId is required.' }, { status: 400 });
+        }
 
         // Extract config from cookies
-        const cookieStore = await cookies();
 
         const embeddingProviderCookie = cookieStore.get('EMBEDDING_PROVIDER')?.value;
         const validEmbeddingProviders: EmbeddingProvider[] = ['gemini', 'openai', 'openrouter'];
@@ -181,11 +184,13 @@ export async function POST(req: NextRequest) {
                 for (const payload of cardPayloads) {
                     await saveCard(uid, payload, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
                 }
+                await pruneCards(uid, 50, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
             }
             // Generate & persist short-term memory summary card for dashboard reuse
             await generateAndSaveShortMemory(uid, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
         } catch (err) {
             console.warn('Failed to save cards', err);
+            await logCardError(uid, err instanceof Error ? err.message : 'unknown card save error', { payloads }, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
         }
 
         return NextResponse.json({ ...result, structuredPayloads: payloads, newTitle });
