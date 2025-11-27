@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, BookOpen, Home, Sparkles, ListChecks, FileText, MessagesSquare, AlertCircle } from 'lucide-react';
+import { Send, Bot, User, Loader2, BookOpen, Home, Sparkles, ListChecks, FileText, MessagesSquare, AlertCircle, Pencil, Check, X, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import { z } from 'zod';
@@ -445,6 +445,8 @@ export default function ChatInterface({
     }, [messages]);
 
     const [currentTitle, setCurrentTitle] = useState(chatTitle);
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [tempTitle, setTempTitle] = useState(chatTitle);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -563,6 +565,37 @@ export default function ChatInterface({
         }
     ];
 
+    const handleTitleSave = async () => {
+        if (!tempTitle.trim()) return;
+        const oldTitle = currentTitle;
+        setCurrentTitle(tempTitle);
+        setIsEditingTitle(false);
+        try {
+            const res = await fetch('/api/chat/session', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, title: tempTitle })
+            });
+            if (!res.ok) throw new Error('Failed to update title');
+        } catch (e) {
+            alert('無法儲存標題，請稍後再試。');
+            setCurrentTitle(oldTitle);
+        }
+    };
+
+    const handleClearHistory = async () => {
+        if (!confirm('確定要刪除所有對話紀錄嗎？此動作無法復原。')) return;
+        setMessages([{ role: 'assistant', content: welcomeMessage }]);
+        try {
+            const res = await fetch(`/api/chat/session?userId=${userId}`, {
+                method: 'DELETE'
+            });
+            if (!res.ok) throw new Error('Failed to clear history');
+        } catch (e) {
+            alert('無法刪除紀錄，請稍後再試。');
+        }
+    };
+
     return (
         <div className="flex h-screen bg-gray-50">
             {/* Sidebar (Optional, hidden on mobile) */}
@@ -586,12 +619,47 @@ export default function ChatInterface({
                 {/* Header */}
                 <div className="p-4 border-b flex items-center justify-between bg-white">
                     <div className="flex items-center gap-3">
-                        <h2 className="font-semibold text-gray-800">{currentTitle}</h2>
+                        {isEditingTitle ? (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={tempTitle}
+                                    onChange={(e) => setTempTitle(e.target.value)}
+                                    className="border rounded px-2 py-1 text-sm"
+                                    autoFocus
+                                />
+                                <button onClick={handleTitleSave} className="p-1 text-green-600 hover:bg-green-50 rounded">
+                                    <Check className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => { setIsEditingTitle(false); setTempTitle(currentTitle); }} className="p-1 text-red-600 hover:bg-red-50 rounded">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <h2 className="font-semibold text-gray-800">{currentTitle}</h2>
+                                <button
+                                    onClick={() => setIsEditingTitle(true)}
+                                    className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+                                    title="編輯標題"
+                                >
+                                    <Pencil className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
                         {initialUserName && (
                             <span className="text-xs text-gray-500">使用者：{initialUserName}</span>
                         )}
                     </div>
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleClearHistory}
+                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 hover:underline"
+                            title="清空對話紀錄"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            清除對話
+                        </button>
                         <Link
                             href="/"
                             className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
