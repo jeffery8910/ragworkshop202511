@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'API Key is required' }, { status: 400 });
         }
 
-        let models: string[] = [];
+        let chatModels: string[] = [];
+        let embeddingModels: string[] = [];
 
         if (provider === 'gemini') {
             // Validate key by calling a current GA model
@@ -18,21 +19,27 @@ export async function POST(req: NextRequest) {
             const testModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
             await testModel.generateContent('ping');
 
-            // Try to list models via REST; fall back to curated list if it fails
             try {
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`);
                 if (!res.ok) throw new Error(`listModels failed: ${res.status}`);
                 const data = await res.json();
-                models = (data.models || [])
+                const names = (data.models || [])
                     .map((m: any) => m.name?.replace('models/', ''))
-                    .filter((name: string) => name.includes('gemini'))
+                    .filter(Boolean) as string[];
+                chatModels = names
+                    .filter((name) => name.includes('gemini') && !name.toLowerCase().includes('embed'))
+                    .sort();
+                embeddingModels = names
+                    .filter((name) => name.toLowerCase().includes('embed'))
                     .sort();
             } catch (err) {
-                models = [
+                chatModels = [
                     'gemini-2.0-flash',
                     'gemini-2.0-flash-001',
                     'gemini-1.5-pro',
                     'gemini-1.5-flash',
+                ];
+                embeddingModels = [
                     'text-embedding-004',
                     'text-embedding-003'
                 ];
@@ -41,21 +48,19 @@ export async function POST(req: NextRequest) {
             const openai = new OpenAI({ apiKey });
             try {
                 const list = await openai.models.list();
+                const ids = list.data.map(m => m.id);
                 const chatWhitelist = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'];
                 const embedWhitelist = ['text-embedding-3-large', 'text-embedding-3-small'];
-                models = list.data
-                    .map(m => m.id)
-                    .filter(id =>
-                        chatWhitelist.some(c => id.startsWith(c)) ||
-                        embedWhitelist.some(e => id.startsWith(e))
-                    )
-                    .sort();
+                chatModels = ids.filter(id => chatWhitelist.some(c => id.startsWith(c))).sort();
+                embeddingModels = ids.filter(id => embedWhitelist.some(e => id.startsWith(e))).sort();
             } catch (err) {
-                models = [
+                chatModels = [
                     'gpt-4.1',
                     'gpt-4.1-mini',
                     'gpt-4o',
                     'gpt-4o-mini',
+                ];
+                embeddingModels = [
                     'text-embedding-3-large',
                     'text-embedding-3-small'
                 ];
@@ -68,9 +73,12 @@ export async function POST(req: NextRequest) {
             });
             if (!res.ok) throw new Error('Failed to fetch OpenRouter models');
             const data = await res.json();
-            models = data.data
-                .map((m: any) => m.id)
-                .filter((id: string) => !id.toLowerCase().includes('embed') && !id.toLowerCase().includes('rerank'))
+            const ids = data.data.map((m: any) => m.id) as string[];
+            chatModels = ids
+                .filter(id => !id.toLowerCase().includes('embed') && !id.toLowerCase().includes('rerank'))
+                .sort();
+            embeddingModels = ids
+                .filter(id => id.toLowerCase().includes('embed'))
                 .sort();
 
             // Add a free-tier fallback shortlist for convenience
@@ -80,11 +88,11 @@ export async function POST(req: NextRequest) {
                 'nousresearch/hermes-2-pro-llama-3-8b:free'
             ];
             freeDefaults.forEach(id => {
-                if (!models.includes(id)) models.unshift(id);
+                if (!chatModels.includes(id)) chatModels.unshift(id);
             });
         } else if (provider === 'pinecone') {
-            // Pinecone inference curated list (no public list API yet)
-            models = [
+            // Pinecone inference curated list (no public list API yet) - embedding only
+            embeddingModels = [
                 'multilingual-e5-large',
                 'llama-text-embed-v2',
                 'jina-embeddings-v4',
@@ -94,10 +102,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
         }
 
-        return NextResponse.json({ models });
+        return NextResponse.json({ chatModels, embeddingModels });
     } catch (error) {
         console.error('Model fetch error:', error);
-        const message = error instanceof Error ? error.message : '連線失敗或 API Key 無效';
+        const message = error instanceof Error ? error.message : '模型列表取得失敗，請檢查 API Key';
         return NextResponse.json({ error: message }, { status: 400 });
     }
 }

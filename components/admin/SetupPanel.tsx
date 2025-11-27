@@ -4,6 +4,8 @@ import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Settings, Database, CheckCircle, AlertCircle, Cpu, RefreshCw, Smartphone, Lock } from 'lucide-react';
 
+type Provider = 'gemini' | 'openai' | 'openrouter' | 'pinecone';
+
 interface SetupPanelProps {
     initialConfig: Record<string, string>;
 }
@@ -28,14 +30,20 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
 
     const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('');
-    const [testingProvider, setTestingProvider] = useState<string | null>(null);
-    const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({
+    const [testingProvider, setTestingProvider] = useState<Provider | null>(null);
+    const [availableChat, setAvailableChat] = useState<Record<string, string[]>>({
         gemini: [],
         openai: [],
         openrouter: [],
         pinecone: [],
     });
-    const [chatProvider, setChatProvider] = useState<'gemini' | 'openai' | 'openrouter' | 'pinecone'>(
+    const [availableEmbed, setAvailableEmbed] = useState<Record<string, string[]>>({
+        gemini: [],
+        openai: [],
+        openrouter: [],
+        pinecone: [],
+    });
+    const [chatProvider, setChatProvider] = useState<Provider>(
         initialConfig['GEMINI_API_KEY'] ? 'gemini' :
             initialConfig['OPENAI_API_KEY'] ? 'openai' :
                 initialConfig['OPENROUTER_API_KEY'] ? 'openrouter' :
@@ -46,13 +54,14 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         setConfig({ ...config, [e.target.name]: e.target.value });
     };
 
-    const handleTestConnection = async (provider: 'gemini' | 'openai' | 'openrouter' | 'pinecone') => {
+    const handleTestConnection = async (provider: Provider, target: 'chat' | 'embed' | 'both' = 'chat') => {
         setTestingProvider(provider);
         setMessage('');
         let apiKey = '';
         if (provider === 'gemini') apiKey = config.GEMINI_API_KEY;
         if (provider === 'openai') apiKey = config.OPENAI_API_KEY;
         if (provider === 'openrouter') apiKey = config.OPENROUTER_API_KEY;
+        if (provider === 'pinecone') apiKey = config.PINECONE_API_KEY;
 
         if (!apiKey) {
             alert('請先輸入 API Key');
@@ -69,26 +78,32 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
             const data = await res.json();
 
             if (res.ok) {
-                setAvailableModels(prev => ({ ...prev, [provider]: data.models }));
-                // 如果尚未選取聊天模型，預設帶入第一個可用項（僅聊天，不影響 embedding）
-                if (!config.CHAT_MODEL && data.models?.length && chatProvider === provider) {
-                    setConfig(prev => ({ ...prev, CHAT_MODEL: data.models[0] }));
+                setAvailableChat(prev => ({ ...prev, [provider]: data.chatModels || [] }));
+                setAvailableEmbed(prev => ({ ...prev, [provider]: data.embeddingModels || [] }));
+
+                if ((target === 'chat' || target === 'both') && !config.CHAT_MODEL && data.chatModels?.length && chatProvider === provider) {
+                    setConfig(prev => ({ ...prev, CHAT_MODEL: data.chatModels[0] }));
                 }
-                // 自動儲存目前設定，避免測試後還要再按一次儲存
+                if ((target === 'embed' || target === 'both') && !config.EMBEDDING_MODEL && data.embeddingModels?.length && config.EMBEDDING_PROVIDER === provider) {
+                    setConfig(prev => ({ ...prev, EMBEDDING_MODEL: data.embeddingModels[0] }));
+                }
+
                 await fetch('/api/admin/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         ...config,
-                        CHAT_MODEL: config.CHAT_MODEL || data.models?.[0] || ''
+                        CHAT_MODEL: config.CHAT_MODEL || data.chatModels?.[0] || '',
+                        EMBEDDING_MODEL: config.EMBEDDING_MODEL || data.embeddingModels?.[0] || ''
                     }),
                 });
-                alert(`連線成功並已儲存！已取得 ${data.models.length} 個模型。`);
+
+                alert(`測試成功，聊天模型 ${data.chatModels?.length || 0} 筆，Embedding 模型 ${data.embeddingModels?.length || 0} 筆。`);
             } else {
-                alert(`連線失敗: ${data.error}`);
+                alert(`測試失敗: ${data.error}`);
             }
         } catch (e) {
-            alert('連線測試發生錯誤');
+            alert('連線測試時發生錯誤');
         } finally {
             setTestingProvider(null);
         }
@@ -110,8 +125,8 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
 
             if (res.ok) {
                 setStatus('success');
-                setMessage('設定已儲存並連線成功！');
-                setTimeout(() => window.location.reload(), 1500);
+                setMessage('設定已儲存並驗證！');
+                setTimeout(() => window.location.reload(), 1200);
             } else {
                 setStatus('error');
                 setMessage(data.error || '儲存失敗');
@@ -122,6 +137,15 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         }
     };
 
+    const embeddingPlaceholder =
+        config.EMBEDDING_PROVIDER === 'gemini'
+            ? 'text-embedding-004'
+            : config.EMBEDDING_PROVIDER === 'openai'
+                ? 'text-embedding-3-small'
+                : config.EMBEDDING_PROVIDER === 'pinecone'
+                    ? 'multilingual-e5-large'
+                    : 'openai/text-embedding-3-small';
+
     return (
         <div className="bg-white p-6 rounded-lg shadow-md mb-6 border-l-4 border-blue-500">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
@@ -130,7 +154,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
             </h2>
 
             <p className="text-gray-600 mb-6 text-sm">
-                請輸入必要的連線資訊。點擊「測試連線」可驗證 Key 並取得可用模型列表。
+                請輸入必要的連線資訊，並透過「測試 / 取得模型」按鈕快速抓取可用的聊天與 Embedding 模型。
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -277,24 +301,24 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             />
                             <button
                                 type="button"
-                                onClick={() => handleTestConnection('gemini')}
+                                onClick={() => handleTestConnection('gemini', 'both')}
                                 disabled={testingProvider === 'gemini'}
                                 className="w-full bg-blue-600 text-white text-xs py-1 rounded hover:bg-blue-700 disabled:opacity-50 mb-2"
                             >
-                                測試連線 & 獲取模型
+                                測試 / 取得模型
                             </button>
-                            {availableModels['gemini']?.length > 0 ? (
+                            {availableChat['gemini']?.length > 0 && (
                                 <select
                                     name="CHAT_MODEL"
                                     value={config.CHAT_MODEL}
                                     onChange={handleChange}
                                     className="w-full border rounded p-2 text-sm bg-white"
                                 >
-                                    {availableModels['gemini'].map(m => (
+                                    {availableChat['gemini'].map(m => (
                                         <option key={m} value={m}>{m}</option>
                                     ))}
                                 </select>
-                            ) : null}
+                            )}
                         </div>
 
                         {/* OpenAI */}
@@ -313,11 +337,11 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             />
                             <button
                                 type="button"
-                                onClick={() => handleTestConnection('openai')}
+                                onClick={() => handleTestConnection('openai', 'both')}
                                 disabled={testingProvider === 'openai'}
                                 className="w-full bg-green-600 text-white text-xs py-1 rounded hover:bg-green-700 disabled:opacity-50 mb-2"
                             >
-                                測試連線 & 獲取模型
+                                測試 / 取得模型
                             </button>
                         </div>
 
@@ -337,11 +361,11 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             />
                             <button
                                 type="button"
-                                onClick={() => handleTestConnection('openrouter')}
+                                onClick={() => handleTestConnection('openrouter', 'both')}
                                 disabled={testingProvider === 'openrouter'}
                                 className="w-full bg-purple-600 text-white text-xs py-1 rounded hover:bg-purple-700 disabled:opacity-50 mb-2"
                             >
-                                測試連線 & 獲取模型
+                                測試 / 取得模型
                             </button>
                         </div>
                     </div>
@@ -349,68 +373,69 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     {/* Chat Model Selection */}
                     <div className="p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
                         <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-800">選擇聊天模型</span>
-                            <span className="text-xs text-gray-500">(先填入對應的 API Key 並點「測試連線」取得模型列表)</span>
+                            <span className="font-semibold text-gray-800">聊天模型</span>
+                            <span className="text-xs text-gray-500">(請先填入 API Key 並點測試取得列表)</span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                             <div>
                                 <label className="block text-xs text-gray-600 mb-1">供應商</label>
                                 <select
                                     value={chatProvider}
-                                    onChange={e => setChatProvider(e.target.value as any)}
+                                    onChange={e => setChatProvider(e.target.value as Provider)}
                                     className="w-full border rounded p-2 text-sm bg-white"
                                 >
-                                <option value="gemini">Google Gemini</option>
-                                <option value="openai">OpenAI</option>
-                                <option value="openrouter">OpenRouter</option>
-                                <option value="pinecone">Pinecone Inference</option>
-                            </select>
-                        </div>
+                                    <option value="gemini">Google Gemini</option>
+                                    <option value="openai">OpenAI</option>
+                                    <option value="openrouter">OpenRouter</option>
+                                    <option value="pinecone">Pinecone Inference</option>
+                                </select>
+                            </div>
                             <div className="md:col-span-2 flex gap-2 items-end">
                                 <button
                                     type="button"
-                                    onClick={() => handleTestConnection(chatProvider)}
+                                    onClick={() => handleTestConnection(chatProvider, 'chat')}
                                     disabled={testingProvider === chatProvider}
                                     className="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
                                 >
-                                    {testingProvider === chatProvider ? '測試中...' : '測試連線並取得模型'}
+                                    {testingProvider === chatProvider ? '測試中...' : '測試/取得聊天模型'}
                                 </button>
                                 <div className="flex-1">
-                                    <label className="block text-xs text-gray-600 mb-1">可用模型</label>
-                            {availableModels[chatProvider]?.length ? (
-                                <select
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
-                                    className="w-full border rounded p-2 text-sm bg-white"
-                                >
-                                    {availableModels[chatProvider].map(m => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <input
-                                    type="text"
-                                    name="CHAT_MODEL"
-                                    value={config.CHAT_MODEL}
-                                    onChange={handleChange}
-                                    placeholder={
-                                        chatProvider === 'gemini'
-                                            ? 'gemini-2.5-flash'
-                                            : chatProvider === 'openai'
-                                                ? 'gpt-4.1'
-                                                : chatProvider === 'pinecone'
-                                                    ? 'multilingual-e5-large'
-                                                    : 'mistralai/Mistral-7B-Instruct:free'
-                                    }
-                                    className="w-full border rounded p-2 text-sm"
-                                />
-                            )}
-                        </div>
+                                    <label className="block text-xs text-gray-600 mb-1">啟用模型</label>
+                                    {availableChat[chatProvider]?.length ? (
+                                        <select
+                                            name="CHAT_MODEL"
+                                            value={config.CHAT_MODEL}
+                                            onChange={handleChange}
+                                            className="w-full border rounded p-2 text-sm bg-white"
+                                        >
+                                            {availableChat[chatProvider].map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            name="CHAT_MODEL"
+                                            value={config.CHAT_MODEL}
+                                            onChange={handleChange}
+                                            placeholder={
+                                                chatProvider === 'gemini'
+                                                    ? 'gemini-2.5-flash'
+                                                    : chatProvider === 'openai'
+                                                        ? 'gpt-4.1'
+                                                        : chatProvider === 'pinecone'
+                                                            ? 'multilingual-e5-large'
+                                                            : 'mistralai/Mistral-7B-Instruct:free'
+                                            }
+                                            className="w-full border rounded p-2 text-sm"
+                                        />
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
 
+                    {/* Embedding Selection */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Provider</label>
@@ -428,27 +453,39 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Model</label>
-                            {availableModels[config.EMBEDDING_PROVIDER]?.length > 0 ? (
-                                <select
-                                    name="EMBEDDING_MODEL"
-                                    value={config.EMBEDDING_MODEL}
-                                    onChange={handleChange}
-                                    className="w-full border rounded p-2 text-sm bg-white"
+                            <div className="flex gap-2 items-end">
+                                <div className="flex-1">
+                                    {availableEmbed[config.EMBEDDING_PROVIDER]?.length > 0 ? (
+                                        <select
+                                            name="EMBEDDING_MODEL"
+                                            value={config.EMBEDDING_MODEL}
+                                            onChange={handleChange}
+                                            className="w-full border rounded p-2 text-sm bg-white"
+                                        >
+                                            {availableEmbed[config.EMBEDDING_PROVIDER].map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            name="EMBEDDING_MODEL"
+                                            value={config.EMBEDDING_MODEL}
+                                            onChange={handleChange}
+                                            placeholder={embeddingPlaceholder}
+                                            className="w-full border rounded p-2 text-sm"
+                                        />
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTestConnection(config.EMBEDDING_PROVIDER as Provider, 'embed')}
+                                    disabled={testingProvider === config.EMBEDDING_PROVIDER}
+                                    className="bg-blue-500 text-white px-3 py-2 rounded text-sm hover:bg-blue-600 disabled:opacity-50"
                                 >
-                                    {availableModels[config.EMBEDDING_PROVIDER].map(m => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <input
-                                    type="text"
-                                    name="EMBEDDING_MODEL"
-                                    value={config.EMBEDDING_MODEL}
-                                    onChange={handleChange}
-                                    placeholder="text-embedding-004"
-                                    className="w-full border rounded p-2 text-sm"
-                                />
-                            )}
+                                    {testingProvider === config.EMBEDDING_PROVIDER ? '取得中...' : '測試 / 取得 Embedding 模型'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -466,7 +503,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     disabled={status === 'saving'}
                     className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 flex items-center justify-center gap-2 font-medium disabled:opacity-50"
                 >
-                    {status === 'saving' ? '連線測試與儲存中...' : '儲存設定並連線 (Save & Connect)'}
+                    {status === 'saving' ? '儲存中...' : '儲存並驗證'}
                 </button>
             </form>
         </div>
