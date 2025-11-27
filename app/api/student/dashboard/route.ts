@@ -19,7 +19,7 @@ export async function GET() {
         // In a real app, we would filter by userId. Here we take the latest or a specific demo user.
         const stats = await db.collection('student_stats').findOne({}, { sort: { _id: -1 } });
 
-        // Build topics & mistakes from cards
+        // Build topics, mistakes, summaries from cards
         const cards = await getCardsByUser(userId, { mongoUri, dbName }, 30);
         const latestAbility = cards.find(c => c.type === 'ability');
         const abilityTopics = latestAbility?.payload?.topics?.map((t: any) => ({
@@ -39,6 +39,8 @@ export async function GET() {
             }))
         );
 
+        const summaryCards = cards.filter(c => c.type === 'summary').map(c => c.payload);
+
         // fallback to stats if no card data
         const topics = abilityTopics.length ? abilityTopics : (stats?.topics || []);
         const mistakesOut = mistakes.length ? mistakes : (stats?.mistakes || []);
@@ -49,7 +51,8 @@ export async function GET() {
                 xp: 0,
                 level: 1,
                 topics,
-                mistakes: mistakesOut
+                mistakes: mistakesOut,
+                summaries: summaryCards
             });
         }
 
@@ -57,7 +60,8 @@ export async function GET() {
             xp: stats.xp || 0,
             level: stats.level || 1,
             topics,
-            mistakes: mistakesOut
+            mistakes: mistakesOut,
+            summaries: summaryCards
         });
     } catch (error) {
         console.error('Failed to fetch student dashboard data:', error);

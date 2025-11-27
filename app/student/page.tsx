@@ -18,11 +18,18 @@ interface Mistake {
     suggestion: string;
 }
 
+interface SummaryCard {
+    title: string;
+    bullets: string[];
+    highlight?: string;
+}
+
 export default function StudentDashboard() {
     const [xp, setXp] = useState(0);
     const [level, setLevel] = useState(1);
     const [topics, setTopics] = useState<Topic[]>([]);
     const [mistakes, setMistakes] = useState<Mistake[]>([]);
+    const [summaries, setSummaries] = useState<SummaryCard[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -35,6 +42,7 @@ export default function StudentDashboard() {
                     setLevel(data.level);
                     setTopics(data.topics);
                     setMistakes(data.mistakes);
+                    setSummaries(data.summaries || []);
                 }
             } catch (error) {
                 console.error('Failed to load dashboard data', error);
@@ -134,6 +142,30 @@ export default function StudentDashboard() {
                 ) : (
                     <div className="text-gray-500 text-sm text-center py-4 bg-white rounded-lg">
                         太棒了！目前沒有錯題記錄。
+                    </div>
+                )}
+            </div>
+
+            {/* Recent Summaries (short-term memory) */}
+            <h2 className="text-lg font-bold text-gray-700 mt-8 mb-3 flex items-center gap-2">
+                <BookOpen className="w-5 h-5" /> 近期對話摘要
+            </h2>
+            <div className="space-y-3">
+                {summaries.length > 0 ? summaries.map((s, idx) => (
+                    <div key={idx} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                        <div className="font-semibold text-gray-800 mb-2">{s.title || '對話摘要'}</div>
+                        <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                            {s.bullets.map((b, i) => <li key={i}>{b}</li>)}
+                        </ul>
+                        {s.highlight && (
+                            <div className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-2">
+                                {s.highlight}
+                            </div>
+                        )}
+                    </div>
+                )) : (
+                    <div className="text-gray-500 text-sm text-center py-4 bg-white rounded-lg">
+                        尚無摘要卡片，與 AI 對話後將自動生成。
                     </div>
                 )}
             </div>

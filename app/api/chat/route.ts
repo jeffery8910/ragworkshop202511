@@ -6,6 +6,7 @@ import { generateText } from '@/lib/llm';
 import type { EmbeddingProvider } from '@/lib/vector/embedding';
 import { saveCard } from '@/lib/features/cards';
 import { z } from 'zod';
+import { generateAndSaveShortMemory } from '@/lib/features/memoryCards';
 
 export async function POST(req: NextRequest) {
     try {
@@ -181,6 +182,8 @@ export async function POST(req: NextRequest) {
                     await saveCard(uid, payload, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
                 }
             }
+            // Generate & persist short-term memory summary card for dashboard reuse
+            await generateAndSaveShortMemory(uid, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
         } catch (err) {
             console.warn('Failed to save cards', err);
         }
