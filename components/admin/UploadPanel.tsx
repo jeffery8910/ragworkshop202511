@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface UploadPanelProps {
@@ -8,6 +9,7 @@ interface UploadPanelProps {
 }
 
 export default function UploadPanel({ onAction }: UploadPanelProps) {
+    const router = useRouter();
     const [dragActive, setDragActive] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
@@ -34,14 +36,31 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     };
 
     const handleUpload = async () => {
+        if (!files.length) return;
         setUploading(true);
         onAction?.('開始上傳/向量化');
-        // TODO: Implement actual upload logic to API
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setUploading(false);
-        setFiles([]);
-        alert('Upload Complete!');
-        onAction?.('檔案上傳並向量化完成');
+        try {
+            const formData = new FormData();
+            files.forEach(file => formData.append('files', file));
+
+            const res = await fetch('/api/admin/upload', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || '上傳失敗');
+
+            setFiles([]);
+            onAction?.('檔案上傳並向量化完成');
+            alert('Upload Complete!');
+            router.refresh(); // 讓 KnowledgeGraph / RagLab 可以刷新資料
+        } catch (err: any) {
+            console.error(err);
+            alert(err?.message || '上傳過程發生錯誤');
+            onAction?.('上傳失敗，請稍後再試');
+        } finally {
+            setUploading(false);
+        }
     };
 
     const onButtonClick = () => {
