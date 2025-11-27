@@ -22,6 +22,10 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [loading, setLoading] = useState(false);
     const [vectors, setVectors] = useState(MOCK_VECTORS);
     const [selected, setSelected] = useState<typeof MOCK_VECTORS[number] | null>(MOCK_VECTORS[0]);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [dragging, setDragging] = useState(false);
+    const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
 
     const handleRefresh = () => {
         setLoading(true);
@@ -42,6 +46,32 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         }, 1000);
     };
 
+    const onMouseDown = (e: React.MouseEvent) => {
+        setDragging(true);
+        setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    };
+
+    const onMouseMove = (e: React.MouseEvent) => {
+        if (!dragging || !dragStart) return;
+        setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    };
+
+    const onMouseUp = () => {
+        setDragging(false);
+        setDragStart(null);
+    };
+
+    const onWheel = (e: React.WheelEvent) => {
+        e.preventDefault();
+        const delta = -e.deltaY * 0.001;
+        setZoom(z => Math.min(2.5, Math.max(0.5, z + delta)));
+    };
+
+    const resetView = () => {
+        setPan({ x: 0, y: 0 });
+        setZoom(1);
+    };
+
     return (
         <div className="bg-white p-6 rounded-xl shadow-md h-full">
             <div className="flex justify-between items-center mb-4">
@@ -57,25 +87,38 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                 </button>
             </div>
 
-            <div className="relative w-full h-80 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden mb-4">
-                {vectors.map((v) => (
-                    <div
-                        key={v.id}
-                        className={`absolute w-3 h-3 rounded-full cursor-pointer transition-transform shadow-sm ${
-                            selected?.id === v.id
-                                ? 'bg-orange-500 ring-4 ring-orange-200 scale-125'
-                                : 'bg-purple-500 hover:bg-purple-700 hover:scale-150'
-                        }`}
-                        style={{ left: `${v.x}%`, top: `${v.y}%` }}
-                        onClick={() => {
-                            setSelected(v);
-                            onAction?.(`檢視節點 ${v.id}`);
-                        }}
-                        title={`ID: ${v.id} | ${v.title} (${v.source})`}
-                    />
-                ))}
-                <div className="absolute bottom-2 right-2 text-xs text-gray-400">
-                    2D Projection (t-SNE)
+            <div
+                className="relative w-full h-80 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden mb-4"
+                onMouseDown={onMouseDown}
+                onMouseMove={onMouseMove}
+                onMouseUp={onMouseUp}
+                onMouseLeave={onMouseUp}
+                onWheel={onWheel}
+                onDoubleClick={resetView}
+            >
+                <div
+                    className="absolute inset-0"
+                    style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0' }}
+                >
+                    {vectors.map((v) => (
+                        <div
+                            key={v.id}
+                            className={`absolute w-3 h-3 rounded-full cursor-pointer transition-transform shadow-sm ${
+                                selected?.id === v.id
+                                    ? 'bg-orange-500 ring-4 ring-orange-200 scale-125'
+                                    : 'bg-purple-500 hover:bg-purple-700 hover:scale-150'
+                            }`}
+                            style={{ left: `${v.x}%`, top: `${v.y}%` }}
+                            onClick={() => {
+                                setSelected(v);
+                                onAction?.(`檢視節點 ${v.id}`);
+                            }}
+                            title={`ID: ${v.id} | ${v.title} (${v.source})`}
+                        />
+                    ))}
+                </div>
+                <div className="absolute bottom-2 right-2 text-xs text-gray-400 px-2 py-1 bg-white/80 rounded">
+                    2D Projection (t-SNE) | 拖曳平移，滾輪縮放，雙擊重置
                 </div>
             </div>
 
