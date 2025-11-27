@@ -31,29 +31,50 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
     ];
 
     return (
-        <div className="space-y-6">
-            {/* Tab Navigation */}
-            <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-1">
-                {tabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg transition-colors font-medium text-sm ${activeTab === tab.id
-                                ? 'bg-white text-blue-600 border border-b-0 border-gray-200 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                                }`}
-                        >
-                            <Icon className="w-4 h-4" />
-                            {tab.label}
-                        </button>
-                    );
-                })}
-            </div>
+        <div className="flex gap-4">
+            <aside className="w-56 bg-white border border-gray-200 rounded-lg p-3 h-fit sticky top-4">
+                <div className="space-y-2">
+                    {tabs.map(tab => {
+                        const Icon = tab.icon;
+                        const isKnowledge = tab.id === 'knowledge';
+                        return (
+                            <div key={tab.id}>
+                                <button
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium ${activeTab === tab.id
+                                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                        : 'text-gray-600 hover:bg-gray-50 border border-transparent'}`}
+                                >
+                                    <Icon className="w-4 h-4" />
+                                    {tab.label}
+                                </button>
+                                {isKnowledge && activeTab === 'knowledge' && (
+                                    <div className="mt-1 pl-4 space-y-1">
+                                        {[
+                                            { id: 'viz', label: '視覺化' },
+                                            { id: 'advanced', label: '進階設定' },
+                                            { id: 'lab', label: 'RAG 實驗室' },
+                                            { id: 'cards', label: '卡片管理' },
+                                        ].map(sub => (
+                                            <button
+                                                key={sub.id}
+                                                onClick={() => setKnowledgeSubTab(sub.id as any)}
+                                                className={`w-full text-left text-xs px-2 py-1 rounded ${knowledgeSubTab === sub.id
+                                                    ? 'bg-blue-100 text-blue-700'
+                                                    : 'text-gray-600 hover:bg-gray-100'}`}
+                                            >
+                                                {sub.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </aside>
 
-            {/* Tab Content */}
-            <div className="min-h-[500px]">
+            <div className="flex-1 space-y-6">
                 {activeTab === 'setup' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <EnvCheck missingKeys={missingKeys} />
@@ -74,42 +95,13 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                 )}
 
                 {activeTab === 'knowledge' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-6xl">
-                        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
-                            {[
-                                { id: 'viz', label: '知識庫視覺化' },
-                                { id: 'advanced', label: '進階設定（資料庫）' },
-                                { id: 'lab', label: 'RAG 實驗室模擬' },
-                                { id: 'cards', label: '卡片管理' },
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setKnowledgeSubTab(tab.id as any)}
-                                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                                        knowledgeSubTab === tab.id
-                                            ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                                    }`}
-                                >
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
-
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {knowledgeSubTab === 'viz' && (
-                            <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-                                <div className="xl:col-span-1">
-                                    <RagWorkflow currentAction={flowEvent} />
-                                </div>
-                                <div className="xl:col-span-1">
-                                    <UploadPanel onAction={setFlowEvent} />
-                                </div>
-                                <div className="xl:col-span-1">
-                                    <KnowledgeGraph onAction={setFlowEvent} />
-                                </div>
-                                <div className="xl:col-span-1">
-                                    <ConfigPanel initialConfig={initialConfig} />
-                                </div>
+                            <div className="space-y-4">
+                                <RagWorkflow currentAction={flowEvent} />
+                                <UploadPanel onAction={setFlowEvent} />
+                                <KnowledgeGraph onAction={setFlowEvent} />
+                                <ConfigPanel initialConfig={initialConfig} />
                             </div>
                         )}
 
