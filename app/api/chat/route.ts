@@ -163,30 +163,34 @@ export async function POST(req: NextRequest) {
         const p = tryParsePayload(result?.answer);
         if (p) payloads.push(p);
 
-        // Check and generate title if needed
+        // Check and generate title if needed (best-effort)
         let newTitle = undefined;
-        const currentTitle = await getConversationTitle(uid, {
-            mongoUri: config.mongoUri,
-            dbName: config.mongoDbName
-        });
-        if (!currentTitle) {
-            const titlePrompt = `
-            請根據使用者的問題，生成一個簡短的對話標題 (5個字以內)。
-            問題：${message}
-            標題：`;
-
-            // Use same LLM config for title generation
-            const llmConfig = {
-                provider: config.geminiApiKey ? 'gemini' : config.openaiApiKey ? 'openai' : config.openrouterApiKey ? 'openrouter' : undefined,
-                apiKey: config.geminiApiKey || config.openaiApiKey || config.openrouterApiKey
-            } as any; // Type casting for simplicity here, ideally strict typed
-
-            const title = await generateText(titlePrompt, { ...llmConfig, model: 'google/gemini-flash-1.5' });
-            await saveConversationTitle(uid, title.trim(), {
+        try {
+            const currentTitle = await getConversationTitle(uid, {
                 mongoUri: config.mongoUri,
                 dbName: config.mongoDbName
             });
-            newTitle = title.trim();
+            if (!currentTitle) {
+                const titlePrompt = `
+                請根據使用者的問題，生成一個簡短的對話標題 (5個字以內)。
+                問題：${message}
+                標題：`;
+
+                const llmConfig = {
+                    provider: config.geminiApiKey ? 'gemini' : config.openaiApiKey ? 'openai' : config.openrouterApiKey ? 'openrouter' : undefined,
+                    apiKey: config.geminiApiKey || config.openaiApiKey || config.openrouterApiKey,
+                    model: config.chatModel,
+                } as any;
+
+                const title = await generateText(titlePrompt, llmConfig);
+                await saveConversationTitle(uid, title.trim(), {
+                    mongoUri: config.mongoUri,
+                    dbName: config.mongoDbName
+                });
+                newTitle = title.trim();
+            }
+        } catch (titleErr) {
+            console.warn('Skip title generation', titleErr);
         }
 
         // Persist structured cards if present
