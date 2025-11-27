@@ -69,8 +69,12 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
             if (res.ok) {
                 setAvailableModels(prev => ({ ...prev, [provider]: data.models }));
                 // 如果尚未選取聊天模型，預設帶入第一個可用項
-                if (!config.CHAT_MODEL && data.models?.length) {
+                if (!config.CHAT_MODEL && data.models?.length && chatProvider === provider) {
                     setConfig(prev => ({ ...prev, CHAT_MODEL: data.models[0] }));
+                }
+                // 如果嵌入式提供者相同，預設帶入第一個模型
+                if (config.EMBEDDING_PROVIDER === provider && data.models?.length) {
+                    setConfig(prev => ({ ...prev, EMBEDDING_MODEL: data.models[0] }));
                 }
                 alert(`連線成功！已取得 ${data.models.length} 個模型，並已套用預設模型。`);
             } else {
@@ -346,7 +350,16 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                 <label className="block text-xs text-gray-600 mb-1">供應商</label>
                                 <select
                                     value={chatProvider}
-                                    onChange={e => setChatProvider(e.target.value as any)}
+                                    onChange={e => {
+                                        const next = e.target.value as 'gemini' | 'openai' | 'openrouter';
+                                        setChatProvider(next);
+                                        // 讓嵌入式預設跟隨聊天供應商
+                                        setConfig(prev => ({
+                                            ...prev,
+                                            EMBEDDING_PROVIDER: next,
+                                            EMBEDDING_MODEL: availableModels[next]?.[0] || prev.EMBEDDING_MODEL
+                                        }));
+                                    }}
                                     className="w-full border rounded p-2 text-sm bg-white"
                                 >
                                     <option value="gemini">Google Gemini</option>

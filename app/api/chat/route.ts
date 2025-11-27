@@ -50,11 +50,25 @@ export async function POST(req: NextRequest) {
             return true;
         };
 
+        // Validate embedding model/provider pairing
+        const validateEmbeddingModel = (provider?: EmbeddingProvider, model?: string) => {
+            if (!model || !provider) return true;
+            const m = model.toLowerCase();
+            if (provider === 'gemini') return m.includes('embedding') || m.startsWith('text-embedding');
+            if (provider === 'openai') return m.includes('embedding');
+            if (provider === 'openrouter') return true; // openrouter list already filtered
+            return true;
+        };
+
         if (!validateChatModel(
             config.geminiApiKey ? 'gemini' : config.openaiApiKey ? 'openai' : config.openrouterApiKey ? 'openrouter' : undefined,
             config.chatModel
         )) {
             return NextResponse.json({ error: 'CHAT_MODEL 與供應商不匹配，或為 embedding / rerank 型模型。請重新選擇。' }, { status: 400 });
+        }
+
+        if (!validateEmbeddingModel(config.embeddingProvider, config.embeddingModel)) {
+            return NextResponse.json({ error: 'EMBEDDING_MODEL 與供應商不匹配，請重新選擇。' }, { status: 400 });
         }
 
         const result = await ragAnswer(uid, message, config);
