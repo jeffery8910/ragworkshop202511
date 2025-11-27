@@ -46,8 +46,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
     const [chatProvider, setChatProvider] = useState<Provider>(
         initialConfig['GEMINI_API_KEY'] ? 'gemini' :
             initialConfig['OPENAI_API_KEY'] ? 'openai' :
-                initialConfig['OPENROUTER_API_KEY'] ? 'openrouter' :
-                    initialConfig['PINECONE_API_KEY'] ? 'pinecone' : 'gemini'
+                initialConfig['OPENROUTER_API_KEY'] ? 'openrouter' : 'gemini'
     );
 
     const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -387,7 +386,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                     <option value="gemini">Google Gemini</option>
                                     <option value="openai">OpenAI</option>
                                     <option value="openrouter">OpenRouter</option>
-                                    <option value="pinecone">Pinecone Inference</option>
+                                    {/* Pinecone 不支援聊天，僅嵌入 */}
                                 </select>
                             </div>
                             <div className="md:col-span-2 flex gap-2 items-end">

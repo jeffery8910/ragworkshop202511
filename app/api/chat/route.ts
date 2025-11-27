@@ -47,13 +47,15 @@ export async function POST(req: NextRequest) {
 
         // Validate chat model against provider to avoid unsupported IDs or embeddings
         const validateChatModel = (provider?: string, model?: string) => {
-            if (!model || !provider) return true; // allow fallback to default behavior
+            if (!model) return true; // nothing to validate yet
             const m = model.toLowerCase();
             if (m.includes('embedding') || m.includes('embed') || m.includes('rerank')) return false;
+            if (!provider) return true; // allow if provider not deduced yet
             if (provider === 'gemini') return m.startsWith('gemini');
             if (provider === 'openai') return m.startsWith('gpt') || m.startsWith('o') || m.startsWith('chatgpt');
             if (provider === 'openrouter') return true; // already filter embeddings out in model list API
-            return true;
+            // pinecone or other providers are not valid chat providers
+            return false;
         };
 
         // Validate embedding model/provider pairing
@@ -67,11 +69,18 @@ export async function POST(req: NextRequest) {
             return true;
         };
 
-        if (!validateChatModel(
-            config.geminiApiKey ? 'gemini' : config.openaiApiKey ? 'openai' : config.openrouterApiKey ? 'openrouter' : undefined,
-            config.chatModel
-        )) {
-            return NextResponse.json({ error: 'CHAT_MODEL 與供應商不匹配，或為 embedding / rerank 型模型。請重新選擇。' }, { status: 400 });
+        const providerForChat = config.geminiApiKey
+            ? 'gemini'
+            : config.openaiApiKey
+                ? 'openai'
+                : config.openrouterApiKey
+                    ? 'openrouter'
+                    : undefined;
+
+        if (!validateChatModel(providerForChat, config.chatModel)) {
+            return NextResponse.json({
+                error: 'RAG Lab CHAT_MODEL 與供應商不匹配，或為 embedding / rerank 型模型，請重新選擇聊天模型。'
+            }, { status: 400 });
         }
 
         if (!validateEmbeddingModel(config.embeddingProvider, config.embeddingModel)) {
