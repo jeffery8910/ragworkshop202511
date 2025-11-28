@@ -20,6 +20,16 @@ function chunkText(text: string, size = 800, overlap = 100) {
 }
 
 async function extractPdf(buffer: ArrayBuffer) {
+    // pdfjs (pdf-parse) requires DOMMatrix in Node; canvas provides it.
+    try {
+        const { DOMMatrix } = await import('canvas');
+        if (!(global as any).DOMMatrix) {
+            (global as any).DOMMatrix = DOMMatrix as any;
+        }
+    } catch (e) {
+        // If canvas fails, continue; pdf-parse may still work for simple PDFs
+        console.warn('Canvas not available, DOMMatrix may be missing', e);
+    }
     const mod = await import('pdf-parse');
     const pdfParse = (mod as any).default || (mod as any);
     const data = await pdfParse(Buffer.from(buffer));
