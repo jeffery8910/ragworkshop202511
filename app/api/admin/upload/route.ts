@@ -24,16 +24,18 @@ function chunkText(text: string, size = 800, overlap = 100) {
 }
 
 async function extractPdf(buffer: ArrayBuffer) {
-    // pdfjs (pdf-parse) requires DOMMatrix in Node; provide a light stub to avoid native deps.
+    // Minimal DOMMatrix stub to satisfy pdfjs if needed
     if (!(global as any).DOMMatrix) {
-        (global as any).DOMMatrix = class DOMMatrix {
-            constructor() { }
-        } as any;
+        (global as any).DOMMatrix = class DOMMatrix { constructor() { } } as any;
     }
-    const mod = await import('pdf-parse');
-    const pdfParse = (mod as any).default || (mod as any);
-    const data = await pdfParse(Buffer.from(buffer));
-    return data.text as string;
+    try {
+        const mod = await import('pdf-parse');
+        const pdfParse = (mod as any).default || (mod as any);
+        const data = await pdfParse(Buffer.from(buffer));
+        return data.text as string;
+    } catch (err: any) {
+        throw new Error(`PDF 解析失敗，請改用 OCR 模式或先轉成 TXT：${err?.message || err}`);
+    }
 }
 
 async function extractImageWithVision(buffer: ArrayBuffer, fileName: string) {
