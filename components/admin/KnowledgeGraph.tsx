@@ -1,18 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Network, FileText, RefreshCw, Info, Trash2 } from 'lucide-react';
-
-// Mock data for visualization if real data is not available
-const MOCK_VECTORS = Array.from({ length: 20 }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    title: `Chunk ${i + 1}`,
-    source: i % 2 === 0 ? 'calculus_intro.pdf' : 'physics_basics.pdf',
-    len: 180 + Math.floor(Math.random() * 400),
-    indexedAt: Date.now() - Math.floor(Math.random() * 1000 * 60 * 60 * 24),
-}));
 
 interface KnowledgeGraphProps {
     onAction?: (msg: string) => void;
@@ -24,7 +13,7 @@ interface IndexedFile {
     status: 'Indexed' | 'Pending';
 }
 
-const buildFileList = (vecs: typeof MOCK_VECTORS): IndexedFile[] => {
+const buildFileList = (vecs: { source: string }[]): IndexedFile[] => {
     const counter: Record<string, number> = {};
     vecs.forEach(v => {
         counter[v.source] = (counter[v.source] || 0) + 1;
@@ -38,34 +27,68 @@ const buildFileList = (vecs: typeof MOCK_VECTORS): IndexedFile[] => {
 
 export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [loading, setLoading] = useState(false);
-    const [vectors, setVectors] = useState(MOCK_VECTORS);
-    const [selected, setSelected] = useState<typeof MOCK_VECTORS[number] | null>(MOCK_VECTORS[0]);
-    const [activeFile, setActiveFile] = useState<string | null>(MOCK_VECTORS[0]?.source ?? null);
-    const [indexedFiles, setIndexedFiles] = useState<IndexedFile[]>(buildFileList(MOCK_VECTORS));
+    const [vectors, setVectors] = useState<any[]>([]);
+    const [selected, setSelected] = useState<any | null>(null);
+    const [activeFile, setActiveFile] = useState<string | null>(null);
+    const [indexedFiles, setIndexedFiles] = useState<IndexedFile[]>([]);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [dragging, setDragging] = useState(false);
     const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const hashToPos = (id: string, dim: number) => {
+        let h = 0;
+        for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+        return (h % 10000) / 100 * dim;
+    };
+
+    const fetchData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch('/api/admin/documents');
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || '取得文件列表失敗');
+
+            const files = (data.documents || []).map((d: any) => ({
+                name: d.filename,
+                count: d.chunks,
+                status: 'Indexed'
+            }));
+            setIndexedFiles(files);
+
+            const chunks = (data.chunks || []).map((c: any, idx: number) => ({
+                id: c.chunkId || idx,
+                x: hashToPos(c.chunkId || String(idx), 1),
+                y: hashToPos((c.chunkId || String(idx)) + 'y', 1),
+                title: `Chunk ${c.chunk ?? idx}`,
+                source: c.source || 'unknown',
+                len: c.text_length,
+                indexedAt: c.indexed_at || Date.now(),
+            }));
+
+            setVectors(chunks);
+            if (chunks.length) {
+                setSelected(chunks[0]);
+                setActiveFile(chunks[0].source);
+            }
+            onAction?.('已載入索引文件與節點');
+        } catch (err: any) {
+            console.error(err);
+            setError(err?.message || '無法讀取索引資料');
+            onAction?.('讀取索引資料失敗');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
 
     const handleRefresh = () => {
-        setLoading(true);
-        setTimeout(() => {
-            const refreshed = Array.from({ length: 20 }, (_, i) => ({
-                id: i,
-                x: Math.random() * 100,
-                y: Math.random() * 100,
-                title: `Chunk ${i + 1}`,
-                source: i % 3 === 0 ? 'history.pdf' : 'science.pdf',
-                len: 180 + Math.floor(Math.random() * 400),
-                indexedAt: Date.now() - Math.floor(Math.random() * 1000 * 60 * 60 * 24),
-            }));
-            setVectors(refreshed);
-            setSelected(refreshed[0]);
-            setActiveFile(refreshed[0]?.source ?? null);
-            setIndexedFiles(buildFileList(refreshed));
-            setLoading(false);
-            onAction?.('已重新整理視覺化');
-        }, 1000);
+        fetchData();
     };
 
     const onMouseDown = (e: React.MouseEvent) => {
@@ -146,9 +169,9 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                             className={`absolute w-3 h-3 rounded-full cursor-pointer transition-transform shadow-sm ${
                                 selected?.id === v.id
                                     ? 'bg-orange-500 ring-4 ring-orange-200 scale-125'
-                                    : activeFile === v.source
-                                        ? 'bg-blue-500 ring-2 ring-blue-200'
-                                        : 'bg-purple-500 hover:bg-purple-700 hover:scale-150'
+                                : activeFile === v.source
+                                    ? 'bg-blue-500 ring-2 ring-blue-200'
+                                    : 'bg-purple-500 hover:bg-purple-700 hover:scale-150'
                             }`}
                             style={{ left: `${v.x}%`, top: `${v.y}%` }}
                             onClick={() => {
@@ -213,7 +236,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                     </h3>
                     <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-2 max-h-64 overflow-auto">
                         {indexedFiles.length === 0 ? (
-                            <div className="text-sm text-gray-500">尚無已索引檔案</div>
+                            <div className="text-sm text-gray-500">{loading ? '讀取中...' : '尚無已索引檔案'}</div>
                         ) : (
                             indexedFiles.map((file) => (
                                 <div
@@ -252,6 +275,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
 
             <div className="mt-3 text-xs text-gray-500">
                 提示：點擊索引檔案會同步聚焦上方節點；雙擊畫布重置視角，滑鼠滾輪縮放，拖曳可平移。
+                {error && <div className="text-red-600 mt-1">讀取失敗：{error}</div>}
             </div>
         </div>
     );
