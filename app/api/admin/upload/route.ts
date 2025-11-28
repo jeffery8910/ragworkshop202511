@@ -24,9 +24,25 @@ function chunkText(text: string, size = 800, overlap = 100) {
 }
 
 async function extractPdf(buffer: ArrayBuffer) {
-    // Minimal DOMMatrix stub to satisfy pdfjs if needed
+    // Minimal stubs to satisfy pdfjs in serverless env without canvas
     if (!(global as any).DOMMatrix) {
-        (global as any).DOMMatrix = class DOMMatrix { constructor() { } } as any;
+        (global as any).DOMMatrix = class DOMMatrix {
+            a: number; b: number; c: number; d: number; e: number; f: number;
+            constructor() {
+                this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+            }
+            multiply() { return this; }
+            inverse() { return this; }
+            translate() { return this; }
+            scale() { return this; }
+            transformPoint(pt: any) { return pt; }
+        } as any;
+    }
+    if (!(global as any).Path2D) {
+        (global as any).Path2D = class Path2D { constructor() { } addPath() { } } as any;
+    }
+    if (!(global as any).ImageData) {
+        (global as any).ImageData = class ImageData { constructor() { } } as any;
     }
     try {
         const mod = await import('pdf-parse');
