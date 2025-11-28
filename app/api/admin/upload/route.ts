@@ -217,6 +217,18 @@ export async function POST(req: NextRequest) {
             }
 
             if (!text.trim()) {
+                // 仍寫入 documents 做紀錄，便於前端顯示
+                const docId = nanoid();
+                await docCollection.insertOne({
+                    docId,
+                    filename: name,
+                    size: file.size,
+                    type: lower.split('.').pop(),
+                    chunks: 0,
+                    indexedAt: new Date(),
+                    mode,
+                    error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT',
+                });
                 results.push({ file: name, chunks: 0, status: 'empty', error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT' });
                 continue;
             }
