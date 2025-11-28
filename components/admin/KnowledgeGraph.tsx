@@ -31,6 +31,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [selected, setSelected] = useState<any | null>(null);
     const [activeFile, setActiveFile] = useState<string | null>(null);
     const [indexedFiles, setIndexedFiles] = useState<IndexedFile[]>([]);
+    const [documents, setDocuments] = useState<any[]>([]);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [dragging, setDragging] = useState(false);
@@ -55,7 +56,10 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
             }
             if (!res.ok) throw new Error(data?.error || text || '取得文件列表失敗');
 
-            const files = (data.documents || []).map((d: any) => ({
+            const docs = data.documents || [];
+            setDocuments(docs);
+
+            const files = docs.map((d: any) => ({
                 name: d.filename,
                 count: d.chunks,
                 status: 'Indexed'
@@ -282,6 +286,35 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                     </button>
                                 </div>
                             ))
+                        )}
+                    </div>
+
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-2">
+                        <div className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                            <Info className="w-4 h-4 text-blue-600" /> 資料庫文件一覽
+                        </div>
+                        <div className="text-xs text-gray-500">總文件：{documents.length}，節點：{vectors.length}</div>
+                        <div className="max-h-48 overflow-auto text-sm text-gray-700 divide-y">
+                            {documents.length === 0 ? (
+                                <div className="py-2 text-gray-400">{loading ? '讀取中...' : '尚無文件記錄，請上傳後重新整理。'}</div>
+                            ) : (
+                                documents.map((d, i) => (
+                                    <div key={d.docId || i} className="py-2 flex justify-between items-center">
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">{d.filename}</span>
+                                            <span className="text-[11px] text-gray-500">
+                                                {d.mode || 'text'} · {d.type || ''} · {d.chunks} chunks · {d.indexedAt ? new Date(d.indexedAt).toLocaleString() : ''}
+                                            </span>
+                                        </div>
+                                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{d.chunks ?? 0}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        {documents.length > 0 && vectors.length === 0 && !error && (
+                            <div className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded p-2">
+                                已有文件紀錄但沒有 chunks，可能索引步驟未成功寫入 chunks 集合或向量庫。
+                            </div>
                         )}
                     </div>
                 </div>
