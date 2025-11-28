@@ -13,6 +13,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const [dragActive, setDragActive] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
+    const [mode, setMode] = useState<'text' | 'ocr' | 'llm'>('text');
 
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault();
@@ -45,7 +46,10 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
 
             const res = await fetch('/api/admin/upload', {
                 method: 'POST',
-                body: formData,
+                body: (() => {
+                    formData.append('mode', mode);
+                    return formData;
+                })(),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data?.error || '上傳失敗');
@@ -80,6 +84,20 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Upload className="w-5 h-5" /> 知識庫上傳
             </h2>
+            <div className="mb-4 flex items-center gap-4 text-sm">
+                <label className="flex items-center gap-1">
+                    <input type="radio" value="text" checked={mode === 'text'} onChange={() => setMode('text')} />
+                    純文字解析
+                </label>
+                <label className="flex items-center gap-1">
+                    <input type="radio" value="ocr" checked={mode === 'ocr'} onChange={() => setMode('ocr')} />
+                    OCR / 圖片轉文字
+                </label>
+                <label className="flex items-center gap-1">
+                    <input type="radio" value="llm" checked={mode === 'llm'} onChange={() => setMode('llm')} />
+                    LLM 精修文字
+                </label>
+            </div>
 
             <div
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
