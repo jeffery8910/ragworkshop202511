@@ -5,6 +5,10 @@ import { getPineconeClient } from '@/lib/vector/pinecone';
 import { getEmbedding } from '@/lib/vector/embedding';
 import { nanoid } from 'nanoid';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
+
 type Mode = 'text' | 'ocr' | 'llm';
 
 // Simple chunker by characters
@@ -20,15 +24,11 @@ function chunkText(text: string, size = 800, overlap = 100) {
 }
 
 async function extractPdf(buffer: ArrayBuffer) {
-    // pdfjs (pdf-parse) requires DOMMatrix in Node; canvas provides it.
-    try {
-        const { DOMMatrix } = await import('canvas');
-        if (!(global as any).DOMMatrix) {
-            (global as any).DOMMatrix = DOMMatrix as any;
-        }
-    } catch (e) {
-        // If canvas fails, continue; pdf-parse may still work for simple PDFs
-        console.warn('Canvas not available, DOMMatrix may be missing', e);
+    // pdfjs (pdf-parse) requires DOMMatrix in Node; provide a light stub to avoid native deps.
+    if (!(global as any).DOMMatrix) {
+        (global as any).DOMMatrix = class DOMMatrix {
+            constructor() { }
+        } as any;
     }
     const mod = await import('pdf-parse');
     const pdfParse = (mod as any).default || (mod as any);
