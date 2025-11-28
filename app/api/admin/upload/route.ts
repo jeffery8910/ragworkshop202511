@@ -23,7 +23,7 @@ function chunkText(text: string, size = 800, overlap = 100) {
     return chunks;
 }
 
-async function extractPdf(buffer: ArrayBuffer) {
+async function extractPdf(buffer: ArrayBuffer): Promise<{ text: string; error?: string }> {
     // Minimal stubs to satisfy pdfjs in serverless env without canvas
     if (!(global as any).DOMMatrix) {
         (global as any).DOMMatrix = class DOMMatrix {
@@ -48,9 +48,9 @@ async function extractPdf(buffer: ArrayBuffer) {
         const mod = await import('pdf-parse');
         const pdfParse = (mod as any).default || (mod as any);
         const data = await pdfParse(Buffer.from(buffer));
-        return data.text as string;
+        return { text: data.text as string };
     } catch (err: any) {
-        throw new Error(`PDF 解析失敗，請改用 OCR 模式或先轉成 TXT：${err?.message || err}`);
+        return { text: '', error: err?.message || String(err) };
     }
 }
 
@@ -189,10 +189,13 @@ export async function POST(req: NextRequest) {
             const name = file.name;
             const lower = name.toLowerCase();
             let text = '';
+            let parseErr: string | undefined;
 
             try {
                 if (lower.endsWith('.pdf')) {
-                    text = await extractPdf(arrayBuffer);
+                    const { text: pdfText, error: pdfError } = await extractPdf(arrayBuffer);
+                    text = pdfText;
+                    parseErr = pdfError;
                     if (mode === 'llm') {
                         if (!llmUsable) throw new Error('LLM 精修需要後台已設定 CHAT_MODEL 與對應 API Key');
                         text = await extractWithLLM(text, name, llmConfig);
@@ -214,7 +217,7 @@ export async function POST(req: NextRequest) {
             }
 
             if (!text.trim()) {
-                results.push({ file: name, chunks: 0, status: 'empty' });
+                results.push({ file: name, chunks: 0, status: 'empty', error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT' });
                 continue;
             }
 
