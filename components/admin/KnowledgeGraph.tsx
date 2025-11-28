@@ -163,6 +163,16 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                 onWheel={onWheel}
                 onDoubleClick={resetView}
             >
+                {error && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-red-600 text-sm px-4 text-center">
+                        資料載入失敗：{error}（請確認 MongoDB 連線與 documents/chunks 集合有資料）
+                    </div>
+                )}
+                {!error && vectors.length === 0 && !loading && (
+                    <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500">
+                        尚無向量資料，請上傳檔案或點重新整理。
+                    </div>
+                )}
                 <div
                     className="absolute inset-0"
                     style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0' }}
