@@ -77,15 +77,16 @@ async function extractImageWithVision(buffer: ArrayBuffer, fileName: string) {
     throw new Error(`No vision-capable API key (OPENAI_API_KEY or GEMINI_API_KEY) to OCR ${fileName}`);
 }
 
-async function extractWithLLM(text: string, fileName: string) {
-    const geminiKey = process.env.GEMINI_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
+type LlmConfig = { provider?: 'openai' | 'gemini' | 'openrouter'; apiKey?: string; model?: string };
+
+async function extractWithLLM(text: string, fileName: string, llm: LlmConfig) {
     const instruction = `整理以下文件內容，輸出乾淨純文字。不要摘要，保留所有可讀文本，移除多餘空白。`;
-    if (openaiKey) {
+
+    if (llm.provider === 'openai' && llm.apiKey) {
         const OpenAI = (await import('openai')).default;
-        const client = new OpenAI({ apiKey: openaiKey });
+        const client = new OpenAI({ apiKey: llm.apiKey });
         const res = await client.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: llm.model || 'gpt-4o-mini',
             messages: [
                 { role: 'system', content: instruction },
                 { role: 'user', content: text.slice(0, 12000) },
@@ -94,14 +95,27 @@ async function extractWithLLM(text: string, fileName: string) {
         });
         return res.choices[0]?.message?.content ?? text;
     }
-    if (geminiKey) {
+    if (llm.provider === 'gemini' && llm.apiKey) {
         const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(geminiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const genAI = new GoogleGenerativeAI(llm.apiKey);
+        const model = genAI.getGenerativeModel({ model: llm.model || 'gemini-1.5-flash' });
         const res = await model.generateContent([instruction, text.slice(0, 12000)]);
         return res.response.text();
     }
-    throw new Error(`No LLM key (Gemini/OpenAI) to清理檔案 ${fileName}`);
+    if (llm.provider === 'openrouter' && llm.apiKey) {
+        const OpenAI = (await import('openai')).default;
+        const client = new OpenAI({ apiKey: llm.apiKey, baseURL: 'https://openrouter.ai/api/v1' });
+        const res = await client.chat.completions.create({
+            model: llm.model || 'mistralai/Mistral-7B-Instruct:free',
+            messages: [
+                { role: 'system', content: instruction },
+                { role: 'user', content: text.slice(0, 12000) },
+            ],
+            max_tokens: 6000,
+        });
+        return res.choices[0]?.message?.content ?? text;
+    }
+    throw new Error(`No LLM key (Gemini/OpenAI/OpenRouter) to清理檔案 ${fileName}`);
 }
 
 export async function POST(req: NextRequest) {
@@ -129,6 +143,25 @@ export async function POST(req: NextRequest) {
 
         const embeddingProvider = (cookieStore.get('EMBEDDING_PROVIDER')?.value || process.env.EMBEDDING_PROVIDER || 'gemini') as any;
         const embeddingModel = cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL;
+        const chatModel = cookieStore.get('CHAT_MODEL')?.value || process.env.CHAT_MODEL || '';
+        const geminiKey = cookieStore.get('GEMINI_API_KEY')?.value || process.env.GEMINI_API_KEY;
+        const openaiKey = cookieStore.get('OPENAI_API_KEY')?.value || process.env.OPENAI_API_KEY;
+        const openrouterKey = cookieStore.get('OPENROUTER_API_KEY')?.value || process.env.OPENROUTER_API_KEY;
+
+        const resolveLlm = (): LlmConfig => {
+            const m = chatModel.toLowerCase();
+            if (m.startsWith('gpt') || m.startsWith('o') || m.startsWith('chatgpt')) {
+                if (openaiKey) return { provider: 'openai', apiKey: openaiKey, model: chatModel };
+            }
+            if (m.startsWith('gemini')) {
+                if (geminiKey) return { provider: 'gemini', apiKey: geminiKey, model: chatModel };
+            }
+            if (openrouterKey) return { provider: 'openrouter', apiKey: openrouterKey, model: chatModel || 'mistralai/Mistral-7B-Instruct:free' };
+            if (openaiKey) return { provider: 'openai', apiKey: openaiKey, model: 'gpt-4o-mini' };
+            if (geminiKey) return { provider: 'gemini', apiKey: geminiKey, model: 'gemini-1.5-flash' };
+            return {};
+        };
+        const llmConfig = resolveLlm();
 
         const results = [];
 
@@ -141,12 +174,12 @@ export async function POST(req: NextRequest) {
             if (lower.endsWith('.pdf')) {
                 text = await extractPdf(arrayBuffer);
                 if (mode === 'llm') {
-                    text = await extractWithLLM(text, name);
+                    text = await extractWithLLM(text, name, llmConfig);
                 }
             } else if (lower.endsWith('.txt') || lower.endsWith('.md')) {
                 text = Buffer.from(arrayBuffer).toString('utf-8');
                 if (mode === 'llm') {
-                    text = await extractWithLLM(text, name);
+                    text = await extractWithLLM(text, name, llmConfig);
                 }
             } else if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) {
                 // images: use OCR/vision
