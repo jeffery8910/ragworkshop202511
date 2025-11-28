@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
         const pineIndex = cookieStore.get('PINECONE_INDEX_NAME')?.value || process.env.PINECONE_INDEX_NAME || 'rag-index';
 
         if (!mongoUri) return NextResponse.json({ error: 'MONGODB_URI not set' }, { status: 400 });
-        if (!pineKey) return NextResponse.json({ error: 'PINECONE_API_KEY not set' }, { status: 400 });
+        const pineconeEnabled = !!pineKey;
 
         const form = await req.formData();
         const mode = (form.get('mode') as Mode) || 'text';
@@ -156,8 +156,8 @@ export async function POST(req: NextRequest) {
         const db = mongoClient.db(mongoDb);
         const docCollection = db.collection('documents');
         const chunkCollection = db.collection('chunks');
-        const pinecone = await getPineconeClient(pineKey);
-        const pine = pinecone.index(pineIndex);
+        const pinecone = pineconeEnabled ? await getPineconeClient(pineKey) : null;
+        const pine = pineconeEnabled && pinecone ? pinecone.index(pineIndex) : null;
 
         const embeddingProvider = (cookieStore.get('EMBEDDING_PROVIDER')?.value || process.env.EMBEDDING_PROVIDER || 'gemini') as any;
         const embeddingModel = cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL;
@@ -260,7 +260,7 @@ export async function POST(req: NextRequest) {
                 });
             }
 
-            if (vectors.length) {
+            if (pineconeEnabled && pine && vectors.length) {
                 await pine.upsert(vectors);
             }
 
@@ -274,7 +274,13 @@ export async function POST(req: NextRequest) {
                 mode,
             });
 
-            results.push({ file: name, chunks: chunks.length, status: 'ok' });
+            results.push({
+                file: name,
+                chunks: chunks.length,
+                status: pineconeEnabled ? 'ok' : 'ok_mongo_only',
+                note: pineconeEnabled ? undefined : 'PINECONE_API_KEY 未設定，僅寫入 Mongo，未寫入向量庫',
+                parseError: parseErr,
+            });
         }
 
         return NextResponse.json({ success: true, results });
