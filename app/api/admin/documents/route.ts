@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getMongoClient } from '@/lib/db/mongo';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
     try {
@@ -28,7 +32,13 @@ export async function GET() {
             .limit(500)
             .toArray();
 
-        return NextResponse.json({ documents, chunks: chunkDocs });
+        return new NextResponse(JSON.stringify({ documents, chunks: chunkDocs }), {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-store, max-age=0',
+            }
+        });
     } catch (error: any) {
         console.error('Fetch documents error', error);
         return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
