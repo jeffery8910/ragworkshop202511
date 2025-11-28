@@ -162,6 +162,7 @@ export async function POST(req: NextRequest) {
             return {};
         };
         const llmConfig = resolveLlm();
+        const llmUsable = !!llmConfig.provider && !!llmConfig.apiKey;
 
         const results = [];
 
@@ -171,21 +172,27 @@ export async function POST(req: NextRequest) {
             const lower = name.toLowerCase();
             let text = '';
 
-            if (lower.endsWith('.pdf')) {
-                text = await extractPdf(arrayBuffer);
-                if (mode === 'llm') {
-                    text = await extractWithLLM(text, name, llmConfig);
+            try {
+                if (lower.endsWith('.pdf')) {
+                    text = await extractPdf(arrayBuffer);
+                    if (mode === 'llm') {
+                        if (!llmUsable) throw new Error('LLM 精修需要後台已設定 CHAT_MODEL 與對應 API Key');
+                        text = await extractWithLLM(text, name, llmConfig);
+                    }
+                } else if (lower.endsWith('.txt') || lower.endsWith('.md')) {
+                    text = Buffer.from(arrayBuffer).toString('utf-8');
+                    if (mode === 'llm') {
+                        if (!llmUsable) throw new Error('LLM 精修需要後台已設定 CHAT_MODEL 與對應 API Key');
+                        text = await extractWithLLM(text, name, llmConfig);
+                    }
+                } else if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) {
+                    // images: use OCR/vision
+                    text = await extractImageWithVision(arrayBuffer, name);
+                } else {
+                    return NextResponse.json({ error: `Unsupported file type: ${name}` }, { status: 400 });
                 }
-            } else if (lower.endsWith('.txt') || lower.endsWith('.md')) {
-                text = Buffer.from(arrayBuffer).toString('utf-8');
-                if (mode === 'llm') {
-                    text = await extractWithLLM(text, name, llmConfig);
-                }
-            } else if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) {
-                // images: use OCR/vision
-                text = await extractImageWithVision(arrayBuffer, name);
-            } else {
-                return NextResponse.json({ error: `Unsupported file type: ${name}` }, { status: 400 });
+            } catch (stepErr: any) {
+                return NextResponse.json({ error: `處理檔案 ${name} 失敗: ${stepErr?.message || stepErr}` }, { status: 500 });
             }
 
             if (!text.trim()) {
