@@ -48,8 +48,12 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         setError(null);
         try {
             const res = await fetch('/api/admin/documents');
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.error || '取得文件列表失敗');
+            const text = await res.text();
+            let data: any = {};
+            try { data = text ? JSON.parse(text) : {}; } catch (e) {
+                throw new Error(text.slice(0, 200) || '取得文件列表失敗 (非 JSON)');
+            }
+            if (!res.ok) throw new Error(data?.error || text || '取得文件列表失敗');
 
             const files = (data.documents || []).map((d: any) => ({
                 name: d.filename,

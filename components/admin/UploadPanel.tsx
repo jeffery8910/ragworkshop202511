@@ -51,8 +51,12 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                     return formData;
                 })(),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.error || '上傳失敗');
+            const text = await res.text();
+            let data: any = {};
+            try { data = text ? JSON.parse(text) : {}; } catch (e) {
+                throw new Error(text.slice(0, 200) || '上傳失敗 (非 JSON 回應)');
+            }
+            if (!res.ok) throw new Error(data?.error || text || '上傳失敗');
 
             setFiles([]);
             onAction?.('檔案上傳並向量化完成');
