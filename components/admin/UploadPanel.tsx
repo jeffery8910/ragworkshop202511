@@ -19,9 +19,17 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const [uploading, setUploading] = useState(false);
     const [mode, setMode] = useState<'text' | 'ocr' | 'llm'>('text');
     const [localParse, setLocalParse] = useState<boolean>(true);
-    const [chunkSize, setChunkSize] = useState<number>(800);
-    const [chunkOverlap, setChunkOverlap] = useState<number>(100);
-    const [progress, setProgress] = useState<{ stage: 'idle' | 'parsing' | 'uploading'; value: number; message?: string }>({
+    const [chunkSize, setChunkSize] = useState<number>(1000);       // default chunk size
+    const [chunkOverlap, setChunkOverlap] = useState<number>(120);  // default overlap
+    const [progress, setProgress] = useState<{
+        stage: 'idle' | 'parsing' | 'uploading';
+        value: number;
+        message?: string;
+        fileIndex?: number;
+        totalFiles?: number;
+        chunksDone?: number;
+        chunksTotal?: number;
+    }>({
         stage: 'idle',
         value: 0,
         message: ''
@@ -75,7 +83,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const handleUpload = async () => {
         if (!files.length) return;
         setUploading(true);
-        setProgress({ stage: 'parsing', value: 5, message: '準備切分檔案…' });
+        setProgress({ stage: 'parsing', value: 5, message: '準備切分檔案…', fileIndex: 0, totalFiles: files.length, chunksDone: 0, chunksTotal: 0 });
         onAction?.('開始上傳/切分/向量化');
         try {
             const formData = new FormData();
@@ -83,17 +91,38 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
 
             if (localParse) {
                 // 前端解析 PDF 為純文字並切 chunk，以 plaintext 傳給後端
-                for (const file of files) {
+                for (let fi = 0; fi < files.length; fi++) {
+                    const file = files[fi];
                     if (file.type === 'application/pdf') {
-                        setProgress({ stage: 'parsing', value: 10, message: `解析 ${file.name}…` });
+                        setProgress({
+                            stage: 'parsing',
+                            value: 10,
+                            message: `解析 ${file.name}…`,
+                            fileIndex: fi + 1,
+                            totalFiles: files.length,
+                            chunksDone: 0,
+                            chunksTotal: 0
+                        });
                         const text = await extractPdfText(file);
                         const chunks = chunkText(text, chunkSize, chunkOverlap);
-                        setProgress({ stage: 'parsing', value: 30, message: `切分 ${chunks.length} 塊…` });
+                        setProgress({
+                            stage: 'parsing',
+                            value: 30,
+                            message: `切分 ${chunks.length} 塊…`,
+                            fileIndex: fi + 1,
+                            totalFiles: files.length,
+                            chunksDone: 0,
+                            chunksTotal: chunks.length
+                        });
                         chunks.forEach((chunk, idx) => {
                             formData.append('plaintext', JSON.stringify({
                                 filename: `${file.name}#chunk${idx + 1}`,
                                 text: chunk,
                                 mode
+                            }));
+                            setProgress(prev => ({
+                                ...prev,
+                                chunksDone: (prev.chunksDone || 0) + 1
                             }));
                         });
                     } else {
@@ -105,7 +134,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                 files.forEach(file => formData.append('files', file));
             }
 
-            setProgress({ stage: 'uploading', value: 50, message: '上傳伺服器中…' });
+            setProgress(prev => ({ ...prev, stage: 'uploading', value: 50, message: '上傳伺服器中…' }));
             const res = await fetch('/api/admin/upload', {
                 method: 'POST',
                 body: formData,
@@ -245,6 +274,10 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
                                 {progress.message || (progress.stage === 'uploading' ? '上傳中…' : '解析/切分中…')}
+                                {progress.fileIndex && progress.totalFiles ? ` (${progress.fileIndex}/${progress.totalFiles} 檔)` : ''}
+                                {progress.chunksTotal
+                                    ? ` | chunk ${Math.min(progress.chunksDone || 0, progress.chunksTotal)}/${progress.chunksTotal}`
+                                    : ''}
                             </div>
                         </div>
                     )}
