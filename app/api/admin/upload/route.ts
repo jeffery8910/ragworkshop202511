@@ -54,10 +54,14 @@ async function extractPdf(buffer: ArrayBuffer): Promise<{ text: string; error?: 
     }
 }
 
-async function extractImageWithVision(buffer: ArrayBuffer, fileName: string) {
+async function extractImageWithVision(
+    buffer: ArrayBuffer,
+    fileName: string,
+    keys: { openaiKey?: string; geminiKey?: string }
+) {
     // Prefer OpenAI Vision if key exists, else Gemini
-    const openaiKey = process.env.OPENAI_API_KEY;
-    const geminiKey = process.env.GEMINI_API_KEY;
+    const openaiKey = keys.openaiKey || process.env.OPENAI_API_KEY;
+    const geminiKey = keys.geminiKey || process.env.GEMINI_API_KEY;
     const b64 = Buffer.from(buffer).toString('base64');
     const prompt = 'Extract all readable text from this image or scanned page, keep original order. Return plain text only.';
 
@@ -95,8 +99,8 @@ async function extractImageWithVision(buffer: ArrayBuffer, fileName: string) {
     throw new Error(`No vision-capable API key (OPENAI_API_KEY or GEMINI_API_KEY) to OCR ${fileName}`);
 }
 
-async function extractPdfWithVision(buffer: ArrayBuffer, fileName: string) {
-    const geminiKey = process.env.GEMINI_API_KEY;
+async function extractPdfWithVision(buffer: ArrayBuffer, fileName: string, keys: { geminiKey?: string }) {
+    const geminiKey = keys.geminiKey || process.env.GEMINI_API_KEY;
     const b64 = Buffer.from(buffer).toString('base64');
     const prompt = 'Extract all readable text from this PDF. Return plain text only.';
     if (geminiKey) {
@@ -110,7 +114,7 @@ async function extractPdfWithVision(buffer: ArrayBuffer, fileName: string) {
         return res.response.text();
     }
     // OpenAI vision does not support PDFs directly
-    throw new Error(`PDF OCR 需要 GEMINI_API_KEY，請設定後再試或改用 TXT/圖片`);
+    throw new Error(`PDF OCR 需要 GEMINI_API_KEY，請到後台「系統設定」填入後再試，或改用 TXT/圖片`);
 }
 
 type LlmConfig = { provider?: 'openai' | 'gemini' | 'openrouter'; apiKey?: string; model?: string };
@@ -212,7 +216,7 @@ export async function POST(req: NextRequest) {
             try {
                 if (lower.endsWith('.pdf')) {
                     if (mode === 'ocr') {
-                        text = await extractPdfWithVision(arrayBuffer, name);
+                        text = await extractPdfWithVision(arrayBuffer, name, { geminiKey });
                     } else {
                         const { text: pdfText, error: pdfError } = await extractPdf(arrayBuffer);
                         text = pdfText;
@@ -230,7 +234,7 @@ export async function POST(req: NextRequest) {
                     }
                 } else if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) {
                     // images: use OCR/vision
-                    text = await extractImageWithVision(arrayBuffer, name);
+                    text = await extractImageWithVision(arrayBuffer, name, { openaiKey, geminiKey });
                 } else {
                     return NextResponse.json({ error: `Unsupported file type: ${name}` }, { status: 400 });
                 }
