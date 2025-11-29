@@ -37,7 +37,9 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const loadPdfJs = async () => {
         if (pdfjsInstance) return pdfjsInstance;
         const pdfjsLib: any = await import('pdfjs-dist');
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '4.4.168'}/pdf.worker.min.js`;
+        // 為避免 CDN / dynamic import 失敗，直接禁用 worker，改用主執行緒解析（檔案較小可接受）
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+        pdfjsLib.GlobalWorkerOptions.disableWorker = true;
         pdfjsInstance = pdfjsLib;
         return pdfjsLib;
     };
