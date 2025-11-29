@@ -38,7 +38,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
         if (pdfjsInstance) return pdfjsInstance;
         const pdfjsLib: any = await import('pdfjs-dist');
         // 為避免 CDN / dynamic import 失敗，直接禁用 worker，改用主執行緒解析（檔案較小可接受）
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'about:blank';
         pdfjsLib.GlobalWorkerOptions.disableWorker = true;
         pdfjsInstance = pdfjsLib;
         return pdfjsLib;
