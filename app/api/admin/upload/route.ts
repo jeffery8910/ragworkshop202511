@@ -99,7 +99,9 @@ async function extractImageWithVision(
     throw new Error(`No vision-capable API key (OPENAI_API_KEY or GEMINI_API_KEY) to OCR ${fileName}`);
 }
 
-async function extractPdfWithVision(buffer: ArrayBuffer, fileName: string, keys: { geminiKey?: string }) {
+type VisionResult = { text: string; warning?: string };
+
+async function extractPdfWithVision(buffer: ArrayBuffer, fileName: string, keys: { geminiKey?: string }): Promise<VisionResult> {
     const geminiKey = keys.geminiKey || process.env.GEMINI_API_KEY;
     const b64 = Buffer.from(buffer).toString('base64');
     const prompt = 'Extract all readable text from this PDF. Return plain text only.';
@@ -111,10 +113,10 @@ async function extractPdfWithVision(buffer: ArrayBuffer, fileName: string, keys:
             { text: prompt },
             { inlineData: { data: b64, mimeType: 'application/pdf' } },
         ]);
-        return res.response.text();
+        return { text: res.response.text(), warning: undefined };
     }
-    // OpenAI vision does not support PDFs directly
-    throw new Error(`PDF OCR 需要 GEMINI_API_KEY，請到後台「系統設定」填入後再試，或改用 TXT/圖片`);
+    // OpenAI vision does not support PDFs directly; fall back to pdf-parse
+    return { text: '', warning: 'GEMINI_API_KEY 未設定，OCR 改用 pdf-parse 解析，若仍失敗請轉 TXT。' };
 }
 
 type LlmConfig = { provider?: 'openai' | 'gemini' | 'openrouter'; apiKey?: string; model?: string };
@@ -216,7 +218,14 @@ export async function POST(req: NextRequest) {
             try {
                 if (lower.endsWith('.pdf')) {
                     if (mode === 'ocr') {
-                        text = await extractPdfWithVision(arrayBuffer, name, { geminiKey });
+                        const vision = await extractPdfWithVision(arrayBuffer, name, { geminiKey });
+                        text = vision.text;
+                        parseErr = vision.warning;
+                        if (!text.trim()) {
+                            const parsed = await extractPdf(arrayBuffer);
+                            text = parsed.text;
+                            parseErr = parseErr || parsed.error;
+                        }
                     } else {
                         const { text: pdfText, error: pdfError } = await extractPdf(arrayBuffer);
                         text = pdfText;
