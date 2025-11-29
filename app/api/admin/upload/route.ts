@@ -174,7 +174,22 @@ export async function POST(req: NextRequest) {
         const form = await req.formData();
         const mode = (form.get('mode') as Mode) || 'text';
         const files = form.getAll('files') as File[];
-        if (!files.length) return NextResponse.json({ error: 'No files uploaded' }, { status: 400 });
+        const textPayloadsRaw = form.getAll('plaintext') as string[];
+        const textPayloads: { filename: string; text: string; mode?: Mode }[] = [];
+        textPayloadsRaw.forEach(p => {
+            if (!p) return;
+            try {
+                const parsed = JSON.parse(p);
+                if (parsed?.text) {
+                    textPayloads.push({
+                        filename: parsed.filename || `text-${nanoid(6)}.txt`,
+                        text: parsed.text,
+                        mode: parsed.mode as Mode | undefined,
+                    });
+                }
+            } catch { /* ignore */ }
+        });
+        if (!files.length && !textPayloads.length) return NextResponse.json({ error: 'No files uploaded' }, { status: 400 });
 
         const mongoClient = await getMongoClient(mongoUri);
         const db = mongoClient.db(mongoDb);
@@ -217,6 +232,98 @@ export async function POST(req: NextRequest) {
         const MAX_MB = 16; // hard limit to避免 OOM
         const OCR_VISION_MAX_MB = 4; // 超過此大小就不再用 Vision OCR，改走 pdf-parse
 
+        // helper to process text
+        const processTextPayload = async (payload: { filename: string; text: string; mode: Mode; size?: number; parseErr?: string }) => {
+            const { filename, text, mode: localMode, size = 0, parseErr } = payload;
+            if (!text.trim()) {
+                const docId = nanoid();
+                await docCollection.insertOne({
+                    docId,
+                    filename,
+                    size,
+                    type: filename.split('.').pop(),
+                    chunks: 0,
+                    indexedAt: new Date(),
+                    mode: localMode,
+                    error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT',
+                });
+                results.push({ file: filename, chunks: 0, status: 'empty', error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT' });
+                return;
+            }
+
+            const chunks = chunkText(text);
+            const docId = nanoid();
+            const vectors = [];
+
+            for (let i = 0; i < chunks.length; i++) {
+                const c = chunks[i];
+                const embedding = await getEmbedding(c.text, {
+                    provider: embeddingProvider,
+                    geminiApiKey: process.env.GEMINI_API_KEY,
+                    openaiApiKey: process.env.OPENAI_API_KEY,
+                    openrouterApiKey: process.env.OPENROUTER_API_KEY,
+                    pineconeApiKey: pineKey,
+                    modelName: embeddingModel,
+                });
+
+                const chunkId = `${docId}#${i}`;
+                vectors.push({
+                    id: chunkId,
+                    values: embedding,
+                    metadata: {
+                        text: c.text,
+                        source: filename,
+                        chunk: i,
+                        text_length: c.text.length,
+                        indexed_at: Date.now(),
+                    },
+                });
+
+                await chunkCollection.insertOne({
+                    docId,
+                    chunkId,
+                    source: filename,
+                    chunk: i,
+                    text: c.text,
+                    text_length: c.text.length,
+                    indexed_at: new Date(),
+                });
+            }
+
+            if (pineconeEnabled && pine && vectors.length) {
+                await pine.upsert(vectors);
+            }
+
+            await docCollection.insertOne({
+                docId,
+                filename,
+                size,
+                type: filename.split('.').pop(),
+                chunks: chunks.length,
+                indexedAt: new Date(),
+                mode: localMode,
+            });
+
+            results.push({
+                file: filename,
+                chunks: chunks.length,
+                status: pineconeEnabled ? 'ok' : 'ok_mongo_only',
+                note: pineconeEnabled ? undefined : 'PINECONE_API_KEY 未設定，僅寫入 Mongo，未寫入向量庫',
+                parseError: parseErr,
+            });
+        };
+
+        // process plaintext payloads (from client-side chunked PDF/TXT)
+        for (const t of textPayloads) {
+            const localMode = (t.mode || mode) as Mode;
+            let text = t.text;
+            if (localMode === 'llm' && llmUsable) {
+                text = await extractWithLLM(text, t.filename, llmConfig);
+            }
+            await processTextPayload({ filename: t.filename, text, mode: localMode, parseErr: undefined });
+        }
+
+        // process normal files
         for (const file of files) {
             const arrayBuffer = await file.arrayBuffer();
             if (arrayBuffer.byteLength > MAX_MB * 1024 * 1024) {
@@ -268,7 +375,7 @@ export async function POST(req: NextRequest) {
                     }
                 } else if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) {
                     // images: use OCR/vision
-                    text = await extractImageWithVision(arrayBuffer, name, { openaiKey, geminiKey });
+                    text = await extractImageWithVision(arrayBuffer, name, { openaiKey: effOpenAIKey, geminiKey: effGeminiKey });
                 } else {
                     return NextResponse.json({ error: `Unsupported file type: ${name}` }, { status: 400 });
                 }
