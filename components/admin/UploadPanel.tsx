@@ -18,7 +18,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
     const [mode, setMode] = useState<'text' | 'ocr' | 'llm'>('text');
-    const [localParse, setLocalParse] = useState<boolean>(false);
+    const [localParse, setLocalParse] = useState<boolean>(true);
     const [chunkSize, setChunkSize] = useState<number>(800);
     const [chunkOverlap, setChunkOverlap] = useState<number>(100);
     const [progress, setProgress] = useState<{ stage: 'idle' | 'parsing' | 'uploading'; value: number; message?: string }>({
@@ -164,7 +164,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                 </label>
                 <label className="flex items-center gap-1">
                     <input type="checkbox" checked={localParse} onChange={e => setLocalParse(e.target.checked)} />
-                    本地切分 PDF 後上傳（推薦大檔/無 OCR）
+                    本地切分 PDF 後上傳（預設開啟）
                 </label>
             </div>
 
