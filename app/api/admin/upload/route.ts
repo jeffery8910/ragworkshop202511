@@ -214,7 +214,8 @@ export async function POST(req: NextRequest) {
 
         const results = [];
 
-        const MAX_MB = 8; // guard to avoid OOM on serverless
+        const MAX_MB = 16; // hard limit to避免 OOM
+        const OCR_VISION_MAX_MB = 4; // 超過此大小就不再用 Vision OCR，改走 pdf-parse
 
         for (const file of files) {
             const arrayBuffer = await file.arrayBuffer();
@@ -223,7 +224,7 @@ export async function POST(req: NextRequest) {
                     file: file.name,
                     chunks: 0,
                     status: 'too_large',
-                    error: `檔案超過 ${MAX_MB}MB，請轉成 TXT、分割檔案或使用含文字的較小 PDF。`,
+                    error: `檔案超過 ${MAX_MB}MB，已自動略過。請先分割檔案或轉成較小的 TXT/PDF 再上傳。`,
                 });
                 continue;
             }
@@ -234,8 +235,8 @@ export async function POST(req: NextRequest) {
 
             try {
                 if (lower.endsWith('.pdf')) {
-                    if (mode === 'ocr') {
-                        const vision = await extractPdfWithVision(arrayBuffer, name, { geminiKey });
+                    if (mode === 'ocr' && file.size <= OCR_VISION_MAX_MB * 1024 * 1024) {
+                        const vision = await extractPdfWithVision(arrayBuffer, name, { geminiKey: effGeminiKey });
                         text = vision.text;
                         parseErr = vision.warning;
                         if (!text.trim()) {
@@ -244,9 +245,16 @@ export async function POST(req: NextRequest) {
                             parseErr = parseErr || parsed.error;
                         }
                     } else {
+                        // 大檔或無 vision key：走 pdf-parse
                         const { text: pdfText, error: pdfError } = await extractPdf(arrayBuffer);
                         text = pdfText;
                         parseErr = pdfError;
+                        if (!text.trim() && mode === 'ocr' && effGeminiKey) {
+                            // 小概率：pdf-parse沒字且仍可嘗試 vision
+                            const vision = await extractPdfWithVision(arrayBuffer, name, { geminiKey: effGeminiKey });
+                            text = vision.text;
+                            parseErr = parseErr || vision.warning;
+                        }
                     }
                     if (mode === 'llm') {
                         if (!llmUsable) throw new Error('LLM 精修需要後台已設定 CHAT_MODEL 與對應 API Key');
