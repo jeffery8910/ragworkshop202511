@@ -3,10 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// configure pdfjs worker (use CDN worker to avoid bundling)
-(pdfjsLib as any).GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js`;
+import { useEffect } from 'react';
 
 interface UploadPanelProps {
     onAction?: (msg: string) => void;
@@ -35,6 +32,16 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
         message: ''
     });
 
+    // Configure pdfjs worker once on client (lazy-loaded)
+    let pdfjsInstance: any = null;
+    const loadPdfJs = async () => {
+        if (pdfjsInstance) return pdfjsInstance;
+        const pdfjsLib: any = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '4.4.168'}/pdf.worker.min.js`;
+        pdfjsInstance = pdfjsLib;
+        return pdfjsLib;
+    };
+
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -57,6 +64,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     };
 
     const extractPdfText = async (file: File) => {
+        const pdfjsLib = await loadPdfJs();
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let fullText = '';
@@ -65,6 +73,10 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
             const content = await page.getTextContent();
             const strings = content.items.map((item: any) => item.str).join(' ');
             fullText += strings + '\n';
+            setProgress(prev => ({
+                ...prev,
+                message: `解析 ${file.name} 第 ${i}/${pdf.numPages} 頁…`
+            }));
         }
         return fullText;
     };
@@ -268,8 +280,8 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                         <div className="mt-2">
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                                 <div
-                                    className="h-2 bg-blue-500 transition-all"
-                                    style={{ width: `${progress.value || (progress.stage === 'uploading' ? 70 : 30)}%` }}
+                            className="h-2 bg-blue-500 transition-all"
+                            style={{ width: `${progress.value || (progress.stage === 'uploading' ? 70 : 30)}%` }}
                                 />
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
