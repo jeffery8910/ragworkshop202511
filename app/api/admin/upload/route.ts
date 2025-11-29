@@ -95,6 +95,24 @@ async function extractImageWithVision(buffer: ArrayBuffer, fileName: string) {
     throw new Error(`No vision-capable API key (OPENAI_API_KEY or GEMINI_API_KEY) to OCR ${fileName}`);
 }
 
+async function extractPdfWithVision(buffer: ArrayBuffer, fileName: string) {
+    const geminiKey = process.env.GEMINI_API_KEY;
+    const b64 = Buffer.from(buffer).toString('base64');
+    const prompt = 'Extract all readable text from this PDF. Return plain text only.';
+    if (geminiKey) {
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        const genAI = new GoogleGenerativeAI(geminiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const res = await model.generateContent([
+            { text: prompt },
+            { inlineData: { data: b64, mimeType: 'application/pdf' } },
+        ]);
+        return res.response.text();
+    }
+    // OpenAI vision does not support PDFs directly
+    throw new Error(`PDF OCR 需要 GEMINI_API_KEY，請設定後再試或改用 TXT/圖片`);
+}
+
 type LlmConfig = { provider?: 'openai' | 'gemini' | 'openrouter'; apiKey?: string; model?: string };
 
 async function extractWithLLM(text: string, fileName: string, llm: LlmConfig) {
@@ -193,9 +211,13 @@ export async function POST(req: NextRequest) {
 
             try {
                 if (lower.endsWith('.pdf')) {
-                    const { text: pdfText, error: pdfError } = await extractPdf(arrayBuffer);
-                    text = pdfText;
-                    parseErr = pdfError;
+                    if (mode === 'ocr') {
+                        text = await extractPdfWithVision(arrayBuffer, name);
+                    } else {
+                        const { text: pdfText, error: pdfError } = await extractPdf(arrayBuffer);
+                        text = pdfText;
+                        parseErr = pdfError;
+                    }
                     if (mode === 'llm') {
                         if (!llmUsable) throw new Error('LLM 精修需要後台已設定 CHAT_MODEL 與對應 API Key');
                         text = await extractWithLLM(text, name, llmConfig);
