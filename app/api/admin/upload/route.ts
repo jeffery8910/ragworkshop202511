@@ -189,6 +189,12 @@ export async function POST(req: NextRequest) {
         const geminiKey = cookieStore.get('GEMINI_API_KEY')?.value || process.env.GEMINI_API_KEY;
         const openaiKey = cookieStore.get('OPENAI_API_KEY')?.value || process.env.OPENAI_API_KEY;
         const openrouterKey = cookieStore.get('OPENROUTER_API_KEY')?.value || process.env.OPENROUTER_API_KEY;
+        // fallback: 若沒在 cookie，且 Chat 模型屬於某 provider，沿用該 provider 的 key 作為 OCR/LLM
+        const providerFromModel = chatModel.toLowerCase().startsWith('gpt') || chatModel.toLowerCase().startsWith('o') ? 'openai'
+            : chatModel.toLowerCase().startsWith('gemini') ? 'gemini'
+            : chatModel ? 'openrouter' : undefined;
+        const effGeminiKey = geminiKey || (providerFromModel === 'gemini' ? process.env.GEMINI_API_KEY : undefined);
+        const effOpenAIKey = openaiKey || (providerFromModel === 'openai' ? process.env.OPENAI_API_KEY : undefined);
 
         const resolveLlm = (): LlmConfig => {
             const m = chatModel.toLowerCase();
@@ -208,8 +214,19 @@ export async function POST(req: NextRequest) {
 
         const results = [];
 
+        const MAX_MB = 8; // guard to avoid OOM on serverless
+
         for (const file of files) {
             const arrayBuffer = await file.arrayBuffer();
+            if (arrayBuffer.byteLength > MAX_MB * 1024 * 1024) {
+                results.push({
+                    file: file.name,
+                    chunks: 0,
+                    status: 'too_large',
+                    error: `檔案超過 ${MAX_MB}MB，請轉成 TXT、分割檔案或使用含文字的較小 PDF。`,
+                });
+                continue;
+            }
             const name = file.name;
             const lower = name.toLowerCase();
             let text = '';
