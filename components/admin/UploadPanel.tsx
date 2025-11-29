@@ -19,6 +19,13 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const [uploading, setUploading] = useState(false);
     const [mode, setMode] = useState<'text' | 'ocr' | 'llm'>('text');
     const [localParse, setLocalParse] = useState<boolean>(false);
+    const [chunkSize, setChunkSize] = useState<number>(800);
+    const [chunkOverlap, setChunkOverlap] = useState<number>(100);
+    const [progress, setProgress] = useState<{ stage: 'idle' | 'parsing' | 'uploading'; value: number; message?: string }>({
+        stage: 'idle',
+        value: 0,
+        message: ''
+    });
 
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault();
@@ -68,6 +75,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const handleUpload = async () => {
         if (!files.length) return;
         setUploading(true);
+        setProgress({ stage: 'parsing', value: 5, message: '準備切分檔案…' });
         onAction?.('開始上傳/切分/向量化');
         try {
             const formData = new FormData();
@@ -77,8 +85,10 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                 // 前端解析 PDF 為純文字並切 chunk，以 plaintext 傳給後端
                 for (const file of files) {
                     if (file.type === 'application/pdf') {
+                        setProgress({ stage: 'parsing', value: 10, message: `解析 ${file.name}…` });
                         const text = await extractPdfText(file);
-                        const chunks = chunkText(text);
+                        const chunks = chunkText(text, chunkSize, chunkOverlap);
+                        setProgress({ stage: 'parsing', value: 30, message: `切分 ${chunks.length} 塊…` });
                         chunks.forEach((chunk, idx) => {
                             formData.append('plaintext', JSON.stringify({
                                 filename: `${file.name}#chunk${idx + 1}`,
@@ -95,6 +105,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                 files.forEach(file => formData.append('files', file));
             }
 
+            setProgress({ stage: 'uploading', value: 50, message: '上傳伺服器中…' });
             const res = await fetch('/api/admin/upload', {
                 method: 'POST',
                 body: formData,
@@ -110,12 +121,14 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
             onAction?.('檔案上傳並向量化完成');
             alert('Upload Complete!');
             router.refresh();
+            setProgress({ stage: 'idle', value: 0 });
         } catch (err: any) {
             console.error(err);
             alert(err?.message || '上傳過程發生錯誤');
             onAction?.('上傳失敗，請稍後再試');
         } finally {
             setUploading(false);
+            setProgress(p => ({ ...p, stage: 'idle', value: 0 }));
         }
     };
 
@@ -154,6 +167,33 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                     本地切分 PDF 後上傳（推薦大檔/無 OCR）
                 </label>
             </div>
+
+            {localParse && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                    <div>
+                        <label className="block text-gray-600 mb-1">Chunk 大小 (字元)</label>
+                        <input
+                            type="number"
+                            min={200}
+                            max={4000}
+                            value={chunkSize}
+                            onChange={e => setChunkSize(Number(e.target.value))}
+                            className="w-full border rounded p-2 text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-gray-600 mb-1">重疊 (字元)</label>
+                        <input
+                            type="number"
+                            min={0}
+                            max={1000}
+                            value={chunkOverlap}
+                            onChange={e => setChunkOverlap(Number(e.target.value))}
+                            className="w-full border rounded p-2 text-sm"
+                        />
+                    </div>
+                </div>
+            )}
 
             <div
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
@@ -195,6 +235,19 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                     >
                         {uploading ? '處理中...' : '開始上傳與向量化'}
                     </button>
+                    {uploading && (
+                        <div className="mt-2">
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                    className="h-2 bg-blue-500 transition-all"
+                                    style={{ width: `${progress.value || (progress.stage === 'uploading' ? 70 : 30)}%` }}
+                                />
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                {progress.message || (progress.stage === 'uploading' ? '上傳中…' : '解析/切分中…')}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
