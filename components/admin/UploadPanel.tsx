@@ -32,14 +32,12 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
         message: ''
     });
 
-    // Configure pdfjs to run on main-thread (no worker)
+    // Configure pdfjs to use local worker in /public
     let pdfjsInstance: any = null;
     const loadPdfJs = async () => {
         if (pdfjsInstance) return pdfjsInstance;
         const pdfjsLib: any = await import('pdfjs-dist');
-        pdfjsLib.GlobalWorkerOptions.disableWorker = true;
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-        (pdfjsLib as any).DisableWorker = true; // some builds honor this flag
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
         pdfjsInstance = pdfjsLib;
         return pdfjsLib;
     };
@@ -68,7 +66,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const extractPdfText = async (file: File) => {
         const pdfjsLib = await loadPdfJs();
         const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, disableWorker: true, useWorker: false }).promise;
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let fullText = '';
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
