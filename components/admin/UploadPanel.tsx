@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// configure pdfjs worker (use CDN worker to avoid bundling)
+(pdfjsLib as any).GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js`;
 
 interface UploadPanelProps {
     onAction?: (msg: string) => void;
@@ -14,6 +18,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
     const [mode, setMode] = useState<'text' | 'ocr' | 'llm'>('text');
+    const [localParse, setLocalParse] = useState<boolean>(false);
 
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault();
@@ -36,20 +41,63 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
         }
     };
 
+    const extractPdfText = async (file: File) => {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const strings = content.items.map((item: any) => item.str).join(' ');
+            fullText += strings + '\n';
+        }
+        return fullText;
+    };
+
+    const chunkText = (text: string, size = 800, overlap = 100) => {
+        const chunks: string[] = [];
+        let idx = 0;
+        while (idx < text.length) {
+            const end = Math.min(text.length, idx + size);
+            chunks.push(text.slice(idx, end));
+            idx = end - overlap;
+        }
+        return chunks;
+    };
+
     const handleUpload = async () => {
         if (!files.length) return;
         setUploading(true);
-        onAction?.('開始上傳/向量化');
+        onAction?.('開始上傳/切分/向量化');
         try {
             const formData = new FormData();
-            files.forEach(file => formData.append('files', file));
+            formData.append('mode', mode);
+
+            if (localParse) {
+                // 前端解析 PDF 為純文字並切 chunk，以 plaintext 傳給後端
+                for (const file of files) {
+                    if (file.type === 'application/pdf') {
+                        const text = await extractPdfText(file);
+                        const chunks = chunkText(text);
+                        chunks.forEach((chunk, idx) => {
+                            formData.append('plaintext', JSON.stringify({
+                                filename: `${file.name}#chunk${idx + 1}`,
+                                text: chunk,
+                                mode
+                            }));
+                        });
+                    } else {
+                        // 非 PDF 仍傳檔案由後端處理
+                        formData.append('files', file);
+                    }
+                }
+            } else {
+                files.forEach(file => formData.append('files', file));
+            }
 
             const res = await fetch('/api/admin/upload', {
                 method: 'POST',
-                body: (() => {
-                    formData.append('mode', mode);
-                    return formData;
-                })(),
+                body: formData,
             });
             const text = await res.text();
             let data: any = {};
@@ -61,7 +109,7 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
             setFiles([]);
             onAction?.('檔案上傳並向量化完成');
             alert('Upload Complete!');
-            router.refresh(); // 讓 KnowledgeGraph / RagLab 可以刷新資料
+            router.refresh();
         } catch (err: any) {
             console.error(err);
             alert(err?.message || '上傳過程發生錯誤');
@@ -100,6 +148,10 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                 <label className="flex items-center gap-1">
                     <input type="radio" value="llm" checked={mode === 'llm'} onChange={() => setMode('llm')} />
                     LLM 精修文字
+                </label>
+                <label className="flex items-center gap-1">
+                    <input type="checkbox" checked={localParse} onChange={e => setLocalParse(e.target.checked)} />
+                    本地切分 PDF 後上傳（推薦大檔/無 OCR）
                 </label>
             </div>
 
