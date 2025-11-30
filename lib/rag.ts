@@ -19,11 +19,37 @@ export interface RagConfig {
 
 export async function ragAnswer(userId: string, question: string, config?: RagConfig) {
   // Helper to create LLM config
+  const inferProviderFromModel = (model?: string): 'gemini' | 'openai' | 'openrouter' | undefined => {
+    if (!model) return undefined;
+    const m = model.toLowerCase();
+    if (m.startsWith('gemini')) return 'gemini';
+    if (m.startsWith('gpt') || m.startsWith('o') || m.startsWith('chatgpt')) return 'openai';
+    if (m.includes('/')) return 'openrouter'; // openrouter models一般含 org/model
+    return undefined;
+  };
+
   const getLlmConfig = () => {
-    if (config?.geminiApiKey) return { provider: 'gemini' as const, apiKey: config.geminiApiKey, model: config.chatModel };
-    if (config?.openaiApiKey) return { provider: 'openai' as const, apiKey: config.openaiApiKey, model: config.chatModel };
-    if (config?.openrouterApiKey) return { provider: 'openrouter' as const, apiKey: config.openrouterApiKey, model: config.chatModel };
-    return { model: config?.chatModel };
+    const modelProvider = inferProviderFromModel(config?.chatModel);
+    const provider: 'gemini' | 'openai' | 'openrouter' | undefined =
+      modelProvider ||
+      (config?.geminiApiKey ? 'gemini' :
+        config?.openaiApiKey ? 'openai' :
+          config?.openrouterApiKey ? 'openrouter' : undefined);
+
+    if (provider === 'gemini' && config?.geminiApiKey) return { provider, apiKey: config.geminiApiKey, model: config?.chatModel };
+    if (provider === 'openai' && config?.openaiApiKey) return { provider, apiKey: config.openaiApiKey, model: config?.chatModel };
+    if (provider === 'openrouter' && config?.openrouterApiKey) return { provider, apiKey: config.openrouterApiKey, model: config?.chatModel };
+
+    // No matching key for inferred provider
+    if (provider) {
+      throw new Error(`CHAT_MODEL 看起來是 ${provider} 模型，但缺少對應的 API Key，請在後台設定。`);
+    }
+
+    // Fallback: pick任一可用 key
+    if (config?.geminiApiKey) return { provider: 'gemini' as const, apiKey: config.geminiApiKey, model: config?.chatModel };
+    if (config?.openaiApiKey) return { provider: 'openai' as const, apiKey: config.openaiApiKey, model: config?.chatModel };
+    if (config?.openrouterApiKey) return { provider: 'openrouter' as const, apiKey: config.openrouterApiKey, model: config?.chatModel };
+    throw new Error('未設定可用的聊天模型金鑰，請在後台填入 Gemini/OpenAI/OpenRouter 的 API Key。');
   };
 
   const llmConfig = getLlmConfig();
