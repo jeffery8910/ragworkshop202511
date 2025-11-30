@@ -154,9 +154,9 @@ async function generatePineconeEmbedding(text: string, apiKey?: string, modelNam
         throw new Error(`Pinecone inference currently只支援 ${allowed.join(', ')}，請調整 EMBEDDING_MODEL 或改用其他 provider`);
     }
 
-    // Pinecone Inference expects inputs as array of objects, not raw strings
+    // Pinecone Inference expects inputs as array of objects with "text"
+    // Clean up whitespace and limit length to reduce payload issues
     const cleaned = text.replace(/\s+/g, ' ').trim();
-    // Limit length to avoid 422 on overly long inputs (model limit ~507 tokens for e5 starter tier)
     const limited = cleaned.slice(0, 4000);
 
     const res = await fetch('https://api.pinecone.io/embed', {
