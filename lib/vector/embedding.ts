@@ -163,8 +163,8 @@ async function generatePineconeEmbedding(text: string, apiKey?: string, modelNam
     });
 
     if (!res.ok) {
-        const msg = await res.text();
-        throw new Error(`Pinecone inference error: ${msg}`);
+        const body = await res.text();
+        throw new Error(`Pinecone inference error (${res.status} ${res.statusText}): ${body || 'empty body'}`);
     }
     const data = await res.json();
     const embedding = data?.data?.[0]?.values;
