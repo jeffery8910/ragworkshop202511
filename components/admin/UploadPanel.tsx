@@ -32,15 +32,13 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
         message: ''
     });
 
-    // Configure pdfjs to use local worker in /public
+    // Configure pdfjs to load worker from local /public
     let pdfjsInstance: any = null;
     const loadPdfJs = async () => {
         if (pdfjsInstance) return pdfjsInstance;
-        const pdfjsLib: any = await import('pdfjs-dist');
-        // 強制改用主執行緒解析，完全不載 worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-        pdfjsLib.GlobalWorkerOptions.disableWorker = true;
-        (pdfjsLib as any).DisableWorker = true;
+        const pdfjsLib: any = await import('pdfjs-dist/legacy/build/pdf');
+        // 指向本機靜態路徑，避免跨網域抓不到 worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
         pdfjsInstance = pdfjsLib;
         return pdfjsLib;
     };
