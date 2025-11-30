@@ -54,13 +54,16 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
 
   const llmConfig = getLlmConfig();
 
+  // Prefer Pinecone inference for embeddings when key存在，避免跑到 Gemini/OpenRouter 出現模型不符
   const embeddingConfig: EmbeddingConfig | undefined = config
     ? {
-      provider: config.embeddingProvider,
+      provider: config.pineconeApiKey ? 'pinecone' : config.embeddingProvider,
+      pineconeApiKey: config.pineconeApiKey,
       geminiApiKey: config.geminiApiKey,
       openaiApiKey: config.openaiApiKey,
       openrouterApiKey: config.openrouterApiKey,
-      modelName: config.embeddingModel,
+      modelName: config.pineconeApiKey ? (config.embeddingModel || 'multilingual-e5-large') : config.embeddingModel,
+      desiredDim: 1024,
     }
     : undefined;
 
