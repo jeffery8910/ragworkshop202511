@@ -83,12 +83,15 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     };
 
     const chunkText = (text: string, size = 800, overlap = 100) => {
+        const safeSize = Math.max(1, Math.min(4000, Number.isFinite(size) ? size : 800));
+        const safeOverlap = Math.max(0, Math.min(safeSize - 1, Number.isFinite(overlap) ? overlap : 0));
         const chunks: string[] = [];
         let idx = 0;
         while (idx < text.length) {
-            const end = Math.min(text.length, idx + size);
+            const end = Math.min(text.length, idx + safeSize);
             chunks.push(text.slice(idx, end));
-            idx = end - overlap;
+            if (end === text.length) break; // 已到結尾避免重複/倒退
+            idx = end - safeOverlap;
         }
         return chunks;
     };
@@ -216,10 +219,14 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                         <label className="block text-gray-600 mb-1">Chunk 大小 (字元)</label>
                         <input
                             type="number"
-                            min={200}
+                            min={50}
                             max={4000}
                             value={chunkSize}
-                            onChange={e => setChunkSize(Number(e.target.value))}
+                            onChange={e => {
+                                const next = Math.max(50, Math.min(4000, Number(e.target.value) || 0));
+                                setChunkSize(next);
+                                setChunkOverlap(prev => Math.min(prev, next - 1));
+                            }}
                             className="w-full border rounded p-2 text-sm"
                         />
                     </div>
@@ -230,7 +237,10 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                             min={0}
                             max={1000}
                             value={chunkOverlap}
-                            onChange={e => setChunkOverlap(Number(e.target.value))}
+                            onChange={e => {
+                                const next = Math.max(0, Math.min(chunkSize - 1, Number(e.target.value) || 0));
+                                setChunkOverlap(next);
+                            }}
                             className="w-full border rounded p-2 text-sm"
                         />
                     </div>

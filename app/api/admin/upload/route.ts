@@ -11,14 +11,17 @@ export const maxDuration = 300;
 
 type Mode = 'text' | 'ocr' | 'llm';
 
-// Simple chunker by characters
+// Simple chunker by characters with guards
 function chunkText(text: string, size = 800, overlap = 100) {
+    const safeSize = Math.max(1, Math.min(4000, Number.isFinite(size) ? size : 800));
+    const safeOverlap = Math.max(0, Math.min(safeSize - 1, Number.isFinite(overlap) ? overlap : 0));
     const chunks: { text: string; start: number; end: number }[] = [];
     let idx = 0;
     while (idx < text.length) {
-        const end = Math.min(text.length, idx + size);
+        const end = Math.min(text.length, idx + safeSize);
         chunks.push({ text: text.slice(idx, end), start: idx, end });
-        idx = end - overlap;
+        if (end === text.length) break;
+        idx = end - safeOverlap;
     }
     return chunks;
 }
