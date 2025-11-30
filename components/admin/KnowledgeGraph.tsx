@@ -75,6 +75,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                 source: c.source || 'unknown',
                 len: c.text_length,
                 indexedAt: c.indexed_at || Date.now(),
+                text: c.text || '',
             }));
 
             setVectors(chunks);
@@ -235,7 +236,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                 setActiveFile(v.source);
                                 onAction?.(`檢視節點 ${v.id}`);
                             }}
-                            title={`ID: ${v.id} | ${v.title} (${v.source})`}
+                            title={`ID: ${v.id}\n${v.source}\n${(v.text || '').slice(0, 120)}`}
                         />
                     ))}
                 </div>
@@ -276,8 +277,8 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                     <span className="text-gray-500">索引時間</span>
                                     <span>{selected.indexedAt ? new Date(selected.indexedAt).toLocaleString() : '-'}</span>
                                 </div>
-                                <div className="text-xs text-gray-500">
-                                    * 模擬資料；接到真實檢索結果後可回傳 metadata.text_length、indexed_at 等欄位直接顯示。
+                                <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-2 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                                    {selected.text ? selected.text : '無內容'}
                                 </div>
                             </>
                         ) : (

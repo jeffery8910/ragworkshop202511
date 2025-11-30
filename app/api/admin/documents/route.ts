@@ -26,11 +26,17 @@ export async function GET() {
             .toArray();
 
         // Grab up to 500 chunks for visualization (lightweight fields only)
-        const chunkDocs = await db
+        const chunkDocsRaw = await db
             .collection('chunks')
-            .find({}, { projection: { _id: 0, chunkId: 1, docId: 1, source: 1, chunk: 1, text_length: 1, indexed_at: 1 } })
+            .find({}, { projection: { _id: 0, chunkId: 1, docId: 1, source: 1, chunk: 1, text_length: 1, indexed_at: 1, text: 1 } })
             .limit(500)
             .toArray();
+
+        // 限制文字大小，避免回傳過大 payload
+        const chunkDocs = chunkDocsRaw.map(c => ({
+            ...c,
+            text: typeof c.text === 'string' ? c.text.slice(0, 500) : ''
+        }));
 
         return new NextResponse(JSON.stringify({ documents, chunks: chunkDocs }), {
             status: 200,
