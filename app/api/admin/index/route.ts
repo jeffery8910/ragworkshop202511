@@ -46,8 +46,8 @@ async function reindexDocs(docIds: string[]) {
     const { db, cfg } = await getDb();
     const chunkCol = db.collection('chunks');
     const pine = await getPine(cfg);
-    const provider = cfg.embeddingProvider;
-    const model = cfg.embeddingModel;
+    const provider = cfg.pineKey ? 'pinecone' : cfg.embeddingProvider;
+    const model = cfg.pineKey ? (cfg.embeddingModel || 'multilingual-e5-large') : cfg.embeddingModel;
     const pineDim = Number(process.env.PINECONE_DIM || '1024');
     const allowedPineModels = ['multilingual-e5-large', 'llama-text-embed-v2'];
 
@@ -70,7 +70,7 @@ async function reindexDocs(docIds: string[]) {
                 geminiApiKey: process.env.GEMINI_API_KEY,
                 openaiApiKey: process.env.OPENAI_API_KEY,
                 openrouterApiKey: process.env.OPENROUTER_API_KEY,
-                pineconeApiKey: process.env.PINECONE_API_KEY,
+                pineconeApiKey: cfg.pineKey || process.env.PINECONE_API_KEY,
                 modelName: model || undefined,
                 desiredDim: cfg.pineKey ? pineDim : undefined,
             });
