@@ -49,6 +49,7 @@ async function reindexDocs(docIds: string[]) {
     const provider = cfg.embeddingProvider;
     const model = cfg.embeddingModel;
     const pineDim = Number(process.env.PINECONE_DIM || '1024');
+    const allowedPineModels = ['multilingual-e5-large', 'llama-text-embed-v2'];
 
     const results: any[] = [];
     for (const docId of docIds) {
@@ -56,6 +57,10 @@ async function reindexDocs(docIds: string[]) {
         if (!chunks.length) {
             results.push({ docId, status: 'skipped', reason: 'no_chunks' });
             continue;
+        }
+
+        if (cfg.pineKey && cfg.embeddingProvider === 'pinecone' && cfg.embeddingModel && !allowedPineModels.includes(cfg.embeddingModel)) {
+            throw new Error(`Pinecone 嵌入目前只支援 ${allowedPineModels.join(', ')}，請改用這些模型或切換 EMBEDDING_PROVIDER。當前設定: ${cfg.embeddingModel}`);
         }
 
         const vectors: { id: string; values: number[]; metadata: any }[] = [];

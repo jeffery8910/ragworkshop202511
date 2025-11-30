@@ -148,7 +148,11 @@ async function generateOpenRouterEmbedding(text: string, apiKey?: string, modelN
 async function generatePineconeEmbedding(text: string, apiKey?: string, modelName?: string): Promise<number[]> {
     const key = apiKey || process.env.PINECONE_API_KEY;
     if (!key) throw new Error('PINECONE_API_KEY is not set');
+    const allowed = ['multilingual-e5-large', 'llama-text-embed-v2'];
     const model = modelName || 'multilingual-e5-large';
+    if (!allowed.includes(model)) {
+        throw new Error(`Pinecone inference currently只支援 ${allowed.join(', ')}，請調整 EMBEDDING_MODEL 或改用其他 provider`);
+    }
 
     const res = await fetch('https://api.pinecone.io/inference/embed', {
         method: 'POST',
@@ -169,6 +173,9 @@ async function generatePineconeEmbedding(text: string, apiKey?: string, modelNam
 
     if (!res.ok) {
         const body = await res.text();
+        if (res.status === 404) {
+            throw new Error(`Pinecone inference 404：常見原因為 model 名稱不受支援（目前僅 ${allowed.join(' / ')}），或專案未開啟 Inference。回應: ${body || '空白'}`);
+        }
         throw new Error(`Pinecone inference error (${res.status} ${res.statusText}): ${body || 'empty body'}`);
     }
     const data = await res.json();

@@ -204,6 +204,12 @@ export async function POST(req: NextRequest) {
 
         const embeddingProvider = (cookieStore.get('EMBEDDING_PROVIDER')?.value || process.env.EMBEDDING_PROVIDER || 'gemini') as any;
         const embeddingModel = cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL;
+        const allowedPineModels = ['multilingual-e5-large', 'llama-text-embed-v2'];
+        if (pineconeEnabled && embeddingProvider === 'pinecone' && embeddingModel && !allowedPineModels.includes(embeddingModel)) {
+            return NextResponse.json({
+                error: `Pinecone 嵌入目前只支援 ${allowedPineModels.join(', ')}，請改用這些模型或切換 EMBEDDING_PROVIDER。當前設定: ${embeddingModel}`
+            }, { status: 400 });
+        }
         const chatModel = cookieStore.get('CHAT_MODEL')?.value || process.env.CHAT_MODEL || '';
         const geminiKey = cookieStore.get('GEMINI_API_KEY')?.value || process.env.GEMINI_API_KEY;
         const openaiKey = cookieStore.get('OPENAI_API_KEY')?.value || process.env.OPENAI_API_KEY;
