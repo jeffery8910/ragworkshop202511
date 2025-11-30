@@ -69,13 +69,25 @@ export async function POST(req: NextRequest) {
             return true;
         };
 
-        const providerForChat = config.geminiApiKey
+        const detectProviderFromModel = (model?: string): ('gemini' | 'openai' | 'openrouter' | undefined) => {
+            if (!model) return undefined;
+            const m = model.toLowerCase();
+            if (m.startsWith('gemini')) return 'gemini';
+            if (m.startsWith('gpt') || m.startsWith('o') || m.startsWith('chatgpt')) return 'openai';
+            if (m.includes('/')) return 'openrouter'; // openrouter models often have org/model
+            return undefined;
+        };
+
+        const providerFromModel = detectProviderFromModel(config.chatModel);
+        const providerFromKeys = config.geminiApiKey
             ? 'gemini'
             : config.openaiApiKey
                 ? 'openai'
                 : config.openrouterApiKey
                     ? 'openrouter'
                     : undefined;
+
+        const providerForChat = providerFromModel || providerFromKeys;
 
         if (!validateChatModel(providerForChat, config.chatModel)) {
             return NextResponse.json({
@@ -177,8 +189,11 @@ export async function POST(req: NextRequest) {
                 標題：`;
 
                 const llmConfig = {
-                    provider: config.geminiApiKey ? 'gemini' : config.openaiApiKey ? 'openai' : config.openrouterApiKey ? 'openrouter' : undefined,
-                    apiKey: config.geminiApiKey || config.openaiApiKey || config.openrouterApiKey,
+                    provider: providerForChat,
+                    apiKey: providerForChat === 'gemini' ? config.geminiApiKey
+                        : providerForChat === 'openai' ? config.openaiApiKey
+                            : providerForChat === 'openrouter' ? config.openrouterApiKey
+                                : undefined,
                     model: config.chatModel,
                 } as any;
 
