@@ -41,8 +41,7 @@ export async function searchPinecone(
     const indexName = dynamicIndexName || process.env.PINECONE_INDEX_NAME || 'rag-index';
 
     if (!apiKey) {
-        console.warn('PINECONE_API_KEY missing, returning empty results');
-        return [];
+        throw new Error('PINECONE_API_KEY missing,請在後台設定');
     }
 
     try {

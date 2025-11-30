@@ -18,6 +18,10 @@ export interface RagConfig {
 }
 
 export async function ragAnswer(userId: string, question: string, config?: RagConfig) {
+  if (!config?.pineconeApiKey) {
+    throw new Error('缺少 PINECONE_API_KEY，無法執行檢索。請在後台設定 Pinecone key 與 index。');
+  }
+
   // Helper to create LLM config
   const inferProviderFromModel = (model?: string): 'gemini' | 'openai' | 'openrouter' | undefined => {
     if (!model) return undefined;
