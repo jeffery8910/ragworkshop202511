@@ -202,8 +202,10 @@ export async function POST(req: NextRequest) {
         const pinecone = pineconeEnabled ? await getPineconeClient(pineKey) : null;
         const pine = pineconeEnabled && pinecone ? pinecone.index(pineIndex) : null;
 
-        const embeddingProvider = (cookieStore.get('EMBEDDING_PROVIDER')?.value || process.env.EMBEDDING_PROVIDER || 'gemini') as any;
-        const embeddingModel = cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL;
+        const embeddingProvider = (cookieStore.get('EMBEDDING_PROVIDER')?.value || process.env.EMBEDDING_PROVIDER || 'pinecone') as any;
+        const embeddingModel = pineconeEnabled
+            ? (cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL || 'multilingual-e5-large')
+            : (cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL);
         const allowedPineModels = ['multilingual-e5-large', 'llama-text-embed-v2'];
         if (pineconeEnabled && embeddingProvider === 'pinecone' && embeddingModel && !allowedPineModels.includes(embeddingModel)) {
             return NextResponse.json({
@@ -268,12 +270,12 @@ export async function POST(req: NextRequest) {
             for (let i = 0; i < chunks.length; i++) {
                 const c = chunks[i];
                 const embedding = await getEmbedding(c.text, {
-                    provider: embeddingProvider,
+                    provider: pineconeEnabled ? 'pinecone' : embeddingProvider,
                     geminiApiKey: process.env.GEMINI_API_KEY,
                     openaiApiKey: process.env.OPENAI_API_KEY,
                     openrouterApiKey: process.env.OPENROUTER_API_KEY,
                     pineconeApiKey: pineKey,
-                    modelName: embeddingModel,
+                    modelName: pineconeEnabled ? embeddingModel : embeddingModel,
                     desiredDim: pineconeEnabled ? pineDim : undefined,
                 });
 
