@@ -173,6 +173,7 @@ export async function POST(req: NextRequest) {
 
         if (!mongoUri) return NextResponse.json({ error: 'MONGODB_URI not set' }, { status: 400 });
         const pineconeEnabled = !!pineKey;
+        const pineDim = Number(process.env.PINECONE_DIM || '1024');
 
         const form = await req.formData();
         const mode = (form.get('mode') as Mode) || 'text';
@@ -267,6 +268,7 @@ export async function POST(req: NextRequest) {
                     openrouterApiKey: process.env.OPENROUTER_API_KEY,
                     pineconeApiKey: pineKey,
                     modelName: embeddingModel,
+                    desiredDim: pineconeEnabled ? pineDim : undefined,
                 });
 
                 const chunkId = `${docId}#${i}`;
@@ -416,6 +418,7 @@ export async function POST(req: NextRequest) {
                     openrouterApiKey: process.env.OPENROUTER_API_KEY,
                     pineconeApiKey: pineKey,
                     modelName: embeddingModel,
+                    desiredDim: pineconeEnabled ? pineDim : undefined,
                 });
 
                 const chunkId = `${docId}#${i}`;

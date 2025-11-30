@@ -66,6 +66,7 @@ async function reindexDocs(docIds: string[]) {
                 openrouterApiKey: process.env.OPENROUTER_API_KEY,
                 pineconeApiKey: process.env.PINECONE_API_KEY,
                 modelName: model || undefined,
+                desiredDim: cfg.pineKey ? Number(process.env.PINECONE_DIM || '1024') : undefined,
             });
             vectors.push({
                 id: c.chunkId,

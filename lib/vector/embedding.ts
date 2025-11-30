@@ -10,6 +10,7 @@ export interface EmbeddingConfig {
     openrouterApiKey?: string;
     pineconeApiKey?: string;
     modelName?: string;
+    desiredDim?: number; // optional target dimension to pad/trim embeddings
 }
 
 export async function getEmbedding(text: string, config?: EmbeddingConfig): Promise<number[]> {
@@ -35,14 +36,24 @@ export async function getEmbedding(text: string, config?: EmbeddingConfig): Prom
 
             console.log(`Attempting embedding with provider: ${provider}`);
 
+            let vec: number[] | null = null;
             if (provider === 'gemini') {
-                return await generateGeminiEmbedding(text, config?.geminiApiKey, config?.modelName);
+                vec = await generateGeminiEmbedding(text, config?.geminiApiKey, config?.modelName);
             } else if (provider === 'openai') {
-                return await generateOpenAIEmbedding(text, config?.openaiApiKey, config?.modelName);
+                vec = await generateOpenAIEmbedding(text, config?.openaiApiKey, config?.modelName);
             } else if (provider === 'openrouter') {
-                return await generateOpenRouterEmbedding(text, config?.openrouterApiKey, config?.modelName);
+                vec = await generateOpenRouterEmbedding(text, config?.openrouterApiKey, config?.modelName);
             } else if (provider === 'pinecone') {
-                return await generatePineconeEmbedding(text, config?.pineconeApiKey, config?.modelName);
+                vec = await generatePineconeEmbedding(text, config?.pineconeApiKey, config?.modelName);
+            }
+
+            if (vec) {
+                const desired = config?.desiredDim;
+                if (desired && desired > 0) {
+                    if (vec.length > desired) vec = vec.slice(0, desired);
+                    else if (vec.length < desired) vec = [...vec, ...new Array(desired - vec.length).fill(0)];
+                }
+                return vec;
             }
         } catch (error) {
             console.warn(`Embedding generation failed for provider ${provider}:`, error);
@@ -53,7 +64,9 @@ export async function getEmbedding(text: string, config?: EmbeddingConfig): Prom
 
     // Return dummy embedding if all providers fail
     console.warn('All embedding providers failed, returning dummy embedding');
-    return new Array(1536).fill(0);
+    const desired = config?.desiredDim;
+    const dim = desired && desired > 0 ? desired : 1536;
+    return new Array(dim).fill(0);
 }
 
 function getActiveEmbeddingProvider(): EmbeddingProvider {
