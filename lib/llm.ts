@@ -21,12 +21,12 @@ export async function generateText(prompt: string, config?: Partial<LLMConfig>):
     const primaryProvider = config?.provider || getActiveProvider();
 
     // Define provider priority and availability
-    const providerList = config?.provider
+    const providerList: LLMProvider[] = config?.provider
         ? [config.provider]
         : [primaryProvider, 'gemini', 'openai', 'openrouter'];
-    const providers: LLMProvider[] = providerList.filter(
+    const providers = providerList.filter(
         (p, index, self) => self.indexOf(p) === index
-    ) as LLMProvider[]; // Unique providers, starting with primary
+    ); // Unique providers, starting with primary
 
     let lastError: Error | null = null;
 
