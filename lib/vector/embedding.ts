@@ -17,11 +17,10 @@ export async function getEmbedding(text: string, config?: EmbeddingConfig): Prom
     const primaryProvider = config?.provider || getActiveEmbeddingProvider();
 
     // Define provider priority and availability
-    const providers: EmbeddingProvider[] = (
-        config?.provider
-            ? [config.provider] // 指定 provider 時不要 fallback 其他供應商，避免錯維度/錯模型
-            : [primaryProvider, 'gemini', 'openai', 'openrouter', 'pinecone']
-    ).filter((p, index, self) => self.indexOf(p) === index); // Unique providers, starting with primary
+    const providerList: EmbeddingProvider[] = config?.provider
+        ? [config.provider] // 指定 provider 時不要 fallback 其他供應商，避免錯維度/錯模型
+        : [primaryProvider, 'gemini', 'openai', 'openrouter', 'pinecone'];
+    const providers = providerList.filter((p, index, self) => self.indexOf(p) === index); // Unique providers, starting with primary
 
     let lastError: Error | null = null;
 
