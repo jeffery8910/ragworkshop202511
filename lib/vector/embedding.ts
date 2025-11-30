@@ -17,13 +17,11 @@ export async function getEmbedding(text: string, config?: EmbeddingConfig): Prom
     const primaryProvider = config?.provider || getActiveEmbeddingProvider();
 
     // Define provider priority and availability
-    const providers: EmbeddingProvider[] = ([
-        primaryProvider,
-        'gemini',
-        'openai',
-        'openrouter',
-        'pinecone',
-    ] as EmbeddingProvider[]).filter((p, index, self) => self.indexOf(p) === index); // Unique providers, starting with primary
+    const providers: EmbeddingProvider[] = (
+        config?.provider
+            ? [config.provider] // 指定 provider 時不要 fallback 其他供應商，避免錯維度/錯模型
+            : [primaryProvider, 'gemini', 'openai', 'openrouter', 'pinecone']
+    ).filter((p, index, self) => self.indexOf(p) === index); // Unique providers, starting with primary
 
     let lastError: Error | null = null;
 
@@ -31,7 +29,7 @@ export async function getEmbedding(text: string, config?: EmbeddingConfig): Prom
         try {
             // Check if API key exists for this provider before trying
             if (!hasEmbeddingApiKey(provider, config)) {
-                continue;
+                throw new Error(`Missing API key for embedding provider ${provider}`);
             }
 
             console.log(`Attempting embedding with provider: ${provider}`);

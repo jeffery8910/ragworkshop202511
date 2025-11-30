@@ -21,12 +21,11 @@ export async function generateText(prompt: string, config?: Partial<LLMConfig>):
     const primaryProvider = config?.provider || getActiveProvider();
 
     // Define provider priority and availability
-    const providers: LLMProvider[] = ([
-        primaryProvider,
-        'gemini',
-        'openai',
-        'openrouter'
-    ] as LLMProvider[]).filter((p, index, self) => self.indexOf(p) === index); // Unique providers, starting with primary
+    const providers: LLMProvider[] = (
+        config?.provider
+            ? [config.provider] // 指定 provider 時，不做 fallback，避免錯誤供應商呼叫
+            : [primaryProvider, 'gemini', 'openai', 'openrouter']
+    ).filter((p, index, self) => self.indexOf(p) === index); // Unique providers, starting with primary
 
     let lastError: Error | null = null;
 
@@ -34,7 +33,7 @@ export async function generateText(prompt: string, config?: Partial<LLMConfig>):
         try {
             // Check if API key exists for this provider before trying
             if (!hasApiKey(provider, config)) {
-                continue;
+                throw new Error(`Missing API key for provider ${provider}`);
             }
 
             console.log(`Attempting generation with provider: ${provider}`);
