@@ -154,12 +154,17 @@ async function generatePineconeEmbedding(text: string, apiKey?: string, modelNam
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Api-Key': key
+            'Api-Key': key,
+            'X-Pinecone-Api-Version': '2025-01',
         },
         body: JSON.stringify({
             model,
-            inputs: [text.replace(/\n/g, ' ')]
-        })
+            inputs: [text.replace(/\n/g, ' ')],
+            parameters: {
+                input_type: 'passage',
+                truncate: 'END',
+            },
+        }),
     });
 
     if (!res.ok) {
