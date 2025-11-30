@@ -270,13 +270,10 @@ export async function POST(req: NextRequest) {
             for (let i = 0; i < chunks.length; i++) {
                 const c = chunks[i];
                 const embedding = await getEmbedding(c.text, {
-                    provider: pineconeEnabled ? 'pinecone' : embeddingProvider,
-                    geminiApiKey: process.env.GEMINI_API_KEY,
-                    openaiApiKey: process.env.OPENAI_API_KEY,
-                    openrouterApiKey: process.env.OPENROUTER_API_KEY,
+                    provider: 'pinecone',
                     pineconeApiKey: pineKey,
-                    modelName: pineconeEnabled ? embeddingModel : embeddingModel,
-                    desiredDim: pineconeEnabled ? pineDim : undefined,
+                    modelName: embeddingModel,
+                    desiredDim: pineDim,
                 });
 
                 if (pineconeEnabled && embedding.length !== pineDim) {
@@ -424,13 +421,10 @@ export async function POST(req: NextRequest) {
             for (let i = 0; i < chunks.length; i++) {
                 const c = chunks[i];
                 const embedding = await getEmbedding(c.text, {
-                    provider: embeddingProvider,
-                    geminiApiKey: process.env.GEMINI_API_KEY,
-                    openaiApiKey: process.env.OPENAI_API_KEY,
-                    openrouterApiKey: process.env.OPENROUTER_API_KEY,
+                    provider: 'pinecone',
                     pineconeApiKey: pineKey,
                     modelName: embeddingModel,
-                    desiredDim: pineconeEnabled ? pineDim : undefined,
+                    desiredDim: pineDim,
                 });
 
                 const chunkId = `${docId}#${i}`;

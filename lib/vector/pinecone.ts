@@ -47,7 +47,12 @@ export async function searchPinecone(
     try {
         const client = await getPineconeClient(dynamicApiKey);
         const index = client.index(indexName);
-        const vector = await getEmbedding(query, embeddingConfig);
+        const vector = await getEmbedding(query, {
+            provider: 'pinecone',
+            pineconeApiKey: apiKey,
+            modelName: embeddingConfig?.modelName || 'multilingual-e5-large',
+            desiredDim: 1024,
+        });
 
         const result = await index.query({
             vector,
