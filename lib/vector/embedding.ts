@@ -154,7 +154,7 @@ async function generatePineconeEmbedding(text: string, apiKey?: string, modelNam
         throw new Error(`Pinecone inference currently只支援 ${allowed.join(', ')}，請調整 EMBEDDING_MODEL 或改用其他 provider`);
     }
 
-    const res = await fetch('https://api.pinecone.io/inference/embed', {
+    const res = await fetch('https://api.pinecone.io/embed', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
