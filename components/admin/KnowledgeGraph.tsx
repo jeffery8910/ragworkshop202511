@@ -37,6 +37,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [dragging, setDragging] = useState(false);
     const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [busyDoc, setBusyDoc] = useState<string | null>(null);
 
     const hashToPos = (id: string, dim: number) => {
         let h = 0;
@@ -132,15 +133,50 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         onAction?.(`聚焦檔案 ${fileName}`);
     };
 
-    const deleteFile = (fileName: string) => {
-        if (!confirm(`確定要刪除檔案「${fileName}」？相關向量也會一起移除（僅前端模擬）。`)) return;
-        setIndexedFiles(prev => prev.filter(f => f.name !== fileName));
-        setVectors(prev => prev.filter(v => v.source !== fileName));
-        if (selected?.source === fileName) {
-            setSelected(null);
-            setActiveFile(null);
+    const refreshAll = () => {
+        fetchData();
+    };
+
+    const reindexDoc = async (docId: string) => {
+        if (!docId) return;
+        setBusyDoc(docId);
+        try {
+            const res = await fetch('/api/admin/index', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ scope: 'doc', docId }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data?.ok) throw new Error(data?.error || '重新索引失敗');
+            onAction?.(`重新索引完成 ${docId}`);
+            await fetchData();
+        } catch (e: any) {
+            alert(e?.message || '重新索引失敗');
+        } finally {
+            setBusyDoc(null);
         }
-        onAction?.(`已刪除檔案 ${fileName}`);
+    };
+
+    const deleteDoc = async (docId: string) => {
+        if (!docId) return;
+        const ok = confirm('確定刪除此文件的所有向量與紀錄？');
+        if (!ok) return;
+        setBusyDoc(docId);
+        try {
+            const res = await fetch('/api/admin/index', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ scope: 'doc', docId }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data?.ok) throw new Error(data?.error || '刪除失敗');
+            onAction?.(`已刪除文件 ${docId}`);
+            await fetchData();
+        } catch (e: any) {
+            alert(e?.message || '刪除失敗');
+        } finally {
+            setBusyDoc(null);
+        }
     };
 
     return (
@@ -149,13 +185,15 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                     <Network className="w-5 h-5 text-purple-600" /> 知識庫視覺化 (Knowledge Graph)
                 </h2>
-                <button
-                    onClick={handleRefresh}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                    disabled={loading}
-                >
-                    <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={refreshAll}
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                        disabled={loading}
+                    >
+                        <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
             </div>
 
             <div
@@ -277,13 +315,32 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                     <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded mr-2">
                                         {file.status}
                                     </span>
-                                    <button
-                                        onClick={() => deleteFile(file.name)}
-                                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                        aria-label={`刪除 ${file.name}`}
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => {
+                                                const doc = documents.find(d => d.filename === file.name);
+                                                if (doc?.docId) reindexDoc(doc.docId);
+                                                else alert('找不到 docId，請重新整理列表。');
+                                            }}
+                                            disabled={busyDoc !== null}
+                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                            aria-label={`重建 ${file.name}`}
+                                        >
+                                            <RefreshCw className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const doc = documents.find(d => d.filename === file.name);
+                                                if (doc?.docId) deleteDoc(doc.docId);
+                                                else alert('找不到 docId，請重新整理列表。');
+                                            }}
+                                            disabled={busyDoc !== null}
+                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                            aria-label={`刪除 ${file.name}`}
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}
@@ -299,14 +356,33 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                 <div className="py-2 text-gray-400">{loading ? '讀取中...' : '尚無文件記錄，請上傳後重新整理。'}</div>
                             ) : (
                                 documents.map((d, i) => (
-                                    <div key={d.docId || i} className="py-2 flex justify-between items-center">
+                                    <div key={d.docId || i} className="py-2 flex justify-between items-start gap-2">
                                         <div className="flex flex-col">
                                             <span className="font-medium">{d.filename}</span>
                                             <span className="text-[11px] text-gray-500">
                                                 {d.mode || 'text'} · {d.type || ''} · {d.chunks} chunks · {d.indexedAt ? new Date(d.indexedAt).toLocaleString() : ''}
                                             </span>
+                                            <span className="text-[10px] text-gray-400 break-all">docId: {d.docId}</span>
                                         </div>
-                                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{d.chunks ?? 0}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{d.chunks ?? 0}</span>
+                                            <button
+                                                onClick={() => reindexDoc(d.docId)}
+                                                disabled={busyDoc !== null}
+                                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                title="重新索引"
+                                            >
+                                                <RefreshCw className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => deleteDoc(d.docId)}
+                                                disabled={busyDoc !== null}
+                                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                title="刪除文件與向量"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))
                             )}
