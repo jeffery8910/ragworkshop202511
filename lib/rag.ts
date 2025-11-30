@@ -1,6 +1,6 @@
 import { generateText } from '@/lib/llm';
 import { searchPinecone } from '@/lib/vector/pinecone';
-import { getConversationHistory, saveMessage } from '@/lib/features/memory';
+import { saveMessage } from '@/lib/features/memory';
 import type { EmbeddingConfig, EmbeddingProvider } from '@/lib/vector/embedding';
 
 export interface RagConfig {
@@ -71,29 +71,8 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
     }
     : undefined;
 
-  // 1. Get History & Rewrite Query
-  let history: { role: 'user' | 'assistant'; content: string; }[] = [];
-  try {
-    history = await getConversationHistory(userId, 5, {
-      mongoUri: config?.mongoUri,
-      dbName: config?.mongoDbName
-    });
-  } catch (err) {
-    console.warn('Skipping conversation history because MongoDB is not configured or unreachable.', err);
-  }
-  let searchParam = question;
-
-  if (history.length > 0) {
-    const rewritePrompt = `
-      請根據對話歷史，重寫使用者的最新問題，使其包含完整上下文。
-      歷史：${JSON.stringify(history)}
-      最新問題：${question}
-      
-      只回傳重寫後的問題，不要有其他文字。
-    `;
-    // Use the configured chat model for rewriting as well, or fallback to a cheap one if not specified
-    searchParam = await generateText(rewritePrompt, { ...llmConfig });
-  }
+  // 1. Query without rewrite (依使用者需求直接使用原始問題)
+  const searchParam = question;
 
   // 2. Vector Search
   const results = await searchPinecone(
