@@ -13,8 +13,9 @@ interface VectorChunk {
 }
 
 interface IndexedFile {
+    docId: string;
     name: string;
-    status: 'indexed' | 'processing' | 'failed';
+    status: 'indexed' | 'processing' | 'failed' | 'reindexed';
     chunks: number;
     uploadedAt: string;
 }
@@ -31,6 +32,9 @@ export default function KnowledgeBasePage() {
     const [selectedFile, setSelectedFile] = useState<IndexedFile | null>(null);
     const [chunks, setChunks] = useState<VectorChunk[]>([]);
     const [vectors, setVectors] = useState<any[]>([]); // Empty vectors
+    const [allChunks, setAllChunks] = useState<any[]>([]);
+    const [listLoading, setListLoading] = useState(false);
+    const [actionMsg, setActionMsg] = useState<string | null>(null);
 
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault();
@@ -66,18 +70,97 @@ export default function KnowledgeBasePage() {
         alert('上傳功能尚未連接後端 API (Pending Backend Integration)');
     };
 
+    const loadDocuments = async () => {
+        setListLoading(true);
+        try {
+            const res = await fetch('/api/admin/documents', { cache: 'no-store' });
+            const data = await res.json();
+            const mapped: IndexedFile[] = (data?.documents || []).map((d: any) => ({
+                docId: d.docId,
+                name: d.filename,
+                status: (d.status as any) || 'indexed',
+                chunks: d.chunks,
+                uploadedAt: d.indexedAt ? new Date(d.indexedAt).toLocaleString() : '',
+            }));
+            setIndexedFiles(mapped);
+            setAllChunks(data?.chunks || []);
+        } catch (e: any) {
+            console.error(e);
+            alert('讀取文件列表失敗：' + (e?.message || e));
+        } finally {
+            setListLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadDocuments();
+    }, []);
+
     const handleViewChunks = async (file: IndexedFile) => {
         setSelectedFile(file);
         setLoading(true);
-        // TODO: Fetch real chunks
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setChunks([]); // No real data yet
+        const filtered = allChunks.filter((c: any) => c.docId === file.docId);
+        setChunks(
+            filtered.map((c: any) => ({
+                id: c.chunkId,
+                text: c.text || '',
+                source: c.source,
+                score: c.score,
+            }))
+        );
         setLoading(false);
     };
 
     const handleRefreshViz = () => {
-        // TODO: Fetch real vectors
-        alert('尚無向量資料 (No Vector Data)');
+        if (!allChunks.length) {
+            alert('尚無向量資料 (No Vector Data)');
+        } else {
+            alert(`已載入 ${allChunks.length} 個 chunk（僅示意顯示前 500 筆）`);
+        }
+    };
+
+    const reindex = async (docId?: string) => {
+        setActionMsg('重新索引中...');
+        try {
+            const res = await fetch('/api/admin/index', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(docId ? { scope: 'doc', docId } : { scope: 'all' }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data?.ok) throw new Error(data?.error || '重新索引失敗');
+            await loadDocuments();
+            alert('重新索引完成');
+        } catch (e: any) {
+            alert(e?.message || '重新索引失敗');
+        } finally {
+            setActionMsg(null);
+        }
+    };
+
+    const removeDocs = async (docId?: string) => {
+        const ok = confirm(docId ? '確定刪除該文件的向量與紀錄？' : '確定清空所有文件與向量？');
+        if (!ok) return;
+        setActionMsg('刪除中...');
+        try {
+            const res = await fetch('/api/admin/index', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(docId ? { scope: 'doc', docId } : { scope: 'all' }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data?.ok) throw new Error(data?.error || '刪除失敗');
+            await loadDocuments();
+            if (selectedFile && (!docId || selectedFile.docId === docId)) {
+                setSelectedFile(null);
+                setChunks([]);
+            }
+            alert('刪除完成');
+        } catch (e: any) {
+            alert(e?.message || '刪除失敗');
+        } finally {
+            setActionMsg(null);
+        }
     };
 
     return (
@@ -162,11 +245,31 @@ export default function KnowledgeBasePage() {
                         </div>
 
                         {/* Indexed Files List */}
-                        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
-                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800">
-                                <Database className="w-5 h-5 text-green-600" /> 已索引檔案
-                            </h2>
-                            {indexedFiles.length > 0 ? (
+                        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
+                                    <Database className="w-5 h-5 text-green-600" /> 已索引檔案
+                                </h2>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => reindex()}
+                                        disabled={!!actionMsg}
+                                        className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 flex items-center gap-1"
+                                    >
+                                        <RefreshCw className="w-3 h-3" /> 全部重建
+                                    </button>
+                                    <button
+                                        onClick={() => removeDocs()}
+                                        disabled={!!actionMsg}
+                                        className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded hover:bg-red-200 flex items-center gap-1"
+                                    >
+                                        <Trash2 className="w-3 h-3" /> 清空
+                                    </button>
+                                </div>
+                            </div>
+                            {listLoading ? (
+                                <div className="text-center py-6 text-gray-500">載入中...</div>
+                            ) : indexedFiles.length > 0 ? (
                                 <div className="space-y-2 max-h-96 overflow-y-auto">
                                     {indexedFiles.map((file, idx) => (
                                         <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
@@ -177,14 +280,15 @@ export default function KnowledgeBasePage() {
                                                         <span className="text-sm font-medium text-gray-800 truncate">{file.name}</span>
                                                     </div>
                                                     <p className="text-xs text-gray-500 mt-1">Chunks: {file.chunks} | {file.uploadedAt}</p>
+                                                    <p className="text-[10px] text-gray-400 break-all">docId: {file.docId}</p>
                                                 </div>
                                                 <span
-                                                    className={`text-xs px-2 py-1 rounded flex-shrink-0 ${file.status === 'indexed' ? 'bg-green-100 text-green-700' :
+                                                    className={`text-xs px-2 py-1 rounded flex-shrink-0 ${file.status === 'indexed' || file.status === 'reindexed' ? 'bg-green-100 text-green-700' :
                                                         file.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :
                                                             'bg-red-100 text-red-700'
                                                         }`}
                                                 >
-                                                    {file.status === 'indexed' ? '已索引' : file.status === 'processing' ? '處理中' : '失敗'}
+                                                    {file.status === 'indexed' || file.status === 'reindexed' ? '已索引' : file.status === 'processing' ? '處理中' : '失敗'}
                                                 </span>
                                             </div>
                                             <div className="flex gap-2">
@@ -194,7 +298,18 @@ export default function KnowledgeBasePage() {
                                                 >
                                                     <Eye className="w-3 h-3" /> 查看切片
                                                 </button>
-                                                <button className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded hover:bg-red-200 flex items-center gap-1">
+                                                <button
+                                                    onClick={() => reindex(file.docId)}
+                                                    disabled={!!actionMsg}
+                                                    className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded hover:bg-amber-200 flex items-center gap-1"
+                                                >
+                                                    <RefreshCw className="w-3 h-3" /> 重建
+                                                </button>
+                                                <button
+                                                    onClick={() => removeDocs(file.docId)}
+                                                    disabled={!!actionMsg}
+                                                    className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded hover:bg-red-200 flex items-center gap-1"
+                                                >
                                                     <Trash2 className="w-3 h-3" /> 刪除
                                                 </button>
                                             </div>
@@ -207,6 +322,7 @@ export default function KnowledgeBasePage() {
                                     <p className="text-sm">尚無已索引的檔案</p>
                                 </div>
                             )}
+                            {actionMsg && <p className="text-xs text-amber-700">{actionMsg}</p>}
                         </div>
                     </div>
 
