@@ -48,10 +48,15 @@ export async function getEmbedding(text: string, config?: EmbeddingConfig): Prom
             }
 
             if (vec) {
+                vec = vec.map(Number); // ensure mutable number[]
                 const desired = config?.desiredDim;
                 if (desired && desired > 0) {
                     if (vec.length > desired) vec = vec.slice(0, desired);
                     else if (vec.length < desired) vec = [...vec, ...new Array(desired - vec.length).fill(0)];
+                }
+                // Avoid all-zero vectors which Pinecone rejects for dense mode
+                if (vec.every(v => v === 0)) {
+                    (vec as number[])[0] = 1e-8;
                 }
                 return vec;
             }
@@ -66,7 +71,9 @@ export async function getEmbedding(text: string, config?: EmbeddingConfig): Prom
     console.warn('All embedding providers failed, returning dummy embedding');
     const desired = config?.desiredDim;
     const dim = desired && desired > 0 ? desired : 1536;
-    return new Array(dim).fill(0);
+    const vec = new Array(dim).fill(0);
+    vec[0] = 1e-8; // minimal non-zero to satisfy Pinecone dense requirement
+    return vec;
 }
 
 function getActiveEmbeddingProvider(): EmbeddingProvider {
