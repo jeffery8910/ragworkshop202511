@@ -9,8 +9,11 @@ interface KnowledgeGraphProps {
 
 interface IndexedFile {
     name: string;
+    docId?: string;
     count: number;
-    status: 'Indexed' | 'Pending';
+    status: 'Indexed' | 'Pending' | 'reindexed' | string;
+    note?: string;
+    indexedAt?: string;
 }
 
 const buildFileList = (vecs: { source: string }[]): IndexedFile[] => {
@@ -62,8 +65,11 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
 
             const files = docs.map((d: any) => ({
                 name: d.filename,
+                docId: d.docId,
                 count: d.chunks,
-                status: 'Indexed'
+                status: (d.status as any) || 'Indexed',
+                note: d.note,
+                indexedAt: d.indexedAt
             }));
             setIndexedFiles(files);
 
@@ -313,9 +319,9 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                             <span className="text-xs text-gray-500">({file.count} chunks)</span>
                                         </div>
                                     </button>
-                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded mr-2">
-                                        {file.status}
-                                    </span>
+                                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded mr-2">
+                                                {file.status}
+                                            </span>
                                     <div className="flex items-center gap-1">
                                         <button
                                             onClick={() => {
@@ -365,28 +371,29 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                             </span>
                                             <span className="text-[10px] text-gray-400 break-all">docId: {d.docId}</span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{d.chunks ?? 0}</span>
-                                            <button
-                                                onClick={() => reindexDoc(d.docId)}
-                                                disabled={busyDoc !== null}
-                                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                                title="重新索引"
-                                            >
-                                                <RefreshCw className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => deleteDoc(d.docId)}
-                                                disabled={busyDoc !== null}
-                                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                                title="刪除文件與向量"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{d.chunks ?? 0}</span>
+                                        <button
+                                            onClick={() => reindexDoc(d.docId)}
+                                            disabled={busyDoc !== null}
+                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                            title="重新索引"
+                                        >
+                                            <RefreshCw className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => deleteDoc(d.docId)}
+                                            disabled={busyDoc !== null}
+                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                            title="刪除文件與向量"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
                                     </div>
-                                ))
-                            )}
+                                </div>
+                                {d.note && <div className="text-[11px] text-amber-700">{d.note}</div>}
+                            ))
+                        )}
                         </div>
                         {documents.length > 0 && vectors.length === 0 && !error && (
                             <div className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded p-2">

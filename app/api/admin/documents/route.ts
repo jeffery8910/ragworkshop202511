@@ -21,15 +21,15 @@ export async function GET() {
             .collection('documents')
             .find({})
             .sort({ indexedAt: -1 })
-            .limit(200)
-            .project({ _id: 0, docId: 1, filename: 1, size: 1, type: 1, chunks: 1, indexedAt: 1, mode: 1 })
+            .project({ _id: 0, docId: 1, filename: 1, size: 1, type: 1, chunks: 1, indexedAt: 1, mode: 1, status: 1, note: 1 })
             .toArray();
 
         // Grab up to 500 chunks for visualization (lightweight fields only)
         const chunkDocsRaw = await db
             .collection('chunks')
             .find({}, { projection: { _id: 0, chunkId: 1, docId: 1, source: 1, chunk: 1, text_length: 1, indexed_at: 1, text: 1 } })
-            .limit(500)
+            .sort({ indexed_at: -1 })
+            .limit(5000) // 放寬到 5000 筆以便圖上顯示更多節點
             .toArray();
 
         // 限制文字大小，避免回傳過大 payload
