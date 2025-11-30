@@ -48,6 +48,7 @@ async function reindexDocs(docIds: string[]) {
     const pine = await getPine(cfg);
     const provider = cfg.embeddingProvider;
     const model = cfg.embeddingModel;
+    const pineDim = Number(process.env.PINECONE_DIM || '1024');
 
     const results: any[] = [];
     for (const docId of docIds) {
@@ -66,8 +67,11 @@ async function reindexDocs(docIds: string[]) {
                 openrouterApiKey: process.env.OPENROUTER_API_KEY,
                 pineconeApiKey: process.env.PINECONE_API_KEY,
                 modelName: model || undefined,
-                desiredDim: cfg.pineKey ? Number(process.env.PINECONE_DIM || '1024') : undefined,
+                desiredDim: cfg.pineKey ? pineDim : undefined,
             });
+            if (cfg.pineKey && embedding.length !== pineDim) {
+                throw new Error(`Embedding dimension ${embedding.length} != index dimension ${pineDim}`);
+            }
             vectors.push({
                 id: c.chunkId,
                 values: embedding,

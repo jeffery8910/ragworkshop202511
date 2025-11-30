@@ -67,13 +67,8 @@ export async function getEmbedding(text: string, config?: EmbeddingConfig): Prom
         }
     }
 
-    // Return dummy embedding if all providers fail
-    console.warn('All embedding providers failed, returning dummy embedding');
-    const desired = config?.desiredDim;
-    const dim = desired && desired > 0 ? desired : 1536;
-    const vec = new Array(dim).fill(0);
-    vec[0] = 1e-8; // minimal non-zero to satisfy Pinecone dense requirement
-    return vec;
+    // If all providers failed, bubble up error instead of returning dummy
+    throw lastError || new Error('All embedding providers failed');
 }
 
 function getActiveEmbeddingProvider(): EmbeddingProvider {
