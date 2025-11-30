@@ -36,9 +36,9 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     let pdfjsInstance: any = null;
     const loadPdfJs = async () => {
         if (pdfjsInstance) return pdfjsInstance;
-        const pdfjsLib: any = await import('pdfjs-dist/legacy/build/pdf');
+        const pdfjsLib: any = await import('pdfjs-dist');
         // 指向本機靜態路徑，避免跨網域抓不到 worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
         pdfjsInstance = pdfjsLib;
         return pdfjsLib;
     };
