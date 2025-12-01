@@ -87,6 +87,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         openrouter: [],
         pinecone: [],
     });
+    const [testingInfra, setTestingInfra] = useState<'mongo' | 'pinecone' | null>(null);
     const [chatProvider, setChatProvider] = useState<Provider>(
         initialConfig['GEMINI_API_KEY'] ? 'gemini' :
             initialConfig['OPENAI_API_KEY'] ? 'openai' :
@@ -149,6 +150,40 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
             alert('連線測試時發生錯誤');
         } finally {
             setTestingProvider(null);
+        }
+    };
+
+    const handleTestInfra = async (target: 'mongo' | 'pinecone') => {
+        setTestingInfra(target);
+        setMessage('');
+        setStatus('idle');
+        try {
+            const payload =
+                target === 'mongo'
+                    ? { type: 'mongo', uri: config.MONGODB_URI, dbName: config.MONGODB_DB_NAME }
+                    : { type: 'pinecone', apiKey: config.PINECONE_API_KEY, indexName: config.PINECONE_INDEX_NAME };
+
+            const res = await fetch('/api/admin/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok || data?.ok === false) throw new Error(data?.error || '測試失敗');
+
+            if (target === 'pinecone' && data?.hasIndex === false) {
+                alert(`Key 驗證成功，但找不到索引 ${config.PINECONE_INDEX_NAME || '(未填)'}。已取得索引列表：${(data.indexes || []).join(', ') || '無'}`);
+            } else {
+                alert(data?.detail || '測試成功');
+            }
+            setStatus('success');
+            setMessage(target === 'mongo' ? 'MongoDB 連線測試成功' : 'Pinecone 測試成功');
+        } catch (err: any) {
+            setStatus('error');
+            setMessage(err?.message || '測試失敗');
+            alert(err?.message || '測試失敗，請檢查設定');
+        } finally {
+            setTestingInfra(null);
         }
     };
 
@@ -226,6 +261,17 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             />
                         </div>
                     </div>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => handleTestInfra('mongo')}
+                            disabled={testingInfra === 'mongo'}
+                            className="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {testingInfra === 'mongo' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                            測試 MongoDB 連線
+                        </button>
+                    </div>
                 </div>
 
                 {/* Vector DB Section */}
@@ -251,6 +297,17 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                 placeholder="rag-index"
                             />
                         </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => handleTestInfra('pinecone')}
+                            disabled={testingInfra === 'pinecone'}
+                            className="bg-emerald-600 text-white px-3 py-2 rounded text-sm hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {testingInfra === 'pinecone' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                            測試 Pinecone 連線
+                        </button>
                     </div>
                 </div>
 
