@@ -2,13 +2,57 @@
 
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Settings, Database, CheckCircle, AlertCircle, Cpu, RefreshCw, Smartphone, Lock } from 'lucide-react';
+import { Settings, Database, CheckCircle, AlertCircle, Cpu, RefreshCw, Smartphone, Lock, Eye, EyeOff } from 'lucide-react';
 
 type Provider = 'gemini' | 'openai' | 'openrouter' | 'pinecone';
+
+// Generic input component with visibility toggle
+const SecretInput = ({
+    name,
+    value,
+    onChange,
+    placeholder,
+    className = "w-full border rounded p-2 text-sm",
+}: {
+    name: string;
+    value: string;
+    onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+    placeholder?: string;
+    className?: string;
+}) => {
+    // Determine initial type: password for keys/secrets/URIs, text for others
+    const isSensitive = /(KEY|SECRET|URI|TOKEN)$/.test(name.toUpperCase());
+    const [show, setShow] = useState(!isSensitive); // Show non-sensitive fields by default
+
+    return (
+        <div className="relative">
+            <input
+                type={show ? 'text' : 'password'}
+                name={name}
+                value={value}
+                onChange={onChange}
+                placeholder={placeholder}
+                className={className}
+            />
+            {isSensitive && ( // Only show toggle for sensitive fields (if it started as password)
+                <button
+                    type="button"
+                    onClick={() => setShow(!show)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    title={show ? "隱藏" : "顯示"}
+                >
+                    {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+            )}
+        </div>
+    );
+};
 
 interface SetupPanelProps {
     initialConfig: Record<string, string>;
 }
+
+
 
 export default function SetupPanel({ initialConfig }: SetupPanelProps) {
     const [config, setConfig] = useState({
@@ -165,24 +209,20 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">MongoDB URI</label>
-                            <input
-                                type="password"
+                            <SecretInput
                                 name="MONGODB_URI"
                                 value={config.MONGODB_URI}
                                 onChange={handleChange}
                                 placeholder="mongodb+srv://..."
-                                className="w-full border rounded p-2 text-sm"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">DB Name</label>
-                            <input
-                                type="text"
+                            <SecretInput
                                 name="MONGODB_DB_NAME"
                                 value={config.MONGODB_DB_NAME}
                                 onChange={handleChange}
                                 placeholder="rag_workshop"
-                                className="w-full border rounded p-2 text-sm"
                             />
                         </div>
                     </div>
@@ -196,23 +236,19 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Pinecone API Key</label>
-                            <input
-                                type="password"
+                            <SecretInput
                                 name="PINECONE_API_KEY"
                                 value={config.PINECONE_API_KEY}
                                 onChange={handleChange}
-                                className="w-full border rounded p-2 text-sm"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Index Name</label>
-                            <input
-                                type="text"
+                            <SecretInput
                                 name="PINECONE_INDEX_NAME"
                                 value={config.PINECONE_INDEX_NAME}
                                 onChange={handleChange}
                                 placeholder="rag-index"
-                                className="w-full border rounded p-2 text-sm"
                             />
                         </div>
                     </div>
@@ -226,22 +262,18 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Channel Secret</label>
-                            <input
-                                type="password"
+                            <SecretInput
                                 name="LINE_CHANNEL_SECRET"
                                 value={config.LINE_CHANNEL_SECRET}
                                 onChange={handleChange}
-                                className="w-full border rounded p-2 text-sm"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Channel Access Token</label>
-                            <input
-                                type="password"
+                            <SecretInput
                                 name="LINE_CHANNEL_ACCESS_TOKEN"
                                 value={config.LINE_CHANNEL_ACCESS_TOKEN}
                                 onChange={handleChange}
-                                className="w-full border rounded p-2 text-sm"
                             />
                         </div>
                     </div>
@@ -255,23 +287,19 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Login Channel ID</label>
-                            <input
-                                type="text"
+                            <SecretInput
                                 name="LINE_LOGIN_CHANNEL_ID"
                                 value={config.LINE_LOGIN_CHANNEL_ID}
                                 onChange={handleChange}
                                 placeholder="2000xxxxxx"
-                                className="w-full border rounded p-2 text-sm"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Login Channel Secret</label>
-                            <input
-                                type="password"
+                            <SecretInput
                                 name="LINE_LOGIN_CHANNEL_SECRET"
                                 value={config.LINE_LOGIN_CHANNEL_SECRET}
                                 onChange={handleChange}
-                                className="w-full border rounded p-2 text-sm"
                             />
                         </div>
                     </div>
@@ -290,14 +318,15 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                 <span className="font-bold text-blue-800">Google Gemini</span>
                                 {testingProvider === 'gemini' && <RefreshCw className="w-3 h-3 animate-spin text-blue-600" />}
                             </div>
-                            <input
-                                type="password"
-                                name="GEMINI_API_KEY"
-                                value={config.GEMINI_API_KEY}
-                                onChange={handleChange}
-                                placeholder="AIzaSy..."
-                                className="w-full border rounded p-2 text-sm mb-2"
-                            />
+                            <div className="mb-2">
+                                <SecretInput
+                                    name="GEMINI_API_KEY"
+                                    value={config.GEMINI_API_KEY}
+                                    onChange={handleChange}
+                                    placeholder="AIzaSy..."
+                                    className="w-full border rounded p-2 text-sm"
+                                />
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => handleTestConnection('gemini', 'both')}
@@ -326,14 +355,15 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                 <span className="font-bold text-green-800">OpenAI</span>
                                 {testingProvider === 'openai' && <RefreshCw className="w-3 h-3 animate-spin text-green-600" />}
                             </div>
-                            <input
-                                type="password"
-                                name="OPENAI_API_KEY"
-                                value={config.OPENAI_API_KEY}
-                                onChange={handleChange}
-                                placeholder="sk-..."
-                                className="w-full border rounded p-2 text-sm mb-2"
-                            />
+                            <div className="mb-2">
+                                <SecretInput
+                                    name="OPENAI_API_KEY"
+                                    value={config.OPENAI_API_KEY}
+                                    onChange={handleChange}
+                                    placeholder="sk-..."
+                                    className="w-full border rounded p-2 text-sm"
+                                />
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => handleTestConnection('openai', 'both')}
@@ -350,14 +380,15 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                 <span className="font-bold text-purple-800">OpenRouter</span>
                                 {testingProvider === 'openrouter' && <RefreshCw className="w-3 h-3 animate-spin text-purple-600" />}
                             </div>
-                            <input
-                                type="password"
-                                name="OPENROUTER_API_KEY"
-                                value={config.OPENROUTER_API_KEY}
-                                onChange={handleChange}
-                                placeholder="sk-or-..."
-                                className="w-full border rounded p-2 text-sm mb-2"
-                            />
+                            <div className="mb-2">
+                                <SecretInput
+                                    name="OPENROUTER_API_KEY"
+                                    value={config.OPENROUTER_API_KEY}
+                                    onChange={handleChange}
+                                    placeholder="sk-or-..."
+                                    className="w-full border rounded p-2 text-sm"
+                                />
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => handleTestConnection('openrouter', 'both')}
@@ -412,8 +443,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                             ))}
                                         </select>
                                     ) : (
-                                        <input
-                                            type="text"
+                                        <SecretInput
                                             name="CHAT_MODEL"
                                             value={config.CHAT_MODEL}
                                             onChange={handleChange}
@@ -426,7 +456,6 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                                             ? 'multilingual-e5-large'
                                                             : 'mistralai/Mistral-7B-Instruct:free'
                                             }
-                                            className="w-full border rounded p-2 text-sm"
                                         />
                                     )}
                                 </div>
@@ -466,13 +495,11 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                             ))}
                                         </select>
                                     ) : (
-                                        <input
-                                            type="text"
+                                        <SecretInput
                                             name="EMBEDDING_MODEL"
                                             value={config.EMBEDDING_MODEL}
                                             onChange={handleChange}
                                             placeholder={embeddingPlaceholder}
-                                            className="w-full border rounded p-2 text-sm"
                                         />
                                     )}
                                 </div>
