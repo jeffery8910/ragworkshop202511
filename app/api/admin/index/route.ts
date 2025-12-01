@@ -4,6 +4,7 @@ import { getMongoClient } from '@/lib/db/mongo';
 import { getPineconeClient } from '@/lib/vector/pinecone';
 import { getEmbedding } from '@/lib/vector/embedding';
 import { extractGraphFromText, saveGraphData, deleteGraphDataForDoc } from '@/lib/features/graph';
+import { getConfigValue } from '@/lib/config-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,7 @@ interface ActionPayload {
 
 async function pickConfig() {
     const cookieStore = await cookies();
-    const get = (key: string) => cookieStore.get(key)?.value || process.env[key] || '';
+    const get = (key: string) => cookieStore.get(key)?.value || process.env[key] || getConfigValue(key) || '';
     return {
         mongoUri: get('MONGODB_URI'),
         mongoDb: get('MONGODB_DB_NAME') || 'rag_db',

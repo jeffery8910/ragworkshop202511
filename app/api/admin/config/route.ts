@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getMongoClient } from '@/lib/db/mongo';
 import { getPineconeClient } from '@/lib/vector/pinecone';
+import { saveConfig } from '@/lib/config-store';
 
 export async function POST(req: NextRequest) {
     try {
@@ -45,6 +46,9 @@ export async function POST(req: NextRequest) {
         const res = NextResponse.json({ success: true });
         const isHttps = req.headers.get('x-forwarded-proto') === 'https';
         const secure = process.env.NODE_ENV === 'production' ? isHttps : false;
+
+        // Persist to in-memory store as fallback for server-only requests
+        saveConfig(config);
 
         keys.forEach(key => {
             if (config[key]) {
