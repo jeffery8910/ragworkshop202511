@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, FileText, Network, RefreshCw, Database, CheckCircle, Eye, Trash2, Zap, LayoutGrid } from 'lucide-react';
+import { Upload, FileText, RefreshCw, Database, Eye, Trash2, Zap } from 'lucide-react';
 import RagLabPanel from '@/components/admin/RagLabPanel';
 import RagProcessGraph from '@/components/admin/RagProcessGraph';
+import KnowledgeGraph from '@/components/admin/KnowledgeGraph';
 
 interface VectorChunk {
     id: string;
@@ -31,7 +32,6 @@ export default function KnowledgeBasePage() {
     const [indexedFiles, setIndexedFiles] = useState<IndexedFile[]>([]);
     const [selectedFile, setSelectedFile] = useState<IndexedFile | null>(null);
     const [chunks, setChunks] = useState<VectorChunk[]>([]);
-    const [vectors, setVectors] = useState<any[]>([]); // Empty vectors
     const [allChunks, setAllChunks] = useState<any[]>([]);
     const [listLoading, setListLoading] = useState(false);
     const [actionMsg, setActionMsg] = useState<string | null>(null);
@@ -111,14 +111,6 @@ export default function KnowledgeBasePage() {
         setLoading(false);
     };
 
-    const handleRefreshViz = () => {
-        if (!allChunks.length) {
-            alert('尚無向量資料 (No Vector Data)');
-        } else {
-            alert(`已載入 ${allChunks.length} 個 chunk（僅示意顯示前 500 筆）`);
-        }
-    };
-
     const reindex = async (docId?: string) => {
         setActionMsg('重新索引中...');
         try {
@@ -192,9 +184,9 @@ export default function KnowledgeBasePage() {
             </div>
 
             {activeTab === 'knowledge' ? (
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     {/* Left Column: File Upload */}
-                    <div className="xl:col-span-1 space-y-6">
+                    <div className="lg:col-span-3 space-y-6">
                         <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
                             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800">
                                 <Upload className="w-5 h-5 text-blue-600" /> 檔案上傳
@@ -327,7 +319,7 @@ export default function KnowledgeBasePage() {
                     </div>
 
                     {/* Middle Column: Vector Chunks */}
-                    <div className="xl:col-span-1">
+                    <div className="lg:col-span-4">
                         <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-500 h-full">
                             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800">
                                 <FileText className="w-5 h-5 text-purple-600" /> 向量切片詳情
@@ -374,47 +366,14 @@ export default function KnowledgeBasePage() {
                     </div>
 
                     {/* Right Column: Visualization */}
-                    <div className="xl:col-span-1">
-                        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-indigo-500 h-full flex flex-col">
-                            <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
-                                    <Network className="w-5 h-5 text-indigo-600" /> 知識視覺化
-                                </h2>
-                                <button
-                                    onClick={handleRefreshViz}
-                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                                >
-                                    <RefreshCw className="w-4 h-4 text-gray-500" />
-                                </button>
-                            </div>
-
-                            {vectors.length > 0 ? (
-                                <div className="relative w-full h-96 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg border border-indigo-200 overflow-hidden mb-4">
-                                    {vectors.map((v) => (
-                                        <div
-                                            key={v.id}
-                                            className="absolute w-3 h-3 bg-indigo-500 rounded-full hover:bg-indigo-700 cursor-pointer transition-all hover:scale-150 shadow-lg"
-                                            style={{ left: `${v.x}%`, top: `${v.y}%` }}
-                                            title={`${v.title}\n來源: ${v.source}`}
-                                        />
-                                    ))}
-                                    <div className="absolute bottom-2 right-2 text-xs text-indigo-600 bg-white/80 px-2 py-1 rounded">
-                                        2D Projection (t-SNE)
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-300 p-8 mb-4">
-                                    <Network className="w-12 h-12 text-gray-300 mb-3" />
-                                    <p className="text-gray-500 font-medium">尚無向量資料</p>
-                                    <p className="text-xs text-gray-400 mt-1">上傳檔案並索引後，此處將顯示知識分佈圖</p>
-                                </div>
-                            )}
-
-                            {/* RAG Process Visualization */}
-                            <div className="mt-4 pt-4 border-t">
-                                <RagProcessGraph />
-                            </div>
+                    <div className="lg:col-span-5 flex flex-col gap-4">
+                        {/* Replaced inline visualization with the real KnowledgeGraph component */}
+                        <div className="h-[500px]">
+                            <KnowledgeGraph />
                         </div>
+                        
+                        {/* RAG Process Visualization */}
+                        <RagProcessGraph />
                     </div>
                 </div>
             ) : (

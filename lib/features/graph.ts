@@ -43,8 +43,8 @@ export async function extractGraphFromText(text: string): Promise<{ nodes: Graph
   `;
   
   try {
-      // 使用較快速的模型進行萃取
-      const responseText = await generateText(prompt, { model: 'gemini-1.5-flash' });
+      // 使用系統預設的模型進行萃取
+      const responseText = await generateText(prompt);
       
       // 清理可能的回應格式 (去除 ```json ... ```)
       const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
