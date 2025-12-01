@@ -43,14 +43,15 @@ export async function POST(req: NextRequest) {
         ];
 
         const res = NextResponse.json({ success: true });
+        const isHttps = req.headers.get('x-forwarded-proto') === 'https';
+        const secure = process.env.NODE_ENV === 'production' ? isHttps : false;
 
         keys.forEach(key => {
             if (config[key]) {
-                // Set on the response to ensure Set-Cookie header is sent
                 res.cookies.set(key, config[key], {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: 'strict',
+                    secure,
+                    sameSite: 'lax',
                     maxAge: 60 * 60 * 24 * 30, // 30 days
                     path: '/',
                 });
