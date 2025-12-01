@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getMongoClient } from '@/lib/db/mongo';
+import { getConfigValue } from '@/lib/config-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,8 +10,9 @@ export const revalidate = 0;
 export async function GET() {
     try {
         const cookieStore = await cookies();
-        const mongoUri = cookieStore.get('MONGODB_URI')?.value || process.env.MONGODB_URI;
-        const mongoDb = cookieStore.get('MONGODB_DB_NAME')?.value || process.env.MONGODB_DB_NAME || 'rag_db';
+        const get = (key: string) => cookieStore.get(key)?.value || process.env[key] || getConfigValue(key) || '';
+        const mongoUri = get('MONGODB_URI');
+        const mongoDb = get('MONGODB_DB_NAME') || 'rag_db';
 
         if (!mongoUri) return NextResponse.json({ error: 'MONGODB_URI not set' }, { status: 400 });
 
