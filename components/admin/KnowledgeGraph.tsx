@@ -45,6 +45,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [docsLoading, setDocsLoading] = useState(false);
     const [docFilter, setDocFilter] = useState<string | null>(null);
     const [docSearch, setDocSearch] = useState('');
+    const [reindexingDoc, setReindexingDoc] = useState<string | null>(null);
     
     // Viewport state
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -312,6 +313,30 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         });
     };
 
+    const reindexGraph = async (docId?: string) => {
+        if (reindexingDoc) return; // avoid parallel calls
+        const target = docId || 'all';
+        setReindexingDoc(target);
+        onAction?.(docId ? `重建圖譜: ${docId}` : '重建全部圖譜');
+        try {
+            const res = await fetch('/api/admin/index', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(docId ? { scope: 'doc', docId } : { scope: 'all' }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data?.ok) throw new Error(data?.error || '重建失敗');
+            await Promise.all([fetchGraph(), fetchDocuments()]);
+            onAction?.('圖譜重建完成');
+        } catch (e: any) {
+            console.error(e);
+            onAction?.('重建圖譜失敗: ' + e.message);
+            alert(e?.message || '重建圖譜失敗');
+        } finally {
+            setReindexingDoc(null);
+        }
+    };
+
     return (
         <div className="bg-white p-6 rounded-xl shadow-md h-full flex flex-col">
             <div className="flex justify-between items-center mb-4">
@@ -483,14 +508,24 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                             <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-emerald-600" /> 文件列表
                             </h3>
-                            <button
-                                onClick={fetchDocuments}
-                                disabled={docsLoading}
-                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                                title="重新整理文件列表"
-                            >
-                                <RefreshCw className={`w-4 h-4 text-gray-500 ${docsLoading ? 'animate-spin' : ''}`} />
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => reindexGraph()}
+                                    disabled={docsLoading || !!reindexingDoc}
+                                    className="px-3 py-2 text-xs bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 flex items-center gap-1"
+                                    title="重建全部圖譜 (向量+Graph)"
+                                >
+                                    <RefreshCw className={`w-3 h-3 ${reindexingDoc === 'all' ? 'animate-spin' : ''}`} /> 全部重建
+                                </button>
+                                <button
+                                    onClick={fetchDocuments}
+                                    disabled={docsLoading}
+                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                    title="重新整理文件列表"
+                                >
+                                    <RefreshCw className={`w-4 h-4 text-gray-500 ${docsLoading ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex items-center gap-2 mb-3">
@@ -546,9 +581,19 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                                         <p className="text-[11px] text-gray-400">索引時間: {new Date(doc.indexedAt).toLocaleString()}</p>
                                                     )}
                                                 </div>
-                                                <span className={`text-[11px] px-2 py-1 rounded-full flex-shrink-0 ${statusClass}`}>
-                                                    {statusLabel}
-                                                </span>
+                                                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                                    <span className={`text-[11px] px-2 py-1 rounded-full ${statusClass}`}>
+                                                        {statusLabel}
+                                                    </span>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); reindexGraph(doc.docId); }}
+                                                        disabled={!!reindexingDoc}
+                                                        className="text-[11px] px-2 py-1 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-60 flex items-center gap-1"
+                                                        title="僅重建此文件的向量與圖譜"
+                                                    >
+                                                        <RefreshCw className={`w-3 h-3 ${reindexingDoc === doc.docId ? 'animate-spin' : ''}`} /> 重建
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     );
