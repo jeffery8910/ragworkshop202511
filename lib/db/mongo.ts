@@ -1,16 +1,17 @@
 import { MongoClient } from 'mongodb';
+import { getConfigValue } from '@/lib/config-store';
 
-const globalUri = process.env.MONGODB_URI || '';
 const options = {};
 
 let client: MongoClient;
-let clientPromise: Promise<MongoClient>;
+let clientPromise: Promise<MongoClient> | null = null;
 
 // Cache for dynamic clients to prevent connection leaks
 const clientCache: Record<string, Promise<MongoClient> | undefined> = {};
 
 export async function getMongoClient(dynamicUri?: string): Promise<MongoClient> {
-    const uri = dynamicUri || globalUri;
+    const fallbackUri = getConfigValue('MONGODB_URI') || process.env.MONGODB_URI || '';
+    const uri = dynamicUri || fallbackUri;
 
     if (!uri) {
         throw new Error('MONGODB_URI is not defined');
@@ -18,7 +19,7 @@ export async function getMongoClient(dynamicUri?: string): Promise<MongoClient> 
 
     // Return cached promise if exists
     if (clientCache[uri]) {
-        return clientCache[uri];
+        return clientCache[uri]!;
     }
 
     if (process.env.NODE_ENV === 'development') {
@@ -40,34 +41,20 @@ export async function getMongoClient(dynamicUri?: string): Promise<MongoClient> 
     }
 
     clientCache[uri] = clientPromise;
-    return clientPromise;
+    return clientPromise!;
 }
 
-// Default export for backward compatibility (uses env var)
-// We need to handle the case where globalUri is empty to avoid top-level crash
-// but still export a promise.
-if (globalUri) {
-    if (process.env.NODE_ENV === 'development') {
-        let globalWithMongo = global as typeof globalThis & {
-            _mongoClientPromise?: Promise<MongoClient>;
-        };
-        if (!globalWithMongo._mongoClientPromise) {
-            client = new MongoClient(globalUri, options);
-            globalWithMongo._mongoClientPromise = client.connect();
-        }
-        clientPromise = globalWithMongo._mongoClientPromise;
-    } else {
-        client = new MongoClient(globalUri, options);
-        clientPromise = client.connect();
+// Default export for backward compatibility: lazily resolves using config/env on first import
+const defaultClientPromise: Promise<MongoClient> = (async () => {
+    const uri = getConfigValue('MONGODB_URI') || process.env.MONGODB_URI || '';
+    if (!uri) {
+        return {
+            db: () => { throw new Error('MONGODB_URI is not defined'); },
+            connect: () => Promise.resolve(),
+        } as any;
     }
-} else {
-    // Return a dummy promise if no env var is set, to satisfy the type
-    // This allows the app to build/start, but usage will fail if not configured dynamically
-    clientPromise = Promise.resolve({
-        db: () => { throw new Error('MONGODB_URI is not defined'); },
-        connect: () => Promise.resolve(),
-    } as any);
-}
+    return getMongoClient(uri);
+})();
 
-export default clientPromise;
+export default defaultClientPromise;
 
