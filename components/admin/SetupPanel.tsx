@@ -153,6 +153,16 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         }
     };
 
+    const saveConfig = async () => {
+        const res = await fetch('/api/admin/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || '設定儲存失敗');
+    };
+
     const handleTestInfra = async (target: 'mongo' | 'pinecone') => {
         setTestingInfra(target);
         setMessage('');
@@ -176,6 +186,10 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
             } else {
                 alert(data?.detail || '測試成功');
             }
+
+            // Auto-save current config after successful test so後續 API 可用
+            await saveConfig();
+
             setStatus('success');
             setMessage(target === 'mongo' ? 'MongoDB 連線測試成功' : 'Pinecone 測試成功');
         } catch (err: any) {
