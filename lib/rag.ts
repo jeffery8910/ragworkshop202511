@@ -1,6 +1,7 @@
 import { generateText } from '@/lib/llm';
 import { searchPinecone } from '@/lib/vector/pinecone';
 import { saveMessage } from '@/lib/features/memory';
+import { searchGraphContext } from '@/lib/features/graph-search';
 import type { EmbeddingConfig, EmbeddingProvider } from '@/lib/vector/embedding';
 
 export interface RagConfig {
@@ -82,11 +83,22 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
     config?.pineconeIndex,
     embeddingConfig,
   );
-  const context = results.map(r => r.text).join('\n\n');
+  let context = results.map(r => r.text).join('\n\n');
+
+  // 2.5 Graph Search (Enhancement)
+  try {
+      const graphContext = await searchGraphContext(question);
+      if (graphContext) {
+          context += `\n\n${graphContext}`;
+      }
+  } catch (err) {
+      console.warn('Graph search failed, continuing with vector only', err);
+  }
 
   // 3. Generate Answer
   const answerPrompt = `
     你是一個專業的家教。請根據以下參考資料回答問題。
+    參考資料可能包含「文件片段」與「知識圖譜補充資訊」。
     如果資料不足，請誠實說不知道。
 
     [重要指令]

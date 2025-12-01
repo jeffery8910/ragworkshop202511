@@ -1,99 +1,73 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Network, FileText, RefreshCw, Info, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Network, RefreshCw, Info, Share2 } from 'lucide-react';
 
 interface KnowledgeGraphProps {
     onAction?: (msg: string) => void;
 }
 
-interface IndexedFile {
-    name: string;
+interface GraphNode {
+    id: string;
+    label: string;
+    type: string;
     docId?: string;
-    count: number;
-    status: 'Indexed' | 'Pending' | 'reindexed' | string;
-    note?: string;
-    indexedAt?: string;
+    x?: number;
+    y?: number;
+    vx?: number;
+    vy?: number;
 }
 
-const buildFileList = (vecs: { source: string }[]): IndexedFile[] => {
-    const counter: Record<string, number> = {};
-    vecs.forEach(v => {
-        counter[v.source] = (counter[v.source] || 0) + 1;
-    });
-    return Object.entries(counter).map(([name, count]) => ({
-        name,
-        count,
-        status: 'Indexed',
-    }));
-};
+interface GraphEdge {
+    source: string;
+    target: string;
+    relation: string;
+}
 
 export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [loading, setLoading] = useState(false);
-    const [vectors, setVectors] = useState<any[]>([]);
-    const [selected, setSelected] = useState<any | null>(null);
-    const [activeFile, setActiveFile] = useState<string | null>(null);
-    const [indexedFiles, setIndexedFiles] = useState<IndexedFile[]>([]);
-    const [documents, setDocuments] = useState<any[]>([]);
+    const [nodes, setNodes] = useState<GraphNode[]>([]);
+    const [edges, setEdges] = useState<GraphEdge[]>([]);
+    const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+    
+    // Viewport state
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [dragging, setDragging] = useState(false);
-    const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [busyDoc, setBusyDoc] = useState<string | null>(null);
+    const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
+    const [draggedNode, setDraggedNode] = useState<GraphNode | null>(null);
 
-    const hashToPos = (id: string, dim: number) => {
-        let h = 0;
-        for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-        return (h % 10000) / 100 * dim;
-    };
+    const canvasRef = useRef<HTMLDivElement>(null);
+    const requestRef = useRef<number>(0);
+
+    // Physics simulation parameters
+    const REPULSION = 200;
+    const ATTRACTION = 0.05;
+    const DAMPING = 0.85;
+    const CENTER_PULL = 0.02;
 
     const fetchData = async () => {
         setLoading(true);
-        setError(null);
         try {
-            const res = await fetch('/api/admin/documents');
-            const text = await res.text();
-            let data: any = {};
-            try { data = text ? JSON.parse(text) : {}; } catch (e) {
-                throw new Error(text.slice(0, 200) || '取得文件列表失敗 (非 JSON)');
-            }
-            if (!res.ok) throw new Error(data?.error || text || '取得文件列表失敗');
+            const res = await fetch('/api/admin/graph');
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to fetch graph');
 
-            const docs = data.documents || [];
-            setDocuments(docs);
-
-            const files = docs.map((d: any) => ({
-                name: d.filename,
-                docId: d.docId,
-                count: d.chunks,
-                status: (d.status as any) || 'Indexed',
-                note: d.note,
-                indexedAt: d.indexedAt
+            // Initialize positions randomly
+            const initNodes = (data.nodes || []).map((n: any) => ({
+                ...n,
+                x: Math.random() * 800 - 400,
+                y: Math.random() * 600 - 300,
+                vx: 0,
+                vy: 0
             }));
-            setIndexedFiles(files);
-
-            const chunks = (data.chunks || []).map((c: any, idx: number) => ({
-                id: c.chunkId || idx,
-                x: hashToPos(c.chunkId || String(idx), 1),
-                y: hashToPos((c.chunkId || String(idx)) + 'y', 1),
-                title: `Chunk ${c.chunk ?? idx}`,
-                source: c.source || 'unknown',
-                len: c.text_length,
-                indexedAt: c.indexed_at || Date.now(),
-                text: c.text || '',
-            }));
-
-            setVectors(chunks);
-            if (chunks.length) {
-                setSelected(chunks[0]);
-                setActiveFile(chunks[0].source);
-            }
-            onAction?.('已載入索引文件與節點');
-        } catch (err: any) {
-            console.error(err);
-            setError(err?.message || '無法讀取索引資料');
-            onAction?.('讀取索引資料失敗');
+            
+            setNodes(initNodes);
+            setEdges(data.edges || []);
+            onAction?.(`已載入圖譜：${initNodes.length} 節點, ${data.edges?.length} 連線`);
+        } catch (e: any) {
+            console.error(e);
+            onAction?.('讀取圖譜失敗: ' + e.message);
         } finally {
             setLoading(false);
         }
@@ -103,310 +77,279 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         fetchData();
     }, []);
 
-    const handleRefresh = () => {
-        fetchData();
+    // Simple Force-Directed Layout Simulation
+    const runSimulation = () => {
+        setNodes(prevNodes => {
+            const newNodes = prevNodes.map(n => ({ ...n }));
+            const nodeMap = new Map(newNodes.map(n => [n.id, n]));
+
+            // 1. Repulsion (Nodes push each other away)
+            for (let i = 0; i < newNodes.length; i++) {
+                for (let j = i + 1; j < newNodes.length; j++) {
+                    const n1 = newNodes[i];
+                    const n2 = newNodes[j];
+                    const dx = n1.x! - n2.x!;
+                    const dy = n1.y! - n2.y!;
+                    const distSq = dx * dx + dy * dy || 1;
+                    const force = REPULSION / Math.sqrt(distSq);
+                    const fx = (dx / Math.sqrt(distSq)) * force;
+                    const fy = (dy / Math.sqrt(distSq)) * force;
+
+                    n1.vx! += fx;
+                    n1.vy! += fy;
+                    n2.vx! -= fx;
+                    n2.vy! -= fy;
+                }
+            }
+
+            // 2. Attraction (Edges pull connected nodes together)
+            edges.forEach(edge => {
+                const source = nodeMap.get(edge.source);
+                const target = nodeMap.get(edge.target);
+                if (source && target) {
+                    const dx = target.x! - source.x!;
+                    const dy = target.y! - source.y!;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    
+                    const force = (dist - 100) * ATTRACTION; // 100 is ideal length
+                    const fx = (dx / dist) * force;
+                    const fy = (dy / dist) * force;
+
+                    source.vx! += fx;
+                    source.vy! += fy;
+                    target.vx! -= fx;
+                    target.vy! -= fy;
+                }
+            });
+
+            // 3. Center Pull (Keep graph centered) & Update Position
+            newNodes.forEach(n => {
+                if (n === draggedNode) return; // Don't move dragged node automatically
+
+                n.vx! -= n.x! * CENTER_PULL;
+                n.vy! -= n.y! * CENTER_PULL;
+
+                n.vx! *= DAMPING;
+                n.vy! *= DAMPING;
+
+                // Limit max speed for stability
+                const speed = Math.sqrt(n.vx! * n.vx! + n.vy! * n.vy!);
+                if (speed > 10) {
+                    n.vx! = (n.vx! / speed) * 10;
+                    n.vy! = (n.vy! / speed) * 10;
+                }
+
+                n.x! += n.vx!;
+                n.y! += n.vy!;
+            });
+
+            return newNodes;
+        });
+
+        requestRef.current = requestAnimationFrame(runSimulation);
     };
 
-    const onMouseDown = (e: React.MouseEvent) => {
-        setDragging(true);
-        setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    };
+    useEffect(() => {
+        if (nodes.length > 0) {
+            requestRef.current = requestAnimationFrame(runSimulation);
+        }
+        return () => cancelAnimationFrame(requestRef.current);
+    }, [nodes.length, edges.length, draggedNode]); // Restart when data changes or drag state changes
 
-    const onMouseMove = (e: React.MouseEvent) => {
-        if (!dragging || !dragStart) return;
-        setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-    };
-
-    const onMouseUp = () => {
-        setDragging(false);
-        setDragStart(null);
-    };
-
-    const onWheel = (e: React.WheelEvent) => {
+    // Interaction Handlers
+    const handleWheel = (e: React.WheelEvent) => {
         e.preventDefault();
         const delta = -e.deltaY * 0.001;
-        setZoom(z => Math.min(2.5, Math.max(0.5, z + delta)));
+        setZoom(z => Math.min(3, Math.max(0.1, z + delta)));
     };
 
-    const resetView = () => {
-        setPan({ x: 0, y: 0 });
-        setZoom(1);
+    const handleMouseDown = (e: React.MouseEvent) => {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        
+        // Calculate mouse pos in graph coordinates
+        const mouseX = (e.clientX - rect.left - rect.width/2 - pan.x) / zoom;
+        const mouseY = (e.clientY - rect.top - rect.height/2 - pan.y) / zoom;
+
+        // Check if clicked on a node
+        const clickedNode = nodes.find(n => {
+            const dist = Math.sqrt(Math.pow(n.x! - mouseX, 2) + Math.pow(n.y! - mouseY, 2));
+            return dist < 10; // 10 is node radius
+        });
+
+        if (clickedNode) {
+            setDraggedNode(clickedNode);
+            setSelectedNode(clickedNode);
+            onAction?.(`選取實體: ${clickedNode.label}`);
+        } else {
+            setDragging(true);
+        }
+        setLastPos({ x: e.clientX, y: e.clientY });
     };
 
-    const focusFile = (fileName: string) => {
-        const target = vectors.find(v => v.source === fileName) || null;
-        setActiveFile(fileName);
-        setSelected(target);
-        onAction?.(`聚焦檔案 ${fileName}`);
-    };
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!lastPos) return;
+        const dx = e.clientX - lastPos.x;
+        const dy = e.clientY - lastPos.y;
+        setLastPos({ x: e.clientX, y: e.clientY });
 
-    const refreshAll = () => {
-        fetchData();
-    };
-
-    const reindexDoc = async (docId: string) => {
-        if (!docId) return;
-        setBusyDoc(docId);
-        try {
-            const res = await fetch('/api/admin/index', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ scope: 'doc', docId }),
-            });
-            const data = await res.json();
-            if (!res.ok || !data?.ok) throw new Error(data?.error || '重新索引失敗');
-            onAction?.(`重新索引完成 ${docId}`);
-            await fetchData();
-        } catch (e: any) {
-            alert(e?.message || '重新索引失敗');
-        } finally {
-            setBusyDoc(null);
+        if (draggedNode) {
+            // Move node
+            setNodes(prev => prev.map(n => {
+                if (n.id === draggedNode.id) {
+                    return { ...n, x: n.x! + dx / zoom, y: n.y! + dy / zoom, vx: 0, vy: 0 };
+                }
+                return n;
+            }));
+        } else if (dragging) {
+            // Pan view
+            setPan(p => ({ x: p.x + dx, y: p.y + dy }));
         }
     };
 
-    const deleteDoc = async (docId: string) => {
-        if (!docId) return;
-        const ok = confirm('確定刪除此文件的所有向量與紀錄？');
-        if (!ok) return;
-        setBusyDoc(docId);
-        try {
-            const res = await fetch('/api/admin/index', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ scope: 'doc', docId }),
-            });
-            const data = await res.json();
-            if (!res.ok || !data?.ok) throw new Error(data?.error || '刪除失敗');
-            onAction?.(`已刪除文件 ${docId}`);
-            await fetchData();
-        } catch (e: any) {
-            alert(e?.message || '刪除失敗');
-        } finally {
-            setBusyDoc(null);
-        }
+    const handleMouseUp = () => {
+        setDragging(false);
+        setDraggedNode(null);
+        setLastPos(null);
     };
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-md h-full">
+        <div className="bg-white p-6 rounded-xl shadow-md h-full flex flex-col">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <Network className="w-5 h-5 text-purple-600" /> 知識庫視覺化 (Knowledge Graph)
+                    <Share2 className="w-5 h-5 text-purple-600" /> 知識圖譜 (Knowledge Graph)
                 </h2>
                 <div className="flex gap-2">
                     <button
-                        onClick={refreshAll}
+                        onClick={fetchData}
                         className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                         disabled={loading}
+                        title="重新整理圖譜"
                     >
                         <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
             </div>
 
-            <div
-                className="relative w-full h-80 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden mb-4"
-                onMouseDown={onMouseDown}
-                onMouseMove={onMouseMove}
-                onMouseUp={onMouseUp}
-                onMouseLeave={onMouseUp}
-                onWheel={onWheel}
-                onDoubleClick={resetView}
-            >
-                {error && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-red-600 text-sm px-4 text-center">
-                        資料載入失敗：{error}（請確認 MongoDB 連線與 documents/chunks 集合有資料）
-                    </div>
-                )}
-                {!error && vectors.length === 0 && !loading && (
-                    <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500">
-                        尚無向量資料，請上傳檔案或點重新整理。
-                    </div>
-                )}
-                <div
-                    className="absolute inset-0"
-                    style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0' }}
+            <div className="flex flex-1 gap-4 min-h-0">
+                {/* Graph Canvas */}
+                <div 
+                    ref={canvasRef}
+                    className="flex-1 bg-slate-50 rounded-xl border border-slate-200 relative overflow-hidden cursor-move"
+                    onWheel={handleWheel}
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
                 >
-                    {vectors.map((v) => (
-                        <div
-                            key={v.id}
-                            className={`absolute w-3 h-3 rounded-full cursor-pointer transition-transform shadow-sm ${
-                                selected?.id === v.id
-                                    ? 'bg-orange-500 ring-4 ring-orange-200 scale-125'
-                                : activeFile === v.source
-                                    ? 'bg-blue-500 ring-2 ring-blue-200'
-                                    : 'bg-purple-500 hover:bg-purple-700 hover:scale-150'
-                            }`}
-                            style={{ left: `${v.x}%`, top: `${v.y}%` }}
-                            onClick={() => {
-                                setSelected(v);
-                                setActiveFile(v.source);
-                                onAction?.(`檢視節點 ${v.id}`);
-                            }}
-                            title={`ID: ${v.id}\n${v.source}\n${(v.text || '').slice(0, 120)}`}
-                        />
-                    ))}
-                </div>
-                <div className="absolute bottom-2 right-2 text-xs text-gray-400 px-2 py-1 bg-white/80 rounded">
-                    2D Projection (t-SNE) | 拖曳平移，滾輪縮放，雙擊重置
-                </div>
-            </div>
+                    {nodes.length === 0 && !loading && (
+                        <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                            尚無圖譜資料，請至文件管理執行「重新索引」以生成圖譜。
+                        </div>
+                    )}
+                    
+                    <svg className="w-full h-full pointer-events-none">
+                        <g transform={`translate(${pan.x + (canvasRef.current?.clientWidth || 0)/2}, ${pan.y + (canvasRef.current?.clientHeight || 0)/2}) scale(${zoom})`}>
+                            {/* Edges */}
+                            {edges.map((e, i) => {
+                                const source = nodes.find(n => n.id === e.source);
+                                const target = nodes.find(n => n.id === e.target);
+                                if (!source || !target) return null;
+                                return (
+                                    <g key={i}>
+                                        <line
+                                            x1={source.x} y1={source.y}
+                                            x2={target.x} y2={target.y}
+                                            stroke="#cbd5e1"
+                                            strokeWidth="1"
+                                        />
+                                        {zoom > 0.8 && (
+                                            <text 
+                                                x={(source.x! + target.x!) / 2} 
+                                                y={(source.y! + target.y!) / 2}
+                                                textAnchor="middle"
+                                                fill="#94a3b8"
+                                                fontSize="8"
+                                                className="select-none"
+                                            >
+                                                {e.relation}
+                                            </text>
+                                        )}
+                                    </g>
+                                );
+                            })}
+                            
+                            {/* Nodes */}
+                            {nodes.map((n) => (
+                                <g key={n.id} transform={`translate(${n.x}, ${n.y})`}>
+                                    <circle
+                                        r={selectedNode?.id === n.id ? 8 : 5}
+                                        fill={n.type === 'Person' ? '#f87171' : n.type === 'Organization' ? '#60a5fa' : '#a78bfa'}
+                                        stroke="#fff"
+                                        strokeWidth="1.5"
+                                        className="pointer-events-auto cursor-pointer hover:opacity-80 transition-all"
+                                    />
+                                    {zoom > 0.5 && (
+                                        <text
+                                            y={-8}
+                                            textAnchor="middle"
+                                            fill="#475569"
+                                            fontSize="10"
+                                            fontWeight="500"
+                                            className="select-none pointer-events-none bg-white"
+                                            style={{ textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}
+                                        >
+                                            {n.label}
+                                        </text>
+                                    )}
+                                </g>
+                            ))}
+                        </g>
+                    </svg>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                        <FileText className="w-4 h-4" /> 節點詳情
-                    </h3>
-                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-2">
-                        {selected ? (
-                            <>
-                                <div className="flex justify-between text-sm text-gray-700">
-                                    <span className="text-gray-500">ID</span>
-                                    <span>{selected.id}</span>
-                                </div>
-                                <div className="flex justify-between text-sm text-gray-700">
-                                    <span className="text-gray-500">標題</span>
-                                    <span>{selected.title}</span>
-                                </div>
-                                <div className="flex justify-between text-sm text-gray-700">
-                                    <span className="text-gray-500">來源</span>
-                                    <span>{selected.source}</span>
-                                </div>
-                                <div className="flex justify-between text-sm text-gray-700">
-                                    <span className="text-gray-500">座標</span>
-                                    <span>{selected.x.toFixed(2)}, {selected.y.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm text-gray-700">
-                                    <span className="text-gray-500">Chunk 長度</span>
-                                    <span>{selected.len ?? '-'} chars</span>
-                                </div>
-                                <div className="flex justify-between text-sm text-gray-700">
-                                    <span className="text-gray-500">索引時間</span>
-                                    <span>{selected.indexedAt ? new Date(selected.indexedAt).toLocaleString() : '-'}</span>
-                                </div>
-                                <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-2 max-h-32 overflow-y-auto whitespace-pre-wrap">
-                                    {selected.text ? selected.text : '無內容'}
-                                </div>
-                            </>
-                        ) : (
-                            <div className="text-sm text-gray-500">點選左側節點或檔案以查看細節</div>
-                        )}
+                    <div className="absolute bottom-2 right-2 text-[10px] text-slate-400 px-2 py-1 bg-white/80 rounded">
+                        紅: 人物 | 藍: 組織 | 紫: 其他
                     </div>
                 </div>
 
-                <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                        <Info className="w-4 h-4 text-blue-600" /> 索引檔案列表
-                    </h3>
-                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-2 max-h-64 overflow-auto">
-                        {indexedFiles.length === 0 ? (
-                            <div className="text-sm text-gray-500">{loading ? '讀取中...' : '尚無已索引檔案'}</div>
+                {/* Side Panel */}
+                <div className="w-64 flex flex-col gap-3">
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm h-full overflow-y-auto">
+                        <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
+                            <Info className="w-4 h-4 text-blue-600" /> 節點詳情
+                        </h3>
+                        {selectedNode ? (
+                            <div className="space-y-3 text-sm">
+                                <div>
+                                    <label className="text-xs text-gray-500 block">名稱 (Label)</label>
+                                    <div className="font-medium text-gray-800">{selectedNode.label}</div>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 block">類型 (Type)</label>
+                                    <div className={`inline-block px-2 py-0.5 rounded text-xs ${
+                                        selectedNode.type === 'Person' ? 'bg-red-50 text-red-700' : 
+                                        selectedNode.type === 'Organization' ? 'bg-blue-50 text-blue-700' : 
+                                        'bg-purple-50 text-purple-700'
+                                    }`}>
+                                        {selectedNode.type}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 block">ID</label>
+                                    <div className="text-gray-400 text-xs break-all">{selectedNode.id}</div>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 block">來源文件 ID</label>
+                                    <div className="text-gray-400 text-xs break-all">{selectedNode.docId}</div>
+                                </div>
+                            </div>
                         ) : (
-                            indexedFiles.map((file) => (
-                                <div
-                                    key={file.name}
-                                    className={`flex justify-between items-center p-2 rounded border transition-colors ${
-                                        activeFile === file.name
-                                            ? 'bg-blue-50 border-blue-200'
-                                            : 'bg-gray-50 border-gray-100 hover:bg-gray-100'
-                                    }`}
-                                >
-                                    <button
-                                        className="flex-1 text-left text-sm text-gray-800"
-                                        onClick={() => focusFile(file.name)}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span>{file.name}</span>
-                                            <span className="text-xs text-gray-500">({file.count} chunks)</span>
-                                        </div>
-                                    </button>
-                                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded mr-2">
-                                                {file.status}
-                                            </span>
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            onClick={() => {
-                                                const doc = documents.find(d => d.filename === file.name);
-                                                if (doc?.docId) reindexDoc(doc.docId);
-                                                else alert('找不到 docId，請重新整理列表。');
-                                            }}
-                                            disabled={busyDoc !== null}
-                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                            aria-label={`重建 ${file.name}`}
-                                        >
-                                            <RefreshCw className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                const doc = documents.find(d => d.filename === file.name);
-                                                if (doc?.docId) deleteDoc(doc.docId);
-                                                else alert('找不到 docId，請重新整理列表。');
-                                            }}
-                                            disabled={busyDoc !== null}
-                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                            aria-label={`刪除 ${file.name}`}
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-2">
-                        <div className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                            <Info className="w-4 h-4 text-blue-600" /> 資料庫文件一覽
-                        </div>
-                        <div className="text-xs text-gray-500">總文件：{documents.length}，節點：{vectors.length}</div>
-                        <div className="max-h-48 overflow-auto text-sm text-gray-700 divide-y">
-                            {documents.length === 0 ? (
-                                <div className="py-2 text-gray-400">{loading ? '讀取中...' : '尚無文件記錄，請上傳後重新整理。'}</div>
-                            ) : (
-                                documents.map((d, i) => (
-                                    <div key={d.docId || i} className="py-2 flex justify-between items-start gap-2">
-                                        <div className="flex flex-col">
-                                            <span className="font-medium">{d.filename}</span>
-                                            <span className="text-[11px] text-gray-500">
-                                                {d.mode || 'text'} · {d.type || ''} · {d.chunks} chunks · {d.indexedAt ? new Date(d.indexedAt).toLocaleString() : ''}
-                                            </span>
-                                            <span className="text-[10px] text-gray-400 break-all">docId: {d.docId}</span>
-                                        </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{d.chunks ?? 0}</span>
-                                        <button
-                                            onClick={() => reindexDoc(d.docId)}
-                                            disabled={busyDoc !== null}
-                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                            title="重新索引"
-                                        >
-                                            <RefreshCw className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => deleteDoc(d.docId)}
-                                            disabled={busyDoc !== null}
-                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                            title="刪除文件與向量"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                                {d.note && <div className="text-[11px] text-amber-700">{d.note}</div>}
-                            ))
-                        )}
-                        </div>
-                        {documents.length > 0 && vectors.length === 0 && !error && (
-                            <div className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded p-2">
-                                已有文件紀錄但沒有 chunks，可能索引步驟未成功寫入 chunks 集合或向量庫。
+                            <div className="text-sm text-gray-500 py-4 text-center">
+                                點擊圖中節點查看詳細資訊
                             </div>
                         )}
                     </div>
                 </div>
-            </div>
-
-            <div className="mt-3 text-xs text-gray-500">
-                提示：點擊索引檔案會同步聚焦上方節點；雙擊畫布重置視角，滑鼠滾輪縮放，拖曳可平移。
-                {error && <div className="text-red-600 mt-1">讀取失敗：{error}</div>}
             </div>
         </div>
     );

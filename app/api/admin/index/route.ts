@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getMongoClient } from '@/lib/db/mongo';
 import { getPineconeClient } from '@/lib/vector/pinecone';
 import { getEmbedding } from '@/lib/vector/embedding';
+import { extractGraphFromText, saveGraphData, deleteGraphDataForDoc } from '@/lib/features/graph';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,6 +54,9 @@ async function reindexDocs(docIds: string[]) {
 
     const results: any[] = [];
     for (const docId of docIds) {
+        // Clean up old graph data before re-indexing
+        await deleteGraphDataForDoc(docId);
+
         const chunks = await chunkCol.find({ docId }).sort({ chunk: 1 }).toArray();
         if (!chunks.length) {
             results.push({ docId, status: 'skipped', reason: 'no_chunks' });
@@ -65,6 +69,7 @@ async function reindexDocs(docIds: string[]) {
 
         const vectors: { id: string; values: number[]; metadata: any }[] = [];
         for (const c of chunks) {
+            // 1. Embedding Generation
             const embedding = await getEmbedding(c.text, {
                 provider,
                 geminiApiKey: process.env.GEMINI_API_KEY,
@@ -87,6 +92,17 @@ async function reindexDocs(docIds: string[]) {
                     text_length: c.text_length,
                 },
             });
+
+            // 2. Graph Extraction (Optional but enabled for this feature)
+            try {
+                // Only extract for chunks with sufficient content
+                if (c.text && c.text.length > 50) {
+                    const graphData = await extractGraphFromText(c.text);
+                    await saveGraphData(docId, c.chunkId, graphData);
+                }
+            } catch (gErr) {
+                console.warn(`Graph extraction failed for chunk ${c.chunkId}`, gErr);
+            }
         }
 
         if (pine) {
@@ -96,7 +112,7 @@ async function reindexDocs(docIds: string[]) {
         }
 
         await db.collection('documents').updateOne({ docId }, { $set: { indexedAt: new Date(), status: 'reindexed' } });
-        results.push({ docId, status: 'ok', vectors: vectors.length });
+        results.push({ docId, status: 'ok', vectors: vectors.length, graph: 'extracted' });
     }
 
     return results;
@@ -116,6 +132,7 @@ async function deleteDocs(docIds: string[]) {
             await pine.deleteMany(chunkIds.map((c: any) => c.chunkId));
         }
         await chunkCol.deleteMany({ docId });
+        await deleteGraphDataForDoc(docId); // Delete graph data
         await docCol.deleteOne({ docId });
         results.push({ docId, status: 'deleted', vectors: chunkIds.length });
     }
