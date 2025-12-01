@@ -74,6 +74,19 @@ export default function KnowledgeBasePage() {
         setListLoading(true);
         try {
             const res = await fetch('/api/admin/documents', { cache: 'no-store' });
+            if (!res.ok) {
+                const data = await res.json();
+                if (data.error && data.error.includes('MONGODB_URI')) {
+                    const goToSetup = confirm(
+                        'MONGODB_URI 尚未設定。\n\n點擊「確定」前往設定頁面配置環境變數。'
+                    );
+                    if (goToSetup) {
+                        window.location.href = '/admin?tab=setup';
+                    }
+                    return;
+                }
+                throw new Error(data.error || '讀取失敗');
+            }
             const data = await res.json();
             const mapped: IndexedFile[] = (data?.documents || []).map((d: any) => ({
                 docId: d.docId,
@@ -120,7 +133,19 @@ export default function KnowledgeBasePage() {
                 body: JSON.stringify(docId ? { scope: 'doc', docId } : { scope: 'all' }),
             });
             const data = await res.json();
-            if (!res.ok || !data?.ok) throw new Error(data?.error || '重新索引失敗');
+            if (!res.ok || !data?.ok) {
+                const error = data?.error || '重新索引失敗';
+                if (error.includes('MONGODB_URI')) {
+                    const goToSetup = confirm(
+                        'MONGODB_URI 尚未設定。\n\n點擊「確定」前往設定頁面配置環境變數。'
+                    );
+                    if (goToSetup) {
+                        window.location.href = '/admin?tab=setup';
+                    }
+                    return;
+                }
+                throw new Error(error);
+            }
             await loadDocuments();
             alert('重新索引完成');
         } catch (e: any) {
