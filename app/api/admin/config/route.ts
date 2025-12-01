@@ -42,9 +42,12 @@ export async function POST(req: NextRequest) {
             'TEMPERATURE', 'PROMPT_TEMPLATE'
         ];
 
+        const res = NextResponse.json({ success: true });
+
         keys.forEach(key => {
             if (config[key]) {
-                cookieStore.set(key, config[key], {
+                // Set on the response to ensure Set-Cookie header is sent
+                res.cookies.set(key, config[key], {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
                     sameSite: 'strict',
@@ -54,7 +57,7 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        return NextResponse.json({ success: true });
+        return res;
     } catch (error) {
         console.error('Config save error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
