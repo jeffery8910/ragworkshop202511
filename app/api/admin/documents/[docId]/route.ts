@@ -12,9 +12,10 @@ const getConfig = async (key: string) => {
     return cookieStore.get(key)?.value || process.env[key] || getConfigValue(key) || '';
 };
 
-export async function GET(_req: NextRequest, { params }: { params: { docId: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ docId: string }> }) {
     try {
-        const docId = params?.docId;
+        const resolvedParams = await params;
+        const docId = resolvedParams?.docId;
         if (!docId) return NextResponse.json({ error: 'docId is required' }, { status: 400 });
 
         const mongoUri = await getConfig('MONGODB_URI');
