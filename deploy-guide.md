@@ -39,7 +39,7 @@
 
 ### n8n 設定
 1. 開啟 n8n 網址，使用 `admin` 與剛剛生成的密碼登入。
-2. 匯入 Workflow (可從本專案的 `n8n/workflows/` 匯入，若有提供)。
+2. 匯入 Workflow (可使用本專案的 `n8n/workflow.json`)。
 3. 設定 n8n 內的 Credentials (OpenAI, Pinecone, MongoDB 等)。
 
 ## 3. GitHub Actions (防休眠)

@@ -7,14 +7,18 @@ import type { EmbeddingProvider } from '@/lib/vector/embedding';
 import { saveCard, pruneCards, logCardError } from '@/lib/features/cards';
 import { z } from 'zod';
 import { generateAndSaveShortMemory } from '@/lib/features/memoryCards';
+import { logConversation } from '@/lib/features/logs';
 
 export async function POST(req: NextRequest) {
+    let uid = '';
+    let userMessage = '';
     try {
         const { message, userId } = await req.json();
+        userMessage = message;
 
         const cookieStore = await cookies();
         // Use a fixed userId for web demo if not provided
-        const uid = userId || cookieStore.get('line_user_id')?.value || 'web-user-demo';
+        uid = userId || cookieStore.get('line_user_id')?.value || 'web-user-demo';
         if (!uid) {
             return NextResponse.json({ error: 'userId is required.' }, { status: 400 });
         }
@@ -97,6 +101,10 @@ export async function POST(req: NextRequest) {
 
         if (!validateEmbeddingModel(config.embeddingProvider, config.embeddingModel)) {
             return NextResponse.json({ error: 'EMBEDDING_MODEL 與供應商不匹配，請重新選擇。' }, { status: 400 });
+        }
+
+        if (userMessage) {
+            await logConversation({ type: 'message', userId: uid, text: userMessage });
         }
 
         const result = await ragAnswer(uid, message, config);
@@ -224,9 +232,21 @@ export async function POST(req: NextRequest) {
             await logCardError(uid, err instanceof Error ? err.message : 'unknown card save error', { payloads }, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
         }
 
+        if (result?.answer) {
+            await logConversation({ type: 'reply', userId: uid, text: result.answer });
+        }
+
         return NextResponse.json({ ...result, structuredPayloads: payloads, newTitle });
     } catch (error) {
         console.error('Chat API Error:', error);
+        if (uid) {
+            await logConversation({
+                type: 'error',
+                userId: uid,
+                text: error instanceof Error ? error.message : 'Internal Server Error',
+                meta: { message: userMessage }
+            });
+        }
         return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
     }
 }

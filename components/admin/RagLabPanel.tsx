@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { Search, Loader2, Database, MessageSquare, ArrowRight, Zap } from 'lucide-react';
+import { adminFetch } from '@/lib/client/adminFetch';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface RagResult {
     answer: string;
@@ -19,6 +21,12 @@ interface RagResult {
         };
     }>;
     rewrittenQuery?: string;
+    graphContext?: string;
+    graphEvidence?: {
+        nodes?: Array<{ id: string; label?: string; type?: string; docId?: string }>;
+        edges?: Array<{ source: string; target: string; relation: string; docId?: string }>;
+        triples?: string[];
+    };
 }
 
 export default function RagLabPanel() {
@@ -26,6 +34,23 @@ export default function RagLabPanel() {
     const [result, setResult] = useState<RagResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [topK, setTopK] = useState(5);
+    const [rewrite, setRewrite] = useState(true);
+    const [includeAnswer, setIncludeAnswer] = useState(true);
+    const [elapsedMs, setElapsedMs] = useState<number | null>(null);
+    const [useGraph, setUseGraph] = useState(true);
+    const [history, setHistory] = useState<Array<{
+        id: string;
+        query: string;
+        topK: number;
+        rewrite: boolean;
+        includeAnswer: boolean;
+        useGraph: boolean;
+        elapsedMs: number | null;
+        result: RagResult;
+        createdAt: number;
+    }>>([]);
+    const { pushToast } = useToast();
 
     const normalizedScores = result?.context?.length
         ? result.context.map(c => c.score)
@@ -39,11 +64,6 @@ export default function RagLabPanel() {
     }, {}) || {};
     const totalSources = Object.values(sourceCounts).reduce((a, b) => a + b, 0) || 1;
 
-    const lengthDistribution = result?.context?.map(c => ({
-        id: c.metadata?.chunk_id || c.source || 'chunk',
-        length: c.metadata?.text_length || (c.text || '').length
-    })) || [];
-
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!query.trim()) return;
@@ -51,28 +71,50 @@ export default function RagLabPanel() {
         setLoading(true);
         setResult(null);
         setError(null);
+        setElapsedMs(null);
 
         try {
-            const res = await fetch('/api/chat', {
+            const startedAt = performance.now();
+            const res = await adminFetch('/api/admin/retrieve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    message: query,
-                    userId: 'admin-debug-user' // Use a specific ID for debug history
+                    query,
+                    topK,
+                    includeAnswer,
+                    rewrite,
+                    useGraph
                 }),
                 cache: 'no-store'
             });
 
             const data = await res.json();
+            setElapsedMs(Math.round(performance.now() - startedAt));
 
             if (res.ok) {
                 setResult(data);
+                setHistory(prev => {
+                    const next = [{
+                        id: `${Date.now()}`,
+                        query,
+                        topK,
+                        rewrite,
+                        includeAnswer,
+                        useGraph,
+                        elapsedMs: Math.round(performance.now() - startedAt),
+                        result: data,
+                        createdAt: Date.now(),
+                    }, ...prev];
+                    return next.slice(0, 6);
+                });
             } else {
                 setError(data.error || '查詢失敗，請稍後再試');
+                pushToast({ type: 'error', message: data.error || '查詢失敗，請稍後再試' });
             }
         } catch (error) {
             console.error('RAG Debug error:', error);
-            setError('呼叫 /api/chat 時發生錯誤，請檢查伺服器日誌或環境變數設定。');
+            setError('呼叫 /api/admin/retrieve 時發生錯誤，請檢查伺服器日誌或環境變數設定。');
+            pushToast({ type: 'error', message: '呼叫 /api/admin/retrieve 時發生錯誤' });
         } finally {
             setLoading(false);
         }
@@ -88,6 +130,35 @@ export default function RagLabPanel() {
             <p className="text-gray-600 mb-6 text-sm">
                 在此測試 RAG 檢索流程。您可以輸入問題，觀察 Query Rewrite、檢索到的 Chunks 以及最終生成的回答。
             </p>
+
+            <div className="flex flex-wrap gap-4 items-center text-xs mb-4">
+                <label className="flex items-center gap-2">
+                    TopK
+                    <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={topK}
+                        onChange={(e) => setTopK(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                        className="w-16 border rounded px-2 py-1 text-xs"
+                    />
+                </label>
+                <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={rewrite} onChange={(e) => setRewrite(e.target.checked)} />
+                    問題重寫
+                </label>
+                <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={includeAnswer} onChange={(e) => setIncludeAnswer(e.target.checked)} />
+                    生成回答
+                </label>
+                <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={useGraph} onChange={(e) => setUseGraph(e.target.checked)} />
+                    Graph RAG
+                </label>
+                {elapsedMs !== null && (
+                    <span className="text-gray-500">耗時 {elapsedMs} ms</span>
+                )}
+            </div>
 
             <form onSubmit={handleSearch} className="flex gap-2 mb-6">
                 <input
@@ -110,6 +181,37 @@ export default function RagLabPanel() {
             {error && (
                 <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     {error}
+                </div>
+            )}
+
+            {history.length > 0 && (
+                <div className="mb-6 bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-500 mb-2">最近測試紀錄</div>
+                    <div className="space-y-2">
+                        {history.map(run => (
+                            <button
+                                key={run.id}
+                                onClick={() => {
+                                    setQuery(run.query);
+                                    setTopK(run.topK);
+                                    setRewrite(run.rewrite);
+                                    setIncludeAnswer(run.includeAnswer);
+                                    setUseGraph(run.useGraph);
+                                    setElapsedMs(run.elapsedMs);
+                                    setResult(run.result);
+                                }}
+                                className="w-full text-left text-xs border rounded px-3 py-2 hover:bg-gray-50"
+                            >
+                                <div className="flex justify-between">
+                                    <span className="font-medium text-gray-700">{run.query}</span>
+                                    <span className="text-gray-400">{new Date(run.createdAt).toLocaleTimeString()}</span>
+                                </div>
+                                <div className="text-gray-400 mt-1">
+                                    topK={run.topK} | rewrite={String(run.rewrite)} | answer={String(run.includeAnswer)} | graph={String(run.useGraph)}
+                                </div>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
 
@@ -210,7 +312,7 @@ export default function RagLabPanel() {
                     {/* 2. Retrieved Chunks */}
                     <div>
                         <h3 className="text-md font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <Database className="w-4 h-4" /> 檢索到的知識片段 (Top 5)
+                            <Database className="w-4 h-4" /> 檢索到的知識片段 (Top {result.context?.length ?? topK})
                         </h3>
                         {result.context?.length ? (
                             <div className="grid gap-3">
@@ -227,7 +329,10 @@ export default function RagLabPanel() {
                                             <span>長度: {chunk.metadata?.text_length ?? (chunk.text || '').length} chars</span>
                                             {(chunk.metadata?.indexed_at || chunk.indexedAt) && <span>索引時間: {new Date(chunk.metadata?.indexed_at || (chunk as any).indexedAt).toLocaleString()}</span>}
                                             <span>來源: {chunk.source} {chunk.page ? `(Page: ${chunk.page})` : ''}</span>
-                                            {chunk.metadata?.chunk_id && <span>ID: {chunk.metadata.chunk_id}</span>}
+                                            {(chunk.metadata?.chunk_id || chunk.metadata?.chunkId) && (
+                                                <span>ID: {chunk.metadata?.chunk_id || chunk.metadata?.chunkId}</span>
+                                            )}
+                                            {chunk.metadata?.docId && <span>docId: {chunk.metadata.docId}</span>}
                                         </div>
                                     </div>
                                 ))}
@@ -239,13 +344,59 @@ export default function RagLabPanel() {
                         )}
                     </div>
 
-                    {/* 3. Final Answer */}
-                    <div className="bg-green-50 p-4 rounded-lg border border-green-100">
-                        <h3 className="text-md font-semibold text-green-800 mb-2">AI 最終回答</h3>
-                        <div className="prose prose-sm max-w-none text-gray-800">
-                            {result.answer}
+                    {result.graphContext && (
+                        <div className="bg-amber-50 p-4 rounded-lg border border-amber-100">
+                            <h3 className="text-md font-semibold text-amber-800 mb-2">知識圖譜補充</h3>
+                            <div className="text-xs text-amber-900 whitespace-pre-wrap">
+                                {result.graphContext}
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {result.graphEvidence && (
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            <h3 className="text-md font-semibold text-slate-700 mb-2">Graph Evidence</h3>
+                            <div className="text-xs text-slate-600 mb-2">
+                                節點 {result.graphEvidence.nodes?.length || 0}，關係 {result.graphEvidence.edges?.length || 0}
+                            </div>
+                            <div className="mb-2 flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        const url = `/admin?tab=knowledge&sub=viz&graphQuery=${encodeURIComponent(query)}`;
+                                        window.open(url, '_blank');
+                                    }}
+                                    className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200"
+                                >
+                                    在圖譜高亮
+                                </button>
+                            </div>
+                            {result.graphEvidence.triples?.length ? (
+                                <div className="space-y-1 text-xs text-slate-700">
+                                    {result.graphEvidence.triples.slice(0, 8).map((t, idx) => (
+                                        <div key={idx} className="bg-white border rounded px-2 py-1">
+                                            {t}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-xs text-slate-400">沒有可用的圖譜關係</div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* 3. Final Answer */}
+                    {includeAnswer ? (
+                        <div className="bg-green-50 p-4 rounded-lg border border-green-100">
+                            <h3 className="text-md font-semibold text-green-800 mb-2">AI 最終回答</h3>
+                            <div className="prose prose-sm max-w-none text-gray-800">
+                                {result.answer}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-sm text-gray-500 border border-dashed border-gray-300 rounded p-3">
+                            已停用回答生成，只顯示檢索結果。
+                        </div>
+                    )}
                 </div>
             )}
         </div>

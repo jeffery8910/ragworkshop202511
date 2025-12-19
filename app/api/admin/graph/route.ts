@@ -25,13 +25,13 @@ export async function GET(req: NextRequest) {
         const nodes = await db.collection('graph_nodes')
             .find({})
             .limit(500)
-            .project({ _id: 0, id: 1, label: 1, type: 1, docId: 1 })
+            .project({ _id: 0, id: 1, label: 1, type: 1, docId: 1, sectionId: 1 })
             .toArray();
 
         const edges = await db.collection('graph_edges')
             .find({})
             .limit(1000)
-            .project({ _id: 0, source: 1, target: 1, relation: 1 })
+            .project({ _id: 0, source: 1, target: 1, relation: 1, docId: 1, sectionId: 1 })
             .toArray();
 
         return NextResponse.json({ ok: true, nodes, edges });

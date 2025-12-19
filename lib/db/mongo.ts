@@ -44,17 +44,13 @@ export async function getMongoClient(dynamicUri?: string): Promise<MongoClient> 
     return clientPromise!;
 }
 
-// Default export for backward compatibility: lazily resolves using config/env on first import
-const defaultClientPromise: Promise<MongoClient> = (async () => {
+// Default export for backward compatibility: returns a lazy promise that won't throw until actually used
+// This allows the calling code to handle missing MONGODB_URI gracefully
+export default (async () => {
     const uri = getConfigValue('MONGODB_URI') || process.env.MONGODB_URI || '';
     if (!uri) {
-        return {
-            db: () => { throw new Error('MONGODB_URI is not defined'); },
-            connect: () => Promise.resolve(),
-        } as any;
+        throw new Error('MONGODB_URI is not defined');
     }
     return getMongoClient(uri);
 })();
-
-export default defaultClientPromise;
 

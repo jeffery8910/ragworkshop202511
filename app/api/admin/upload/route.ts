@@ -240,6 +240,12 @@ export async function POST(req: NextRequest) {
         const llmUsable = !!llmConfig.provider && !!llmConfig.apiKey;
 
         const results = [];
+        const uploadId = nanoid();
+        const uploadStartedAt = new Date();
+        const uploadFiles: any[] = [];
+        const recordUploadFile = (entry: any) => {
+            uploadFiles.push({ ...entry });
+        };
 
         const MAX_MB = 16; // hard limit to避免 OOM
         const OCR_VISION_MAX_MB = 4; // 超過此大小就不再用 Vision OCR，改走 pdf-parse
@@ -260,6 +266,14 @@ export async function POST(req: NextRequest) {
                     error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT',
                 });
                 results.push({ file: filename, chunks: 0, status: 'empty', error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT' });
+                recordUploadFile({
+                    filename,
+                    size,
+                    mode: localMode,
+                    chunks: 0,
+                    status: 'empty',
+                    error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT'
+                });
                 return;
             }
 
@@ -285,6 +299,8 @@ export async function POST(req: NextRequest) {
                     id: chunkId,
                     values: embedding,
                     metadata: {
+                        docId,
+                        chunkId,
                         text: c.text,
                         source: filename,
                         chunk: i,
@@ -318,12 +334,23 @@ export async function POST(req: NextRequest) {
                 mode: localMode,
             });
 
+            const status = pineconeEnabled ? 'ok' : 'ok_mongo_only';
+            const note = pineconeEnabled ? undefined : 'PINECONE_API_KEY 未設定，僅寫入 Mongo，未寫入向量庫';
             results.push({
                 file: filename,
                 chunks: chunks.length,
-                status: pineconeEnabled ? 'ok' : 'ok_mongo_only',
-                note: pineconeEnabled ? undefined : 'PINECONE_API_KEY 未設定，僅寫入 Mongo，未寫入向量庫',
+                status,
+                note,
                 parseError: parseErr,
+            });
+            recordUploadFile({
+                filename,
+                size,
+                mode: localMode,
+                chunks: chunks.length,
+                status,
+                note,
+                error: parseErr
             });
         };
 
@@ -346,6 +373,14 @@ export async function POST(req: NextRequest) {
                     chunks: 0,
                     status: 'too_large',
                     error: `檔案超過 ${MAX_MB}MB，已自動略過。請先分割檔案或轉成較小的 TXT/PDF 再上傳。`,
+                });
+                recordUploadFile({
+                    filename: file.name,
+                    size: file.size,
+                    mode,
+                    chunks: 0,
+                    status: 'too_large',
+                    error: `檔案超過 ${MAX_MB}MB，已自動略過。請先分割檔案或轉成較小的 TXT/PDF 再上傳。`
                 });
                 continue;
             }
@@ -411,6 +446,14 @@ export async function POST(req: NextRequest) {
                     error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT',
                 });
                 results.push({ file: name, chunks: 0, status: 'empty', error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT' });
+                recordUploadFile({
+                    filename: name,
+                    size: file.size,
+                    mode,
+                    chunks: 0,
+                    status: 'empty',
+                    error: parseErr || '無文字可索引，請嘗試 OCR 模式或轉為 TXT'
+                });
                 continue;
             }
 
@@ -432,6 +475,8 @@ export async function POST(req: NextRequest) {
                     id: chunkId,
                     values: embedding,
                     metadata: {
+                        docId,
+                        chunkId,
                         text: c.text,
                         source: name,
                         chunk: i,
@@ -465,16 +510,46 @@ export async function POST(req: NextRequest) {
                 mode,
             });
 
+            const status = pineconeEnabled ? 'ok' : 'ok_mongo_only';
+            const note = pineconeEnabled ? undefined : 'PINECONE_API_KEY 未設定，僅寫入 Mongo，未寫入向量庫';
             results.push({
                 file: name,
                 chunks: chunks.length,
-                status: pineconeEnabled ? 'ok' : 'ok_mongo_only',
-                note: pineconeEnabled ? undefined : 'PINECONE_API_KEY 未設定，僅寫入 Mongo，未寫入向量庫',
+                status,
+                note,
                 parseError: parseErr,
+            });
+            recordUploadFile({
+                filename: name,
+                size: file.size,
+                mode,
+                chunks: chunks.length,
+                status,
+                note,
+                error: parseErr
             });
         }
 
-        return NextResponse.json({ success: true, results });
+        try {
+            const successStatuses = new Set(['ok', 'ok_mongo_only']);
+            const successFiles = uploadFiles.filter(f => successStatuses.has(f.status)).length;
+            const failedFiles = uploadFiles.length - successFiles;
+            const overallStatus = successFiles === 0 ? 'failed' : failedFiles === 0 ? 'ok' : 'partial';
+            await db.collection('uploads').insertOne({
+                uploadId,
+                createdAt: uploadStartedAt,
+                mode,
+                totalFiles: uploadFiles.length,
+                successFiles,
+                failedFiles,
+                status: overallStatus,
+                files: uploadFiles,
+            });
+        } catch (logErr) {
+            console.warn('Upload log write failed', logErr);
+        }
+
+        return NextResponse.json({ success: true, results, uploadId });
     } catch (error: any) {
         console.error('Upload error', error);
         return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });

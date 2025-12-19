@@ -1,46 +1,113 @@
 import { getMongoClient } from '@/lib/db/mongo';
 
-export async function searchGraphContext(query: string): Promise<string> {
-    // 1. 簡單的關鍵字匹配 (實際專案可用 NER 模型)
-    // 這裡我們假設 query 本身可能包含實體名稱，直接用正則表達式或模糊搜尋去對 graph_nodes 做匹配
-    
-    const client = await getMongoClient();
-    const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
-    
-    // 簡化版：將 query 拆成單詞，嘗試匹配 node label
-    // (實務上建議用 LLM 先提取 query 中的 entities，這裡為了效能先做簡單關鍵字搜尋)
-    const tokens = query.split(/\s+/).filter(t => t.length > 1);
-    
-    if (tokens.length === 0) return '';
+export interface GraphEvidenceNode {
+    id: string;
+    label?: string;
+    type?: string;
+    docId?: string;
+    chunkId?: string;
+    sectionId?: string;
+}
 
-    // 尋找與 query 相關的節點
-    const matchedNodes = await db.collection('graph_nodes').find({
-        label: { $in: tokens.map(t => new RegExp(t, 'i')) }
-    }).limit(5).toArray();
+export interface GraphEvidenceEdge {
+    source: string;
+    target: string;
+    relation: string;
+    docId?: string;
+    chunkId?: string;
+    sectionId?: string;
+}
 
-    if (matchedNodes.length === 0) return '';
+export interface GraphEvidence {
+    nodes: GraphEvidenceNode[];
+    edges: GraphEvidenceEdge[];
+    triples: string[];
+    matchedNodeIds: string[];
+}
 
-    const nodeIds = matchedNodes.map(n => n.id);
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    // 尋找與這些節點相連的邊 (1-hop 鄰居)
-    const relatedEdges = await db.collection('graph_edges').find({
-        $or: [
-            { source: { $in: nodeIds } },
-            { target: { $in: nodeIds } }
-        ]
-    }).limit(20).toArray();
+export async function searchGraphEvidence(
+    query: string,
+    opts?: { maxNodes?: number; maxEdges?: number; mongoUri?: string; dbName?: string }
+): Promise<GraphEvidence> {
+    const maxNodes = opts?.maxNodes ?? 10;
+    const maxEdges = opts?.maxEdges ?? 30;
 
-    if (relatedEdges.length === 0) return '';
+    const client = await getMongoClient(opts?.mongoUri);
+    const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_db');
 
-    // 格式化為文字上下文
-    // 格式範例: "Entity(賈伯斯) relation(創辦) Entity(蘋果)"
-    const contextLines = relatedEdges.map(edge => {
-        return `${edge.source} --[${edge.relation}]--> ${edge.target}`;
+    const tokens = query.split(/\s+/).map(t => t.trim()).filter(t => t.length > 1);
+    if (tokens.length === 0) {
+        return { nodes: [], edges: [], triples: [] };
+    }
+
+    const tokenRegex = tokens.map(t => new RegExp(escapeRegExp(t), 'i'));
+
+    const matchedNodes = await db.collection('graph_nodes')
+        .find({ label: { $in: tokenRegex } }, { projection: { _id: 0 } })
+        .limit(maxNodes)
+        .toArray();
+
+    if (matchedNodes.length === 0) {
+        return { nodes: [], edges: [], triples: [], matchedNodeIds: [] };
+    }
+
+    const matchedNodeIds = matchedNodes.map((n: any) => n.id);
+
+    const relatedEdges = await db.collection('graph_edges')
+        .find(
+            {
+                $or: [
+                    { source: { $in: matchedNodeIds } },
+                    { target: { $in: matchedNodeIds } }
+                ]
+            },
+            { projection: { _id: 0 } }
+        )
+        .limit(maxEdges)
+        .toArray();
+
+    if (relatedEdges.length === 0) {
+        return { nodes: matchedNodes, edges: [], triples: [], matchedNodeIds };
+    }
+
+    const triples = relatedEdges.map((edge: any) => `${edge.source} --[${edge.relation}]--> ${edge.target}`);
+    const nodeMap = new Map<string, any>();
+    matchedNodes.forEach((n: any) => nodeMap.set(n.id, n));
+    const edgeNodeIds = new Set<string>();
+    relatedEdges.forEach((e: any) => {
+        edgeNodeIds.add(e.source);
+        edgeNodeIds.add(e.target);
     });
+    const missingIds = [...edgeNodeIds].filter(id => !nodeMap.has(id));
+    if (missingIds.length) {
+        const extraNodes = await db.collection('graph_nodes')
+            .find({ id: { $in: missingIds } }, { projection: { _id: 0 } })
+            .limit(maxNodes * 2)
+            .toArray();
+        extraNodes.forEach((n: any) => nodeMap.set(n.id, n));
+    }
+
+    return {
+        nodes: [...nodeMap.values()],
+        edges: relatedEdges,
+        triples,
+        matchedNodeIds
+    };
+}
+
+export async function searchGraphContext(
+    query: string,
+    evidence?: GraphEvidence,
+    opts?: { mongoUri?: string; dbName?: string }
+): Promise<string> {
+    const ev = evidence || await searchGraphEvidence(query, opts);
+    if (!ev.edges.length) return '';
 
     return `
 [知識圖譜補充資訊]
 以下是從知識庫圖譜中檢索到的相關實體關係：
-${contextLines.join('\n')}
+${ev.triples.join('\n')}
 `;
 }

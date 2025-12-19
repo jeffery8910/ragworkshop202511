@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Settings, Database, CheckCircle, AlertCircle, Cpu, RefreshCw, Smartphone, Lock, Eye, EyeOff } from 'lucide-react';
+import { adminFetch } from '@/lib/client/adminFetch';
+import { useToast } from '@/components/ui/ToastProvider';
 
 type Provider = 'gemini' | 'openai' | 'openrouter' | 'pinecone';
 
@@ -93,6 +95,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
             initialConfig['OPENAI_API_KEY'] ? 'openai' :
                 initialConfig['OPENROUTER_API_KEY'] ? 'openrouter' : 'gemini'
     );
+    const { pushToast } = useToast();
 
     const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setConfig({ ...config, [e.target.name]: e.target.value });
@@ -108,13 +111,13 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         if (provider === 'pinecone') apiKey = config.PINECONE_API_KEY;
 
         if (!apiKey) {
-            alert('請先輸入 API Key');
+            pushToast({ type: 'error', message: '請先輸入 API Key' });
             setTestingProvider(null);
             return;
         }
 
         try {
-            const res = await fetch('/api/admin/models', {
+            const res = await adminFetch('/api/admin/models', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ provider, apiKey })
@@ -132,7 +135,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     setConfig(prev => ({ ...prev, EMBEDDING_MODEL: data.embeddingModels[0] }));
                 }
 
-                await fetch('/api/admin/config', {
+                await adminFetch('/api/admin/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -142,19 +145,19 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     }),
                 });
 
-                alert(`測試成功，聊天模型 ${data.chatModels?.length || 0} 筆，Embedding 模型 ${data.embeddingModels?.length || 0} 筆。`);
+                pushToast({ type: 'success', message: `測試成功，聊天模型 ${data.chatModels?.length || 0} 筆，Embedding 模型 ${data.embeddingModels?.length || 0} 筆。` });
             } else {
-                alert(`測試失敗: ${data.error}`);
+                pushToast({ type: 'error', message: `測試失敗: ${data.error}` });
             }
         } catch (e) {
-            alert('連線測試時發生錯誤');
+            pushToast({ type: 'error', message: '連線測試時發生錯誤' });
         } finally {
             setTestingProvider(null);
         }
     };
 
     const saveConfig = async () => {
-        const res = await fetch('/api/admin/config', {
+        const res = await adminFetch('/api/admin/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config),
@@ -173,7 +176,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     ? { type: 'mongo', uri: config.MONGODB_URI, dbName: config.MONGODB_DB_NAME }
                     : { type: 'pinecone', apiKey: config.PINECONE_API_KEY, indexName: config.PINECONE_INDEX_NAME };
 
-            const res = await fetch('/api/admin/test', {
+            const res = await adminFetch('/api/admin/test', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -182,9 +185,9 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
             if (!res.ok || data?.ok === false) throw new Error(data?.error || '測試失敗');
 
             if (target === 'pinecone' && data?.hasIndex === false) {
-                alert(`Key 驗證成功，但找不到索引 ${config.PINECONE_INDEX_NAME || '(未填)'}。已取得索引列表：${(data.indexes || []).join(', ') || '無'}`);
+                pushToast({ type: 'info', message: `Key 驗證成功，但找不到索引 ${config.PINECONE_INDEX_NAME || '(未填)'}。已取得索引列表：${(data.indexes || []).join(', ') || '無'}` });
             } else {
-                alert(data?.detail || '測試成功');
+                pushToast({ type: 'success', message: data?.detail || '測試成功' });
             }
 
             // Auto-save current config after successful test so後續 API 可用
@@ -195,7 +198,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         } catch (err: any) {
             setStatus('error');
             setMessage(err?.message || '測試失敗');
-            alert(err?.message || '測試失敗，請檢查設定');
+            pushToast({ type: 'error', message: err?.message || '測試失敗，請檢查設定' });
         } finally {
             setTestingInfra(null);
         }
@@ -207,7 +210,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         setMessage('');
 
         try {
-            const res = await fetch('/api/admin/config', {
+            const res = await adminFetch('/api/admin/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config),

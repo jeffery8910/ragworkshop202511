@@ -1,4 +1,9 @@
-const fetch = require('node-fetch');
+const fetchFn = globalThis.fetch;
+
+if (!fetchFn) {
+    console.error('Fetch API is not available. Please use Node.js 18+ or install a fetch polyfill.');
+    process.exit(1);
+}
 
 const BASE_URL = 'http://localhost:3000';
 const USER_ID = 'web-user-demo';
@@ -6,7 +11,7 @@ const USER_ID = 'web-user-demo';
 async function testChat() {
     console.log('Testing POST /api/chat...');
     try {
-        const res = await fetch(`${BASE_URL}/api/chat`, {
+        const res = await fetchFn(`${BASE_URL}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: 'Hello', userId: USER_ID })
@@ -22,7 +27,7 @@ async function testChat() {
 async function testUpdateTitle() {
     console.log('\nTesting PATCH /api/chat/session...');
     try {
-        const res = await fetch(`${BASE_URL}/api/chat/session`, {
+        const res = await fetchFn(`${BASE_URL}/api/chat/session`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: USER_ID, title: 'New Title Test' })
@@ -38,7 +43,7 @@ async function testUpdateTitle() {
 async function testDeleteHistory() {
     console.log('\nTesting DELETE /api/chat/session...');
     try {
-        const res = await fetch(`${BASE_URL}/api/chat/session?userId=${USER_ID}`, {
+        const res = await fetchFn(`${BASE_URL}/api/chat/session?userId=${USER_ID}`, {
             method: 'DELETE'
         });
         console.log('Status:', res.status);

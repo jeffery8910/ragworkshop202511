@@ -1,7 +1,7 @@
 import { generateText } from '@/lib/llm';
 import { searchPinecone } from '@/lib/vector/pinecone';
 import { saveMessage } from '@/lib/features/memory';
-import { searchGraphContext } from '@/lib/features/graph-search';
+import { searchGraphContext, searchGraphEvidence } from '@/lib/features/graph-search';
 import type { EmbeddingConfig, EmbeddingProvider } from '@/lib/vector/embedding';
 
 export interface RagConfig {
@@ -86,8 +86,10 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
   let context = results.map(r => r.text).join('\n\n');
 
   // 2.5 Graph Search (Enhancement)
+  let graphEvidence: any = undefined;
   try {
-      const graphContext = await searchGraphContext(question);
+      graphEvidence = await searchGraphEvidence(question, { mongoUri: config?.mongoUri, dbName: config?.mongoDbName });
+      const graphContext = await searchGraphContext(question, graphEvidence, { mongoUri: config?.mongoUri, dbName: config?.mongoDbName });
       if (graphContext) {
           context += `\n\n${graphContext}`;
       }
@@ -146,6 +148,7 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
     answer,
     context: results,
     rewrittenQuery: searchParam !== question ? searchParam : undefined,
+    graphEvidence,
     structuredPayloads: undefined // reserved for future enrichment by caller
   };
 }

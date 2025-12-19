@@ -6,7 +6,7 @@ export interface GraphNode {
   label: string;
   type: string;
   docId?: string;
-  chunkId?: string;
+  sectionId?: string;
 }
 
 export interface GraphEdge {
@@ -14,16 +14,18 @@ export interface GraphEdge {
   target: string;
   relation: string;
   docId?: string;
-  chunkId?: string;
+  sectionId?: string;
 }
 
 export async function extractGraphFromText(text: string): Promise<{ nodes: GraphNode[], edges: GraphEdge[] }> {
+  const maxChars = Number(process.env.GRAPH_MAX_CHARS || '0');
+  const inputText = maxChars > 0 ? text.slice(0, maxChars) : text;
   const prompt = `
     你是專業的知識圖譜建構專家。請分析以下文本，萃取其中的「實體 (Entities)」與「關係 (Relationships)」。
     
     文本：
     """
-    ${text.slice(0, 2000)}
+    ${inputText}
     """
     
     請回傳純 JSON 格式，不要包含任何 Markdown 標記或額外文字。JSON 結構如下：
@@ -60,11 +62,16 @@ export async function extractGraphFromText(text: string): Promise<{ nodes: Graph
   }
 }
 
-export async function saveGraphData(docId: string, chunkId: string, data: { nodes: GraphNode[], edges: GraphEdge[] }) {
+export async function saveGraphData(
+    docId: string,
+    sectionId: string,
+    data: { nodes: GraphNode[], edges: GraphEdge[] },
+    opts?: { mongoUri?: string; dbName?: string; chunkId?: string }
+) {
     if ((!data.nodes || data.nodes.length === 0) && (!data.edges || data.edges.length === 0)) return;
     
-    const client = await getMongoClient();
-    const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
+    const client = await getMongoClient(opts?.mongoUri);
+    const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_db');
     
     // 為了避免重複，我們可以選擇在插入前先清理該 chunk 的舊資料，或者使用 upsert
     // 這裡示範簡單的 append 模式，但在 production 建議要處理 deduplication
@@ -72,14 +79,16 @@ export async function saveGraphData(docId: string, chunkId: string, data: { node
     const nodesPayload = data.nodes.map(n => ({
         ...n,
         docId,
-        chunkId,
+        sectionId,
+        ...(opts?.chunkId ? { chunkId: opts.chunkId } : {}),
         createdAt: new Date()
     }));
 
     const edgesPayload = data.edges.map(e => ({
         ...e,
         docId,
-        chunkId,
+        sectionId,
+        ...(opts?.chunkId ? { chunkId: opts.chunkId } : {}),
         createdAt: new Date()
     }));
 
@@ -91,9 +100,9 @@ export async function saveGraphData(docId: string, chunkId: string, data: { node
     }
 }
 
-export async function deleteGraphDataForDoc(docId: string) {
-    const client = await getMongoClient();
-    const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
+export async function deleteGraphDataForDoc(docId: string, opts?: { mongoUri?: string; dbName?: string }) {
+    const client = await getMongoClient(opts?.mongoUri);
+    const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_db');
     await db.collection('graph_nodes').deleteMany({ docId });
     await db.collection('graph_edges').deleteMany({ docId });
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Trash2, RefreshCw, Filter } from 'lucide-react';
+import { adminFetch } from '@/lib/client/adminFetch';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface CardManagerProps {
     defaultUserId?: string;
@@ -19,11 +21,12 @@ export default function CardManager({ defaultUserId = 'web-user-demo' }: CardMan
     const [userId, setUserId] = useState(defaultUserId);
     const [cards, setCards] = useState<CardDoc[]>([]);
     const [loading, setLoading] = useState(false);
+    const { pushToast } = useToast();
 
     const fetchCards = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/admin/cards?userId=${encodeURIComponent(userId)}&limit=50`, { cache: 'no-store' });
+            const res = await adminFetch(`/api/admin/cards?userId=${encodeURIComponent(userId)}&limit=50`, { cache: 'no-store' });
             const data = await res.json();
             setCards(data || []);
         } catch (e) {
@@ -40,14 +43,14 @@ export default function CardManager({ defaultUserId = 'web-user-demo' }: CardMan
     const handleDelete = async (id: string) => {
         if (!confirm('確定刪除這張卡片？')) return;
         try {
-            await fetch('/api/admin/cards', {
+            await adminFetch('/api/admin/cards', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id, userId }),
             });
             setCards(prev => prev.filter(c => c._id !== id));
         } catch (e) {
-            alert('刪除失敗，請稍後再試');
+            pushToast({ type: 'error', message: '刪除失敗，請稍後再試' });
         }
     };
 

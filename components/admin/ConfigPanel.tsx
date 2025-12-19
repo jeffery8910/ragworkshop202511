@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { Save } from 'lucide-react';
+import { adminFetch } from '@/lib/client/adminFetch';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface ConfigPanelProps {
     initialConfig: Record<string, string>;
@@ -14,10 +16,11 @@ export default function ConfigPanel({ initialConfig }: ConfigPanelProps) {
         topK: parseInt(initialConfig['RAG_TOP_K'] || '5'),
         n8nWebhook: initialConfig['N8N_WEBHOOK_URL'] || ''
     });
+    const { pushToast } = useToast();
 
     const handleSave = async () => {
         try {
-            const res = await fetch('/api/admin/config', {
+            const res = await adminFetch('/api/admin/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -28,9 +31,9 @@ export default function ConfigPanel({ initialConfig }: ConfigPanelProps) {
                 })
             });
             if (!res.ok) throw new Error('Failed to save');
-            alert('設定已儲存');
+            pushToast({ type: 'success', message: '設定已儲存' });
         } catch (e) {
-            alert('儲存失敗');
+            pushToast({ type: 'error', message: '儲存失敗' });
         }
     };
 

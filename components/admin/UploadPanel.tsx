@@ -2,14 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
-import { useEffect } from 'react';
+import { Upload, FileText } from 'lucide-react';
+import { useToast } from '@/components/ui/ToastProvider';
+import { adminFetch } from '@/lib/client/adminFetch';
 
 interface UploadPanelProps {
     onAction?: (msg: string) => void;
+    onUploadComplete?: () => void;
 }
 
-export default function UploadPanel({ onAction }: UploadPanelProps) {
+export default function UploadPanel({ onAction, onUploadComplete }: UploadPanelProps) {
     const router = useRouter();
     const [dragActive, setDragActive] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
@@ -18,6 +20,9 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const [localParse, setLocalParse] = useState<boolean>(true);
     const [chunkSize, setChunkSize] = useState<number>(1000);       // default chunk size
     const [chunkOverlap, setChunkOverlap] = useState<number>(120);  // default overlap
+    const [fileStates, setFileStates] = useState<Record<string, { status: 'pending' | 'uploading' | 'success' | 'error'; message?: string }>>({});
+    const [abortController, setAbortController] = useState<AbortController | null>(null);
+    const { pushToast } = useToast();
     const [progress, setProgress] = useState<{
         stage: 'idle' | 'parsing' | 'uploading';
         value: number;
@@ -60,6 +65,11 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             const picked = Array.from(e.dataTransfer.files);
             setFiles(picked);
+            const nextStates: Record<string, { status: 'pending' | 'uploading' | 'success' | 'error'; message?: string }> = {};
+            picked.forEach(f => {
+                nextStates[f.name] = { status: 'pending' };
+            });
+            setFileStates(nextStates);
             onAction?.('已選擇檔案，準備上傳');
         }
     };
@@ -99,9 +109,18 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
     const handleUpload = async () => {
         if (!files.length) return;
         setUploading(true);
+        setFileStates(prev => {
+            const next = { ...prev };
+            files.forEach(f => {
+                next[f.name] = { status: 'uploading' };
+            });
+            return next;
+        });
         setProgress({ stage: 'parsing', value: 5, message: '準備切分檔案…', fileIndex: 0, totalFiles: files.length, chunksDone: 0, chunksTotal: 0 });
         onAction?.('開始上傳/切分/向量化');
         try {
+            const controller = new AbortController();
+            setAbortController(controller);
             const formData = new FormData();
             formData.append('mode', mode);
 
@@ -151,9 +170,10 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
             }
 
             setProgress(prev => ({ ...prev, stage: 'uploading', value: 50, message: '上傳伺服器中…' }));
-            const res = await fetch('/api/admin/upload', {
+            const res = await adminFetch('/api/admin/upload', {
                 method: 'POST',
                 body: formData,
+                signal: controller.signal,
             });
             const text = await res.text();
             let data: any = {};
@@ -162,19 +182,84 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
             }
             if (!res.ok) throw new Error(data?.error || text || '上傳失敗');
 
-            setFiles([]);
+            const results: any[] = data?.results || [];
+            const grouped: Record<string, { status: 'success' | 'error'; message?: string }> = {};
+            results.forEach(r => {
+                const baseName = (r.file || '').split('#')[0] || r.file;
+                if (!baseName) return;
+                const hasError = !!r.error || ['empty', 'too_large', 'failed'].includes(r.status);
+                if (!grouped[baseName]) {
+                    grouped[baseName] = { status: hasError ? 'error' : 'success', message: r.error || r.note };
+                } else if (hasError) {
+                    grouped[baseName] = { status: 'error', message: r.error || r.note };
+                }
+            });
+
+            setFileStates(prev => {
+                const next = { ...prev };
+                files.forEach(f => {
+                    if (grouped[f.name]) {
+                        next[f.name] = {
+                            status: grouped[f.name].status === 'success' ? 'success' : 'error',
+                            message: grouped[f.name].message
+                        };
+                    } else {
+                        next[f.name] = { status: 'error', message: '無上傳結果' };
+                    }
+                });
+                return next;
+            });
+
             onAction?.('檔案上傳並向量化完成');
-            alert('Upload Complete!');
+            onUploadComplete?.();
+            pushToast({ type: 'success', message: '上傳完成' });
             router.refresh();
             setProgress({ stage: 'idle', value: 0 });
         } catch (err: any) {
             console.error(err);
-            alert(err?.message || '上傳過程發生錯誤');
+            if (err?.name === 'AbortError') {
+                pushToast({ type: 'info', message: '已取消上傳' });
+                setFileStates(prev => {
+                    const next = { ...prev };
+                    files.forEach(f => {
+                        next[f.name] = { status: 'pending' };
+                    });
+                    return next;
+                });
+            } else {
+                pushToast({ type: 'error', message: err?.message || '上傳過程發生錯誤' });
+            }
             onAction?.('上傳失敗，請稍後再試');
         } finally {
             setUploading(false);
+            setAbortController(null);
             setProgress(p => ({ ...p, stage: 'idle', value: 0 }));
         }
+    };
+
+    const removeFile = (name: string) => {
+        setFiles(prev => prev.filter(f => f.name !== name));
+        setFileStates(prev => {
+            const next = { ...prev };
+            delete next[name];
+            return next;
+        });
+    };
+
+    const clearFiles = () => {
+        setFiles([]);
+        setFileStates({});
+        setProgress({ stage: 'idle', value: 0, message: '' });
+    };
+
+    const keepFailedOnly = () => {
+        const failed = files.filter(f => fileStates[f.name]?.status === 'error');
+        const nextStates: Record<string, { status: 'pending' | 'uploading' | 'success' | 'error'; message?: string }> = {};
+        failed.forEach(f => {
+            nextStates[f.name] = { status: 'pending' };
+        });
+        setFiles(failed);
+        setFileStates(nextStates);
     };
 
     const onButtonClick = () => {
@@ -185,6 +270,11 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
         if (e.target.files && e.target.files[0]) {
             const picked = Array.from(e.target.files);
             setFiles(picked);
+            const nextStates: Record<string, { status: 'pending' | 'uploading' | 'success' | 'error'; message?: string }> = {};
+            picked.forEach(f => {
+                nextStates[f.name] = { status: 'pending' };
+            });
+            setFileStates(nextStates);
             onAction?.('已選擇檔案，準備上傳');
         }
     };
@@ -272,12 +362,50 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
             {files.length > 0 && (
                 <div className="mt-4 space-y-2">
                     {files.map((file, idx) => (
-                        <div key={idx} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                            <div className="flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-gray-600" />
-                                <span className="text-sm truncate max-w-[200px]">{file.name}</span>
+                        <div key={idx} className="bg-gray-50 p-2 rounded">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <FileText className="w-4 h-4 text-gray-600" />
+                                    <span className="text-sm truncate max-w-[200px]">{file.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</span>
+                                    {fileStates[file.name]?.status && (
+                                        <span
+                                            className={`text-[10px] px-2 py-0.5 rounded-full ${
+                                                fileStates[file.name].status === 'success'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : fileStates[file.name].status === 'error'
+                                                        ? 'bg-red-100 text-red-700'
+                                                        : fileStates[file.name].status === 'uploading'
+                                                            ? 'bg-blue-100 text-blue-700'
+                                                            : 'bg-gray-100 text-gray-600'
+                                            }`}
+                                        >
+                                            {fileStates[file.name].status === 'success'
+                                                ? '成功'
+                                                : fileStates[file.name].status === 'error'
+                                                    ? '失敗'
+                                                    : fileStates[file.name].status === 'uploading'
+                                                        ? '上傳中'
+                                                        : '待上傳'}
+                                        </span>
+                                    )}
+                                    {!uploading && (
+                                        <button
+                                            onClick={() => removeFile(file.name)}
+                                            className="text-[10px] text-gray-500 hover:text-gray-800"
+                                        >
+                                            移除
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-                            <span className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</span>
+                            {fileStates[file.name]?.message && (
+                                <div className="mt-1 text-[10px] text-red-600">
+                                    {fileStates[file.name].message}
+                                </div>
+                            )}
                         </div>
                     ))}
                     <button
@@ -287,6 +415,30 @@ export default function UploadPanel({ onAction }: UploadPanelProps) {
                     >
                         {uploading ? '處理中...' : '開始上傳與向量化'}
                     </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={clearFiles}
+                            disabled={uploading}
+                            className="flex-1 text-xs bg-gray-100 text-gray-700 py-2 rounded hover:bg-gray-200 disabled:opacity-50"
+                        >
+                            清除清單
+                        </button>
+                        <button
+                            onClick={keepFailedOnly}
+                            disabled={uploading || !files.some(f => fileStates[f.name]?.status === 'error')}
+                            className="flex-1 text-xs bg-amber-100 text-amber-700 py-2 rounded hover:bg-amber-200 disabled:opacity-50"
+                        >
+                            只保留失敗
+                        </button>
+                        {uploading && (
+                            <button
+                                onClick={() => abortController?.abort()}
+                                className="flex-1 text-xs bg-red-100 text-red-700 py-2 rounded hover:bg-red-200"
+                            >
+                                取消上傳
+                            </button>
+                        )}
+                    </div>
                     {uploading && (
                         <div className="mt-2">
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">

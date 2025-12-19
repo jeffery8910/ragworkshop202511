@@ -11,6 +11,7 @@ import RagWorkflow from '@/components/admin/RagWorkflow';
 import CardManager from '@/components/admin/CardManager';
 import AnalyticsPanel from '@/components/admin/AnalyticsPanel';
 import UploadPanel from '@/components/admin/UploadPanel';
+import UploadHistoryPanel from '@/components/admin/UploadHistoryPanel';
 
 interface AdminDashboardProps {
     missingKeys: string[];
@@ -51,6 +52,7 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
                         <div className="space-y-4">
                             <RagWorkflow currentAction={flowEvent} />
                             <UploadPanel onAction={setFlowEvent} />
+                            <UploadHistoryPanel />
                             <KnowledgeGraph onAction={setFlowEvent} />
                             <ConfigPanel initialConfig={initialConfig} />
                         </div>

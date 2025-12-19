@@ -17,6 +17,40 @@ interface ActionPayload {
     docId?: string;
 }
 
+function slugifySection(title: string) {
+    const base = title
+        .toLowerCase()
+        .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40);
+    return base || 'section';
+}
+
+function splitIntoSections(text: string) {
+    const lines = text.split('\n');
+    const sections: { id: string; title: string; text: string }[] = [];
+    let currentTitle = 'document';
+    let currentLines: string[] = [];
+    const pushSection = () => {
+        const content = currentLines.join('\n').trim();
+        if (!content) return;
+        const id = `${slugifySection(currentTitle)}-${sections.length + 1}`;
+        sections.push({ id, title: currentTitle, text: content });
+    };
+    lines.forEach(line => {
+        const headingMatch = line.match(/^#{1,6}\s+(.+)/);
+        if (headingMatch) {
+            pushSection();
+            currentTitle = headingMatch[1].trim();
+            currentLines = [];
+            return;
+        }
+        currentLines.push(line);
+    });
+    pushSection();
+    return sections.length ? sections : [{ id: 'document-1', title: 'document', text }];
+}
+
 async function pickConfig() {
     const cookieStore = await cookies();
     const get = (key: string) => cookieStore.get(key)?.value || process.env[key] || getConfigValue(key) || '';
@@ -56,7 +90,7 @@ async function reindexDocs(docIds: string[]) {
     const results: any[] = [];
     for (const docId of docIds) {
         // Clean up old graph data before re-indexing
-        await deleteGraphDataForDoc(docId);
+        await deleteGraphDataForDoc(docId, { mongoUri: cfg.mongoUri, dbName: cfg.mongoDb });
 
         const chunks = await chunkCol.find({ docId }).sort({ chunk: 1 }).toArray();
         if (!chunks.length) {
@@ -93,17 +127,21 @@ async function reindexDocs(docIds: string[]) {
                     text_length: c.text_length,
                 },
             });
+        }
 
-            // 2. Graph Extraction (Optional but enabled for this feature)
-            try {
-                // Only extract for chunks with sufficient content
-                if (c.text && c.text.length > 50) {
-                    const graphData = await extractGraphFromText(c.text);
-                    await saveGraphData(docId, c.chunkId, graphData);
+        // 2. Document-level Graph Extraction (no chunk slicing)
+        try {
+            const fullText = chunks.map((c: any) => c.text || '').join('\n');
+            if (fullText.trim().length > 50) {
+                const sections = splitIntoSections(fullText);
+                for (const section of sections) {
+                    if (!section.text.trim()) continue;
+                    const graphData = await extractGraphFromText(section.text);
+                    await saveGraphData(docId, section.id, graphData, { mongoUri: cfg.mongoUri, dbName: cfg.mongoDb });
                 }
-            } catch (gErr) {
-                console.warn(`Graph extraction failed for chunk ${c.chunkId}`, gErr);
             }
+        } catch (gErr) {
+            console.warn(`Graph extraction failed for doc ${docId}`, gErr);
         }
 
         if (pine) {
@@ -112,7 +150,7 @@ async function reindexDocs(docIds: string[]) {
             await pine.upsert(vectors);
         }
 
-        await db.collection('documents').updateOne({ docId }, { $set: { indexedAt: new Date(), status: 'reindexed' } });
+        await db.collection('documents').updateOne({ docId }, { $set: { indexedAt: new Date(), status: 'reindexed', graphMode: 'document' } });
         results.push({ docId, status: 'ok', vectors: vectors.length, graph: 'extracted' });
     }
 
@@ -133,7 +171,7 @@ async function deleteDocs(docIds: string[]) {
             await pine.deleteMany(chunkIds.map((c: any) => c.chunkId));
         }
         await chunkCol.deleteMany({ docId });
-        await deleteGraphDataForDoc(docId); // Delete graph data
+        await deleteGraphDataForDoc(docId, { mongoUri: cfg.mongoUri, dbName: cfg.mongoDb }); // Delete graph data
         await docCol.deleteOne({ docId });
         results.push({ docId, status: 'deleted', vectors: chunkIds.length });
     }

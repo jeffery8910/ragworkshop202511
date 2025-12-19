@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw, Info, Share2, FileText, Search, X } from 'lucide-react';
+import { RefreshCw, Info, Share2, FileText, Search, X, GitBranch } from 'lucide-react';
+import { adminFetch } from '@/lib/client/adminFetch';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useSearchParams } from 'next/navigation';
 
 interface KnowledgeGraphProps {
     onAction?: (msg: string) => void;
@@ -12,6 +15,7 @@ interface GraphNode {
     label: string;
     type: string;
     docId?: string;
+    sectionId?: string;
     x?: number;
     y?: number;
     vx?: number;
@@ -22,6 +26,8 @@ interface GraphEdge {
     source: string;
     target: string;
     relation: string;
+    docId?: string;
+    sectionId?: string;
 }
 
 interface DocumentMeta {
@@ -53,6 +59,25 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [dragging, setDragging] = useState(false);
     const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
     const [draggedNode, setDraggedNode] = useState<GraphNode | null>(null);
+    const { pushToast } = useToast();
+    const searchParams = useSearchParams();
+
+    const [evidenceQuery, setEvidenceQuery] = useState('');
+    const [matchedNodeIds, setMatchedNodeIds] = useState<string[]>([]);
+    const [relatedNodeIds, setRelatedNodeIds] = useState<string[]>([]);
+    const [highlightEdgeKeys, setHighlightEdgeKeys] = useState<string[]>([]);
+    const [evidenceDocIds, setEvidenceDocIds] = useState<string[]>([]);
+    const [pathNodeIds, setPathNodeIds] = useState<string[]>([]);
+    const [pathEdgeKeys, setPathEdgeKeys] = useState<string[]>([]);
+    const [pathSummary, setPathSummary] = useState<string>('');
+    const [pathMaxHops, setPathMaxHops] = useState(3);
+    const [allowCrossDoc, setAllowCrossDoc] = useState(true);
+    const [startQuery, setStartQuery] = useState('');
+    const [endQuery, setEndQuery] = useState('');
+    const [startOptions, setStartOptions] = useState<GraphNode[]>([]);
+    const [endOptions, setEndOptions] = useState<GraphNode[]>([]);
+    const [startNode, setStartNode] = useState<GraphNode | null>(null);
+    const [endNode, setEndNode] = useState<GraphNode | null>(null);
 
     const canvasRef = useRef<HTMLDivElement>(null);
     const requestRef = useRef<number>(0);
@@ -66,7 +91,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const fetchGraph = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/admin/graph');
+            const res = await adminFetch('/api/admin/graph');
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to fetch graph');
 
@@ -93,7 +118,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const fetchDocuments = async () => {
         setDocsLoading(true);
         try {
-            const res = await fetch('/api/admin/documents', { cache: 'no-store' });
+            const res = await adminFetch('/api/admin/documents', { cache: 'no-store' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to fetch documents');
 
@@ -119,10 +144,115 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         }
     };
 
+    const edgeKey = (edge: GraphEdge) => `${edge.source}__${edge.relation}__${edge.target}`;
+
+    const runEvidence = async (query?: string) => {
+        const q = (query ?? evidenceQuery).trim();
+        if (!q) return;
+        try {
+            const res = await adminFetch('/api/admin/graph/evidence', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: q, maxNodes: 20, maxEdges: 60 })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || '查詢失敗');
+
+            const relatedIds = (data.nodes || []).map((n: any) => n.id);
+            const matchedIds = data.matchedNodeIds || relatedIds;
+            const edgeKeys = (data.edges || []).map((e: any) => edgeKey(e));
+            const docIds = data.docIds || [];
+
+            setEvidenceQuery(q);
+            setRelatedNodeIds(relatedIds);
+            setMatchedNodeIds(matchedIds);
+            setHighlightEdgeKeys(edgeKeys);
+            setEvidenceDocIds(docIds);
+            setPathNodeIds([]);
+            setPathEdgeKeys([]);
+            setPathSummary('');
+
+            onAction?.(`圖譜高亮：${matchedIds.length} 節點 / ${(data.edges || []).length} 關係`);
+        } catch (e: any) {
+            console.error(e);
+            pushToast({ type: 'error', message: e?.message || 'Graph evidence 查詢失敗' });
+        }
+    };
+
+    const clearHighlight = () => {
+        setMatchedNodeIds([]);
+        setRelatedNodeIds([]);
+        setHighlightEdgeKeys([]);
+        setEvidenceDocIds([]);
+        setPathNodeIds([]);
+        setPathEdgeKeys([]);
+        setPathSummary('');
+    };
+
+    const clearPath = () => {
+        setPathNodeIds([]);
+        setPathEdgeKeys([]);
+        setPathSummary('');
+    };
+
+    const searchNodes = async (term: string, target: 'start' | 'end') => {
+        const q = term.trim();
+        if (!q) return;
+        try {
+            const res = await adminFetch(`/api/admin/graph/search?q=${encodeURIComponent(q)}&limit=8`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || '搜尋失敗');
+            if (target === 'start') setStartOptions(data.nodes || []);
+            if (target === 'end') setEndOptions(data.nodes || []);
+        } catch (e: any) {
+            console.error(e);
+            pushToast({ type: 'error', message: e?.message || '搜尋節點失敗' });
+        }
+    };
+
+    const runPath = async () => {
+        if (!startNode || !endNode) return;
+        try {
+            const res = await adminFetch('/api/admin/graph/path', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fromNodeId: startNode.id,
+                    toNodeId: endNode.id,
+                    maxHops: pathMaxHops,
+                    allowCrossDoc
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || '路徑查詢失敗');
+            const pNodes = data.pathNodes || [];
+            const pEdges = data.pathEdges || [];
+            let summaryText = '';
+            if (data.summary === 'no_path') summaryText = '找不到可用路徑';
+            if (data.summary === 'no_path_same_doc') summaryText = '起訖節點不在同一文件';
+            if (!summaryText) summaryText = data.summary || '';
+            setPathNodeIds(pNodes);
+            setPathEdgeKeys(pEdges.map((e: any) => edgeKey(e)));
+            setPathSummary(summaryText);
+            onAction?.(`路徑節點 ${pNodes.length} / 關係 ${pEdges.length}`);
+        } catch (e: any) {
+            console.error(e);
+            pushToast({ type: 'error', message: e?.message || '路徑查詢失敗' });
+        }
+    };
+
     useEffect(() => {
         fetchGraph();
         fetchDocuments();
     }, []);
+
+    useEffect(() => {
+        const q = searchParams?.get('graphQuery');
+        if (q) {
+            setEvidenceQuery(q);
+            runEvidence(q);
+        }
+    }, [searchParams]);
 
     // Simple Force-Directed Layout Simulation
     const runSimulation = () => {
@@ -301,6 +431,18 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         return { nodes: n, edges: e };
     }, [nodes, edges, docFilter]);
 
+    const matchedSet = useMemo(() => new Set(matchedNodeIds), [matchedNodeIds]);
+    const relatedSet = useMemo(() => new Set(relatedNodeIds), [relatedNodeIds]);
+    const pathNodeSet = useMemo(() => new Set(pathNodeIds), [pathNodeIds]);
+    const highlightEdgeSet = useMemo(() => new Set(highlightEdgeKeys), [highlightEdgeKeys]);
+    const pathEdgeSet = useMemo(() => new Set(pathEdgeKeys), [pathEdgeKeys]);
+    const matchedNodes = useMemo(() => nodes.filter(n => matchedSet.has(n.id)).slice(0, 8), [nodes, matchedSet]);
+    const pathLabelSummary = useMemo(() => {
+        if (!pathNodeIds.length) return '';
+        const labelMap = new Map(nodes.map(n => [n.id, n.label]));
+        return pathNodeIds.map(id => labelMap.get(id) || id).join(' → ');
+    }, [pathNodeIds, nodes]);
+
     const toggleDocFilter = (docId: string) => {
         setSelectedNode(null);
         setDocFilter(prev => {
@@ -319,7 +461,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         setReindexingDoc(target);
         onAction?.(docId ? `重建圖譜: ${docId}` : '重建全部圖譜');
         try {
-            const res = await fetch('/api/admin/index', {
+            const res = await adminFetch('/api/admin/index', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(docId ? { scope: 'doc', docId } : { scope: 'all' }),
@@ -331,7 +473,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         } catch (e: any) {
             console.error(e);
             onAction?.('重建圖譜失敗: ' + e.message);
-            alert(e?.message || '重建圖譜失敗');
+            pushToast({ type: 'error', message: e?.message || '重建圖譜失敗' });
         } finally {
             setReindexingDoc(null);
         }
@@ -393,13 +535,18 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                 const source = filteredGraph.nodes.find(n => n.id === e.source);
                                 const target = filteredGraph.nodes.find(n => n.id === e.target);
                                 if (!source || !target) return null;
+                                const key = edgeKey(e);
+                                const isPath = pathEdgeSet.has(key);
+                                const isHighlight = highlightEdgeSet.has(key);
+                                const stroke = isPath ? '#ef4444' : isHighlight ? '#f59e0b' : '#cbd5e1';
+                                const strokeWidth = isPath ? 2.5 : isHighlight ? 1.8 : 1;
                                 return (
                                     <g key={`${e.source}-${e.target}-${i}`}>
                                         <line
                                             x1={source.x} y1={source.y}
                                             x2={target.x} y2={target.y}
-                                            stroke="#cbd5e1"
-                                            strokeWidth="1"
+                                            stroke={stroke}
+                                            strokeWidth={strokeWidth}
                                         />
                                         {zoom > 0.8 && (
                                             <text 
@@ -418,15 +565,22 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                             })}
                             
                             {/* Nodes */}
-                            {filteredGraph.nodes.map((n) => (
-                                <g key={n.id} transform={`translate(${n.x}, ${n.y})`}>
-                                    <circle
-                                        r={selectedNode?.id === n.id ? 8 : 5}
-                                        fill={n.type === 'Person' ? '#f87171' : n.type === 'Organization' ? '#60a5fa' : '#a78bfa'}
-                                        stroke="#fff"
-                                        strokeWidth="1.5"
-                                        className="pointer-events-auto cursor-pointer hover:opacity-80 transition-all"
-                                    />
+                            {filteredGraph.nodes.map((n) => {
+                                const isMatched = matchedSet.has(n.id);
+                                const isRelated = relatedSet.has(n.id);
+                                const isPathNode = pathNodeSet.has(n.id);
+                                const baseColor = n.type === 'Person' ? '#f87171' : n.type === 'Organization' ? '#60a5fa' : '#a78bfa';
+                                const fill = isMatched ? '#f59e0b' : isRelated ? '#fcd34d' : baseColor;
+                                const radius = isPathNode ? 10 : selectedNode?.id === n.id ? 8 : 5;
+                                return (
+                                    <g key={n.id} transform={`translate(${n.x}, ${n.y})`}>
+                                        <circle
+                                            r={radius}
+                                            fill={fill}
+                                            stroke={isPathNode ? '#ef4444' : '#fff'}
+                                            strokeWidth={isPathNode ? 2.5 : 1.5}
+                                            className="pointer-events-auto cursor-pointer hover:opacity-80 transition-all"
+                                        />
                                     {zoom > 0.5 && (
                                         <text
                                             y={-8}
@@ -440,8 +594,9 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                             {n.label}
                                         </text>
                                     )}
-                                </g>
-                            ))}
+                                    </g>
+                                );
+                            })}
                         </g>
                     </svg>
 
@@ -495,12 +650,228 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                         </div>
                                     )}
                                 </div>
+                                {selectedNode.sectionId && (
+                                    <div>
+                                        <label className="text-xs text-gray-500 block">章節 (Section)</label>
+                                        <div className="text-[11px] text-gray-500 break-all">{selectedNode.sectionId}</div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="text-sm text-gray-500 py-4 text-center">
                                 點擊圖中節點查看詳細資訊
                             </div>
                         )}
+                    </div>
+
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                        <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
+                            <Search className="w-4 h-4 text-amber-600" /> Graph Evidence 高亮
+                        </h3>
+                        <div className="flex items-center gap-2">
+                            <input
+                                value={evidenceQuery}
+                                onChange={e => setEvidenceQuery(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') runEvidence();
+                                }}
+                                placeholder="輸入查詢關鍵字"
+                                className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200"
+                            />
+                            <button
+                                onClick={() => runEvidence()}
+                                className="px-3 py-2 text-xs bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100"
+                            >
+                                高亮
+                            </button>
+                        </div>
+                        <div className="flex items-center justify-between mt-2 text-[11px] text-gray-500">
+                            <span>
+                                Matched {matchedNodeIds.length} · Related {relatedNodeIds.length} · Edges {highlightEdgeKeys.length}
+                            </span>
+                            <button
+                                onClick={clearHighlight}
+                                className="text-[11px] text-gray-500 hover:text-gray-700"
+                            >
+                                清除
+                            </button>
+                        </div>
+                        {matchedNodes.length > 0 && (
+                            <div className="mt-2">
+                                <div className="text-[11px] text-gray-500 mb-1">Matched nodes</div>
+                                <div className="flex flex-wrap gap-1">
+                                    {matchedNodes.map(n => (
+                                        <button
+                                            key={n.id}
+                                            className="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                            onClick={() => setSelectedNode(n)}
+                                        >
+                                            {n.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {evidenceDocIds.length > 0 && (
+                            <div className="mt-2">
+                                <div className="text-[11px] text-gray-500 mb-1">來源文件</div>
+                                <div className="flex flex-wrap gap-1">
+                                    {evidenceDocIds.slice(0, 6).map(docId => (
+                                        <span
+                                            key={docId}
+                                            className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-600"
+                                        >
+                                            {docMap.get(docId)?.filename || docId}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                        <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
+                            <GitBranch className="w-4 h-4 text-purple-600" /> Path Explorer
+                        </h3>
+                        <div className="space-y-2">
+                            <div>
+                                <label className="text-[11px] text-gray-500 block mb-1">起點節點</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        value={startQuery}
+                                        onChange={e => {
+                                            const value = e.target.value;
+                                            setStartQuery(value);
+                                            if (!value.trim()) setStartOptions([]);
+                                        }}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') searchNodes(startQuery, 'start');
+                                        }}
+                                        placeholder="搜尋起點"
+                                        className="flex-1 px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                    />
+                                    <button
+                                        onClick={() => searchNodes(startQuery, 'start')}
+                                        className="px-2 py-2 text-[11px] bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
+                                    >
+                                        搜尋
+                                    </button>
+                                </div>
+                                {startOptions.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                        {startOptions.map(option => (
+                                            <button
+                                                key={option.id}
+                                                className="text-[11px] px-2 py-1 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100"
+                                                onClick={() => {
+                                                    setStartNode(option);
+                                                    setStartQuery(option.label);
+                                                    setStartOptions([]);
+                                                }}
+                                            >
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {startNode && (
+                                    <div className="text-[11px] text-gray-500 mt-1">
+                                        已選: {startNode.label}
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <label className="text-[11px] text-gray-500 block mb-1">終點節點</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        value={endQuery}
+                                        onChange={e => {
+                                            const value = e.target.value;
+                                            setEndQuery(value);
+                                            if (!value.trim()) setEndOptions([]);
+                                        }}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') searchNodes(endQuery, 'end');
+                                        }}
+                                        placeholder="搜尋終點"
+                                        className="flex-1 px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                    />
+                                    <button
+                                        onClick={() => searchNodes(endQuery, 'end')}
+                                        className="px-2 py-2 text-[11px] bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
+                                    >
+                                        搜尋
+                                    </button>
+                                </div>
+                                {endOptions.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                        {endOptions.map(option => (
+                                            <button
+                                                key={option.id}
+                                                className="text-[11px] px-2 py-1 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100"
+                                                onClick={() => {
+                                                    setEndNode(option);
+                                                    setEndQuery(option.label);
+                                                    setEndOptions([]);
+                                                }}
+                                            >
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {endNode && (
+                                    <div className="text-[11px] text-gray-500 mt-1">
+                                        已選: {endNode.label}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-gray-600">
+                                <label className="flex items-center gap-2">
+                                    hops
+                                    <select
+                                        value={pathMaxHops}
+                                        onChange={e => setPathMaxHops(Number(e.target.value))}
+                                        className="border rounded px-2 py-1 text-[11px]"
+                                    >
+                                        {[1, 2, 3, 4, 5, 6].map(n => (
+                                            <option key={n} value={n}>{n}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={allowCrossDoc}
+                                        onChange={e => setAllowCrossDoc(e.target.checked)}
+                                    />
+                                    跨文件
+                                </label>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={runPath}
+                                    disabled={!startNode || !endNode}
+                                    className="px-3 py-2 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                                >
+                                    尋找路徑
+                                </button>
+                                <button
+                                    onClick={clearPath}
+                                    className="px-3 py-2 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                >
+                                    清除路徑
+                                </button>
+                            </div>
+                            <div className="text-[11px] text-gray-500">
+                                Path nodes {pathNodeIds.length} · edges {pathEdgeKeys.length}
+                            </div>
+                            {(pathSummary || pathLabelSummary) && (
+                                <div className="text-[11px] text-gray-600 bg-purple-50 rounded-lg p-2">
+                                    {pathLabelSummary || pathSummary}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex-1 min-h-[220px] overflow-hidden">

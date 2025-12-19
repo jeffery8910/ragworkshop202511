@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Home, Database, Activity, Settings, FlaskConical, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import ToastProvider from '@/components/ui/ToastProvider';
 
 export default function AdminLayout({
     children,
@@ -24,7 +25,8 @@ export default function AdminLayout({
     const inactiveClass = 'flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors';
 
     return (
-        <div className="min-h-screen bg-gray-100 flex">
+        <ToastProvider>
+            <div className="min-h-screen bg-gray-100 flex">
             {/* Sidebar */}
             <aside className="w-64 bg-white shadow-lg border-r flex flex-col">
                 <div className="p-6 border-b">
@@ -84,5 +86,6 @@ export default function AdminLayout({
                 {children}
             </main>
         </div>
+        </ToastProvider>
     );
 }

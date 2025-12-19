@@ -1,10 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, FileText, RefreshCw, Database, Eye, Trash2, Zap } from 'lucide-react';
+import { FileText, RefreshCw, Database, Eye, Trash2, Zap } from 'lucide-react';
 import RagLabPanel from '@/components/admin/RagLabPanel';
 import RagProcessGraph from '@/components/admin/RagProcessGraph';
 import KnowledgeGraph from '@/components/admin/KnowledgeGraph';
+import UploadHistoryPanel from '@/components/admin/UploadHistoryPanel';
+import UploadPanel from '@/components/admin/UploadPanel';
+import { useToast } from '@/components/ui/ToastProvider';
+import { adminFetch } from '@/lib/client/adminFetch';
+import Skeleton from '@/components/ui/Skeleton';
 
 interface VectorChunk {
     id: string;
@@ -23,57 +28,27 @@ interface IndexedFile {
 
 export default function KnowledgeBasePage() {
     const [activeTab, setActiveTab] = useState<'knowledge' | 'rag-lab'>('knowledge');
-    const [dragActive, setDragActive] = useState(false);
-    const [files, setFiles] = useState<File[]>([]);
-    const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(false);
 
     // Initialize with empty array - No Mock Data
     const [indexedFiles, setIndexedFiles] = useState<IndexedFile[]>([]);
     const [selectedFile, setSelectedFile] = useState<IndexedFile | null>(null);
     const [chunks, setChunks] = useState<VectorChunk[]>([]);
-    const [allChunks, setAllChunks] = useState<any[]>([]);
     const [listLoading, setListLoading] = useState(false);
     const [actionMsg, setActionMsg] = useState<string | null>(null);
-
-    const handleDrag = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.type === 'dragenter' || e.type === 'dragover') {
-            setDragActive(true);
-        } else if (e.type === 'dragleave') {
-            setDragActive(false);
-        }
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragActive(false);
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            setFiles(Array.from(e.dataTransfer.files));
-        }
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setFiles(Array.from(e.target.files));
-        }
-    };
-
-    const handleUpload = async () => {
-        setUploading(true);
-        // TODO: Implement actual upload logic
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setUploading(false);
-        setFiles([]);
-        alert('上傳功能尚未連接後端 API (Pending Backend Integration)');
-    };
+    const [docDetail, setDocDetail] = useState<any | null>(null);
+    const [chunkQuery, setChunkQuery] = useState('');
+    const [chunkOrder, setChunkOrder] = useState<'asc' | 'desc'>('asc');
+    const [chunkPage, setChunkPage] = useState(0);
+    const [chunkLimit, setChunkLimit] = useState(50);
+    const [chunkTotal, setChunkTotal] = useState(-1);
+    const { pushToast } = useToast();
+    const [activeChunk, setActiveChunk] = useState<VectorChunk | null>(null);
 
     const loadDocuments = async () => {
         setListLoading(true);
         try {
-            const res = await fetch('/api/admin/documents', { cache: 'no-store' });
+            const res = await adminFetch('/api/admin/documents', { cache: 'no-store' });
             if (!res.ok) {
                 const data = await res.json();
                 if (data.error && data.error.includes('MONGODB_URI')) {
@@ -96,10 +71,9 @@ export default function KnowledgeBasePage() {
                 uploadedAt: d.indexedAt ? new Date(d.indexedAt).toLocaleString() : '',
             }));
             setIndexedFiles(mapped);
-            setAllChunks(data?.chunks || []);
         } catch (e: any) {
             console.error(e);
-            alert('讀取文件列表失敗：' + (e?.message || e));
+            pushToast({ type: 'error', message: '讀取文件列表失敗：' + (e?.message || e) });
         } finally {
             setListLoading(false);
         }
@@ -109,25 +83,94 @@ export default function KnowledgeBasePage() {
         loadDocuments();
     }, []);
 
-    const handleViewChunks = async (file: IndexedFile) => {
-        setSelectedFile(file);
-        setLoading(true);
-        const filtered = allChunks.filter((c: any) => c.docId === file.docId);
+    const highlightText = (text: string, query: string) => {
+        const tokens = query.split(/\s+/).map(t => t.trim()).filter(t => t.length > 1);
+        if (!tokens.length) return text;
+        const pattern = new RegExp(`(${tokens.map(t => t.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|')})`, 'gi');
+        const parts = text.split(pattern);
+        return parts.map((part, idx) =>
+            tokens.some(t => t.toLowerCase() === part.toLowerCase())
+                ? <mark key={idx} className="bg-yellow-200 px-0.5">{part}</mark>
+                : <span key={idx}>{part}</span>
+        );
+    };
+
+    const loadDocDetail = async (docId: string) => {
+        const res = await adminFetch(`/api/admin/documents/${encodeURIComponent(docId)}`, { cache: 'no-store' });
+        const data = await res.json();
+        if (res.ok) {
+            setDocDetail(data);
+        }
+    };
+
+    const loadChunks = async (docId: string, opts?: { page?: number; query?: string; order?: 'asc' | 'desc'; limit?: number }) => {
+        const page = opts?.page ?? chunkPage;
+        const query = (opts?.query ?? chunkQuery).trim();
+        const order = opts?.order ?? chunkOrder;
+        const limit = opts?.limit ?? chunkLimit;
+        const skip = page * limit;
+
+        const params = new URLSearchParams({
+            docId,
+            limit: String(limit),
+            skip: String(skip),
+            order
+        });
+        if (query) params.set('q', query);
+
+        const res = await adminFetch(`/api/admin/chunks?${params.toString()}`, { cache: 'no-store' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '讀取切片失敗');
         setChunks(
-            filtered.map((c: any) => ({
+            (data?.chunks || []).map((c: any) => ({
                 id: c.chunkId,
                 text: c.text || '',
                 source: c.source,
                 score: c.score,
             }))
         );
-        setLoading(false);
+        setChunkTotal(typeof data.total === 'number' ? data.total : 0);
+        setChunkPage(page);
+        setChunkLimit(limit);
+        setChunkOrder(order);
+    };
+
+    const handleViewChunks = async (file: IndexedFile) => {
+        setSelectedFile(file);
+        setDocDetail(null);
+        setChunkPage(0);
+        setChunkTotal(-1);
+        setLoading(true);
+        try {
+            await Promise.all([
+                loadChunks(file.docId, { page: 0 }),
+                loadDocDetail(file.docId),
+            ]);
+        } catch (e: any) {
+            console.error(e);
+            pushToast({ type: 'error', message: e?.message || '讀取切片失敗' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const runChunkSearch = async (page = 0) => {
+        if (!selectedFile) return;
+        setLoading(true);
+        try {
+            await loadChunks(selectedFile.docId, { page, query: chunkQuery, order: chunkOrder, limit: chunkLimit });
+        } catch (e: any) {
+            console.error(e);
+            pushToast({ type: 'error', message: e?.message || '讀取切片失敗' });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const reindex = async (docId?: string) => {
         setActionMsg('重新索引中...');
         try {
-            const res = await fetch('/api/admin/index', {
+            const res = await adminFetch('/api/admin/index', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(docId ? { scope: 'doc', docId } : { scope: 'all' }),
@@ -147,9 +190,9 @@ export default function KnowledgeBasePage() {
                 throw new Error(error);
             }
             await loadDocuments();
-            alert('重新索引完成');
+            pushToast({ type: 'success', message: '重新索引完成' });
         } catch (e: any) {
-            alert(e?.message || '重新索引失敗');
+            pushToast({ type: 'error', message: e?.message || '重新索引失敗' });
         } finally {
             setActionMsg(null);
         }
@@ -160,7 +203,7 @@ export default function KnowledgeBasePage() {
         if (!ok) return;
         setActionMsg('刪除中...');
         try {
-            const res = await fetch('/api/admin/index', {
+            const res = await adminFetch('/api/admin/index', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(docId ? { scope: 'doc', docId } : { scope: 'all' }),
@@ -171,10 +214,12 @@ export default function KnowledgeBasePage() {
             if (selectedFile && (!docId || selectedFile.docId === docId)) {
                 setSelectedFile(null);
                 setChunks([]);
+                setDocDetail(null);
+                setChunkTotal(-1);
             }
-            alert('刪除完成');
+            pushToast({ type: 'success', message: '刪除完成' });
         } catch (e: any) {
-            alert(e?.message || '刪除失敗');
+            pushToast({ type: 'error', message: e?.message || '刪除失敗' });
         } finally {
             setActionMsg(null);
         }
@@ -212,54 +257,7 @@ export default function KnowledgeBasePage() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     {/* Left Column: File Upload */}
                     <div className="lg:col-span-3 space-y-6">
-                        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
-                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800">
-                                <Upload className="w-5 h-5 text-blue-600" /> 檔案上傳
-                            </h2>
-
-                            <div
-                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
-                                    }`}
-                                onDragEnter={handleDrag}
-                                onDragLeave={handleDrag}
-                                onDragOver={handleDrag}
-                                onDrop={handleDrop}
-                                onClick={() => document.getElementById('file-upload')?.click()}
-                            >
-                                <input
-                                    type="file"
-                                    id="file-upload"
-                                    multiple
-                                    className="hidden"
-                                    onChange={handleFileChange}
-                                    accept=".pdf,.txt,.md"
-                                />
-                                <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                <p className="text-gray-500 mb-2">點擊或拖放檔案</p>
-                                <p className="text-xs text-gray-400">支援 PDF、TXT、MD</p>
-                            </div>
-
-                            {files.length > 0 && (
-                                <div className="mt-4 space-y-2">
-                                    {files.map((file, idx) => (
-                                        <div key={idx} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                            <div className="flex items-center gap-2">
-                                                <FileText className="w-4 h-4 text-gray-600" />
-                                                <span className="text-sm truncate max-w-[150px]">{file.name}</span>
-                                            </div>
-                                            <span className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</span>
-                                        </div>
-                                    ))}
-                                    <button
-                                        onClick={handleUpload}
-                                        disabled={uploading}
-                                        className="w-full mt-4 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-                                    >
-                                        {uploading ? '處理中...' : '開始上傳與向量化'}
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                        <UploadPanel onAction={setActionMsg} onUploadComplete={loadDocuments} />
 
                         {/* Indexed Files List */}
                         <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500 space-y-3">
@@ -285,7 +283,11 @@ export default function KnowledgeBasePage() {
                                 </div>
                             </div>
                             {listLoading ? (
-                                <div className="text-center py-6 text-gray-500">載入中...</div>
+                                <div className="space-y-2">
+                                    <Skeleton className="h-14" />
+                                    <Skeleton className="h-14" />
+                                    <Skeleton className="h-14" />
+                                </div>
                             ) : indexedFiles.length > 0 ? (
                                 <div className="space-y-2 max-h-96 overflow-y-auto">
                                     {indexedFiles.map((file, idx) => (
@@ -341,6 +343,8 @@ export default function KnowledgeBasePage() {
                             )}
                             {actionMsg && <p className="text-xs text-amber-700">{actionMsg}</p>}
                         </div>
+
+                        <UploadHistoryPanel />
                     </div>
 
                     {/* Middle Column: Vector Chunks */}
@@ -355,10 +359,78 @@ export default function KnowledgeBasePage() {
                                     <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
                                         <p className="text-sm font-medium text-purple-900">來源檔案: {selectedFile.name}</p>
                                         <p className="text-xs text-purple-700 mt-1">Total Chunks: {selectedFile.chunks}</p>
+                                        {docDetail?.stats && (
+                                            <div className="mt-2 text-xs text-purple-700 space-y-1">
+                                                <div>平均長度: {docDetail.stats.avgLen} / 最小: {docDetail.stats.minLen} / 最大: {docDetail.stats.maxLen}</div>
+                                                {docDetail?.document?.mode && <div>解析模式: {docDetail.document.mode}</div>}
+                                                {docDetail?.document?.type && <div>檔案類型: {docDetail.document.type}</div>}
+                                                {docDetail?.document?.note && <div>備註: {docDetail.document.note}</div>}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="mb-3 space-y-2">
+                                        <div className="flex flex-wrap gap-2 items-center">
+                                            <input
+                                                value={chunkQuery}
+                                                onChange={e => setChunkQuery(e.target.value)}
+                                                placeholder="搜尋切片內容/來源"
+                                                className="flex-1 min-w-[160px] border rounded px-2 py-1 text-xs"
+                                            />
+                                            <select
+                                                value={chunkOrder}
+                                                onChange={e => setChunkOrder(e.target.value as 'asc' | 'desc')}
+                                                className="border rounded px-2 py-1 text-xs"
+                                            >
+                                                <option value="asc">順序</option>
+                                                <option value="desc">倒序</option>
+                                            </select>
+                                            <select
+                                                value={chunkLimit}
+                                                onChange={e => setChunkLimit(Number(e.target.value))}
+                                                className="border rounded px-2 py-1 text-xs"
+                                            >
+                                                <option value={20}>20 / 頁</option>
+                                                <option value={50}>50 / 頁</option>
+                                                <option value={100}>100 / 頁</option>
+                                            </select>
+                                            <button
+                                                onClick={() => runChunkSearch(0)}
+                                                disabled={loading}
+                                                className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 disabled:opacity-50"
+                                            >
+                                                搜尋
+                                            </button>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs text-gray-500">
+                                            <span>
+                                                顯示 {chunks.length} / {chunkTotal >= 0 ? chunkTotal : (selectedFile.chunks || 0)}
+                                            </span>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => runChunkSearch(Math.max(0, chunkPage - 1))}
+                                                    disabled={loading || chunkPage === 0}
+                                                    className="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 disabled:opacity-50"
+                                                >
+                                                    上一頁
+                                                </button>
+                                                <button
+                                                    onClick={() => runChunkSearch(chunkPage + 1)}
+                                                    disabled={loading || (chunkTotal >= 0 && (chunkPage + 1) * chunkLimit >= chunkTotal)}
+                                                    className="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 disabled:opacity-50"
+                                                >
+                                                    下一頁
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {loading ? (
-                                        <div className="text-center text-gray-500 py-8">載入中...</div>
+                                        <div className="space-y-3">
+                                            <Skeleton className="h-20" />
+                                            <Skeleton className="h-20" />
+                                            <Skeleton className="h-20" />
+                                        </div>
                                     ) : chunks.length > 0 ? (
                                         <div className="space-y-3 max-h-[600px] overflow-y-auto">
                                             {chunks.map((chunk, idx) => (
@@ -371,7 +443,17 @@ export default function KnowledgeBasePage() {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-sm text-gray-700 leading-relaxed">{chunk.text}</p>
+                                                    <p className="text-sm text-gray-700 leading-relaxed">
+                                                        {highlightText(chunk.text, chunkQuery)}
+                                                    </p>
+                                                    <div className="mt-2 flex justify-end">
+                                                        <button
+                                                            onClick={() => setActiveChunk(chunk)}
+                                                            className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100"
+                                                        >
+                                                            檢視全文
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -403,6 +485,46 @@ export default function KnowledgeBasePage() {
                 </div>
             ) : (
                 <RagLabPanel />
+            )}
+
+            {activeChunk && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg border">
+                        <div className="flex items-center justify-between px-4 py-3 border-b">
+                            <div className="text-sm font-semibold text-gray-800">切片全文</div>
+                            <button
+                                onClick={() => setActiveChunk(null)}
+                                className="text-xs text-gray-600 hover:text-gray-900"
+                            >
+                                關閉
+                            </button>
+                        </div>
+                        <div className="p-4 max-h-[70vh] overflow-y-auto text-sm leading-relaxed">
+                            {highlightText(activeChunk.text, chunkQuery)}
+                        </div>
+                        <div className="px-4 py-3 border-t flex justify-end gap-2">
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await navigator.clipboard.writeText(activeChunk.text);
+                                        pushToast({ type: 'success', message: '已複製切片內容' });
+                                    } catch {
+                                        pushToast({ type: 'error', message: '複製失敗' });
+                                    }
+                                }}
+                                className="text-xs bg-gray-100 px-3 py-1 rounded hover:bg-gray-200"
+                            >
+                                複製
+                            </button>
+                            <button
+                                onClick={() => setActiveChunk(null)}
+                                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                            >
+                                關閉
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
