@@ -1,4 +1,4 @@
-import clientPromise, { getMongoClient } from '@/lib/db/mongo';
+import { getMongoClient } from '@/lib/db/mongo';
 import {
     saveMessageLocal,
     getConversationHistoryLocal,

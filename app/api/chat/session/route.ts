@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/db/mongo';
+import { getMongoClient } from '@/lib/db/mongo';
 import { saveConversationTitle } from '@/lib/features/memory';
 
 export async function PATCH(req: NextRequest) {
@@ -26,7 +26,7 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
         }
 
-        const client = await clientPromise;
+        const client = await getMongoClient();
         const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
 
         // Delete history

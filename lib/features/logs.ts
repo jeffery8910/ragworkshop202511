@@ -1,4 +1,4 @@
-import clientPromise from '@/lib/db/mongo';
+import { getMongoClient } from '@/lib/db/mongo';
 
 export interface LogEntry {
     type: 'message' | 'reply' | 'error' | 'event';
@@ -10,7 +10,7 @@ export interface LogEntry {
 
 export async function logConversation(entry: Omit<LogEntry, 'timestamp'>) {
     try {
-        const client = await clientPromise;
+        const client = await getMongoClient();
         const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
         await db.collection('logs').insertOne({
             ...entry,

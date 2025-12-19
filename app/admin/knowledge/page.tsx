@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { FileText, RefreshCw, Database, Eye, Trash2, Zap } from 'lucide-react';
 import RagLabPanel from '@/components/admin/RagLabPanel';
 import RagProcessGraph from '@/components/admin/RagProcessGraph';
@@ -476,7 +476,9 @@ export default function KnowledgeBasePage() {
                     <div className="lg:col-span-5 flex flex-col gap-4">
                         {/* Replaced inline visualization with the real KnowledgeGraph component */}
                         <div className="h-[500px]">
-                            <KnowledgeGraph />
+                            <Suspense fallback={<div className="h-full w-full rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center text-sm text-slate-400">載入圖譜中…</div>}>
+                                <KnowledgeGraph />
+                            </Suspense>
                         </div>
                         
                         {/* RAG Process Visualization */}

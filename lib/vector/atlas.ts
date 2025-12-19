@@ -1,8 +1,8 @@
-import clientPromise from '@/lib/db/mongo';
+import { getMongoClient } from '@/lib/db/mongo';
 import { getEmbedding } from './embedding';
 
 export async function searchAtlas(query: string, topK = 5) {
-    const client = await clientPromise;
+    const client = await getMongoClient();
     const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
     const collection = db.collection('documents');
     const vector = await getEmbedding(query);
