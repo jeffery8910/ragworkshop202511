@@ -39,7 +39,7 @@ export async function searchGraphEvidence(
 
     const tokens = query.split(/\s+/).map(t => t.trim()).filter(t => t.length > 1);
     if (tokens.length === 0) {
-        return { nodes: [], edges: [], triples: [] };
+        return { nodes: [], edges: [], triples: [], matchedNodeIds: [] };
     }
 
     const tokenRegex = tokens.map(t => new RegExp(escapeRegExp(t), 'i'));
