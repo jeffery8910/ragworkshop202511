@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         const edgeFilter: any = {};
         if (!allowCrossDoc && allowedDocId) edgeFilter.docId = allowedDocId;
 
-        const edges: Edge[] = await db.collection('graph_edges')
+        const edges: Edge[] = await db.collection<Edge>('graph_edges')
             .find(edgeFilter, { projection: { _id: 0 } })
             .limit(5000)
             .toArray();
