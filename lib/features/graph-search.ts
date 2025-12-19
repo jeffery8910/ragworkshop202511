@@ -44,7 +44,7 @@ export async function searchGraphEvidence(
 
     const tokenRegex = tokens.map(t => new RegExp(escapeRegExp(t), 'i'));
 
-    const matchedNodes = await db.collection('graph_nodes')
+    const matchedNodes = await db.collection<GraphEvidenceNode>('graph_nodes')
         .find({ label: { $in: tokenRegex } }, { projection: { _id: 0 } })
         .limit(maxNodes)
         .toArray();
@@ -55,7 +55,7 @@ export async function searchGraphEvidence(
 
     const matchedNodeIds = matchedNodes.map((n: any) => n.id);
 
-    const relatedEdges = await db.collection('graph_edges')
+    const relatedEdges = await db.collection<GraphEvidenceEdge>('graph_edges')
         .find(
             {
                 $or: [
@@ -82,7 +82,7 @@ export async function searchGraphEvidence(
     });
     const missingIds = [...edgeNodeIds].filter(id => !nodeMap.has(id));
     if (missingIds.length) {
-        const extraNodes = await db.collection('graph_nodes')
+        const extraNodes = await db.collection<GraphEvidenceNode>('graph_nodes')
             .find({ id: { $in: missingIds } }, { projection: { _id: 0 } })
             .limit(maxNodes * 2)
             .toArray();
