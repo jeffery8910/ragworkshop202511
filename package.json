@@ -24,8 +24,8 @@
     "openai": "^6.9.1",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^5.4.394",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.1.13"
