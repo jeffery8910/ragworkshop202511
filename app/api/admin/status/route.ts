@@ -62,7 +62,7 @@ export async function GET() {
     // 2. Check Pinecone Connection
     if (status.pinecone.apiKey) {
         status.pinecone.connection = await measure(async () => {
-            const pinecone = await getPineconeClient();
+            const pinecone = await getPineconeClient(getConfig('PINECONE_API_KEY'));
             await pinecone.listIndexes();
         });
     } else {
