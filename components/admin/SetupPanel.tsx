@@ -56,6 +56,15 @@ interface SetupPanelProps {
 
 
 
+const inferProviderFromModel = (model?: string): Provider | undefined => {
+    if (!model) return undefined;
+    const m = model.toLowerCase();
+    if (m.startsWith('gemini')) return 'gemini';
+    if (m.startsWith('gpt') || m.startsWith('o') || m.startsWith('chatgpt')) return 'openai';
+    if (m.includes('/')) return 'openrouter';
+    return undefined;
+};
+
 export default function SetupPanel({ initialConfig }: SetupPanelProps) {
     const [config, setConfig] = useState({
         MONGODB_URI: initialConfig['MONGODB_URI'] || '',
@@ -92,11 +101,13 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         pinecone: [],
     });
     const [testingInfra, setTestingInfra] = useState<'mongo' | 'pinecone' | null>(null);
-    const [chatProvider, setChatProvider] = useState<Provider>(
-        initialConfig['GEMINI_API_KEY'] ? 'gemini' :
-            initialConfig['OPENAI_API_KEY'] ? 'openai' :
-                initialConfig['OPENROUTER_API_KEY'] ? 'openrouter' : 'gemini'
-    );
+    const [chatProvider, setChatProvider] = useState<Provider>(() => {
+        return inferProviderFromModel(initialConfig['CHAT_MODEL'])
+            || (initialConfig['GEMINI_API_KEY'] ? 'gemini'
+                : initialConfig['OPENAI_API_KEY'] ? 'openai'
+                    : initialConfig['OPENROUTER_API_KEY'] ? 'openrouter'
+                        : 'gemini');
+    });
     const { pushToast } = useToast();
 
     const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
