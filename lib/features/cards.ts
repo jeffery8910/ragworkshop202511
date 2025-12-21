@@ -15,7 +15,7 @@ interface SaveOptions {
 
 export async function saveCard(userId: string, payload: CardPayload, opts?: SaveOptions) {
   const client = await getMongoClient(opts?.mongoUri);
-  const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_workshop');
+  const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_db');
   await db.collection('cards').insertOne({
     userId,
     type: payload.type,
@@ -30,7 +30,7 @@ export async function saveCard(userId: string, payload: CardPayload, opts?: Save
 
 export async function getCardsByUser(userId: string, opts?: SaveOptions, limit = 20, filter?: Record<string, any>) {
   const client = await getMongoClient(opts?.mongoUri);
-  const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_workshop');
+  const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_db');
   return db
     .collection('cards')
     .find({ userId, ...(filter || {}) })
@@ -42,7 +42,7 @@ export async function getCardsByUser(userId: string, opts?: SaveOptions, limit =
 // Keep only newest N cards per user to avoid bloat
 export async function pruneCards(userId: string, maxCount = 50, opts?: SaveOptions) {
   const client = await getMongoClient(opts?.mongoUri);
-  const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_workshop');
+  const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_db');
   const toDelete = await db.collection('cards')
     .find({ userId })
     .sort({ createdAt: -1 })
@@ -58,7 +58,7 @@ export async function pruneCards(userId: string, maxCount = 50, opts?: SaveOptio
 // Log parsing / save errors for observability
 export async function logCardError(userId: string, error: string, payload?: any, opts?: SaveOptions) {
   const client = await getMongoClient(opts?.mongoUri);
-  const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_workshop');
+  const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_db');
   await db.collection('card_errors').insertOne({
     userId,
     error,

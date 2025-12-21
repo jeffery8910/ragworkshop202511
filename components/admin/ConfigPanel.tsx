@@ -14,7 +14,9 @@ export default function ConfigPanel({ initialConfig }: ConfigPanelProps) {
         temperature: parseFloat(initialConfig['TEMPERATURE'] || '0.7'),
         promptTemplate: initialConfig['PROMPT_TEMPLATE'] || '',
         topK: parseInt(initialConfig['RAG_TOP_K'] || '5'),
-        n8nWebhook: initialConfig['N8N_WEBHOOK_URL'] || ''
+        n8nWebhook: initialConfig['N8N_WEBHOOK_URL'] || '',
+        chatTitle: initialConfig['CHAT_TITLE'] || '',
+        welcomeMessage: initialConfig['WELCOME_MESSAGE'] || ''
     });
     const { pushToast } = useToast();
 
@@ -27,13 +29,39 @@ export default function ConfigPanel({ initialConfig }: ConfigPanelProps) {
                     RAG_TOP_K: config.topK,
                     TEMPERATURE: config.temperature,
                     PROMPT_TEMPLATE: config.promptTemplate,
-                    N8N_WEBHOOK_URL: config.n8nWebhook
+                    N8N_WEBHOOK_URL: config.n8nWebhook,
+                    CHAT_TITLE: config.chatTitle,
+                    WELCOME_MESSAGE: config.welcomeMessage
                 })
             });
             if (!res.ok) throw new Error('Failed to save');
             pushToast({ type: 'success', message: '設定已儲存' });
         } catch (e) {
             pushToast({ type: 'error', message: '儲存失敗' });
+        }
+    };
+
+    const handleClearCopy = async () => {
+        if (!confirm('確定要清空前台文案嗎？這會移除目前的標題與歡迎訊息。')) return;
+        try {
+            const payload = {
+                RAG_TOP_K: config.topK,
+                TEMPERATURE: config.temperature,
+                PROMPT_TEMPLATE: config.promptTemplate,
+                N8N_WEBHOOK_URL: config.n8nWebhook,
+                CHAT_TITLE: '',
+                WELCOME_MESSAGE: ''
+            };
+            const res = await adminFetch('/api/admin/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error('Failed to clear');
+            setConfig(prev => ({ ...prev, chatTitle: '', welcomeMessage: '' }));
+            pushToast({ type: 'success', message: '前台文案已清空' });
+        } catch (e) {
+            pushToast({ type: 'error', message: '清空失敗' });
         }
     };
 
@@ -72,6 +100,43 @@ export default function ConfigPanel({ initialConfig }: ConfigPanelProps) {
                         className="w-full border rounded p-2 h-24 text-sm"
                         placeholder="預設系統提示詞..."
                     />
+                </div>
+
+                <div className="pt-4 border-t space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-gray-800">前台文案</h3>
+                        <button
+                            type="button"
+                            onClick={handleClearCopy}
+                            className="text-xs text-red-600 hover:text-red-700 hover:underline"
+                        >
+                            清空文案
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">CHAT_TITLE</label>
+                            <input
+                                type="text"
+                                value={config.chatTitle}
+                                onChange={e => setConfig({ ...config, chatTitle: e.target.value })}
+                                placeholder="RAG 工作坊"
+                                className="w-full border rounded p-2 text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">WELCOME_MESSAGE</label>
+                            <textarea
+                                value={config.welcomeMessage}
+                                onChange={e => setConfig({ ...config, welcomeMessage: e.target.value })}
+                                placeholder="你好！我是你的 AI 學習助手..."
+                                className="w-full border rounded p-2 text-sm h-24"
+                            />
+                        </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                        清空後會改回預設文案（或環境變數設定）。
+                    </p>
                 </div>
 
                 <div className="pt-4 border-t">

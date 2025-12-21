@@ -1,15 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getMongoClient } from '@/lib/db/mongo';
-import { saveConversationTitle } from '@/lib/features/memory';
+import { cookies } from 'next/headers';
+import { getConfigValue } from '@/lib/config-store';
+import {
+    saveConversationTitle,
+    getConversationHistory,
+    getConversationTitle,
+    deleteConversation,
+    getStorageType
+} from '@/lib/features/memory';
+
+const resolveDbConfig = async () => {
+    const cookieStore = await cookies();
+    const readConfig = (key: string) =>
+        cookieStore.get(key)?.value || getConfigValue(key) || process.env[key];
+    return {
+        mongoUri: readConfig('MONGODB_URI'),
+        dbName: readConfig('MONGODB_DB_NAME')
+    };
+};
+
+const resolveUserId = async (req: NextRequest) => {
+    const cookieStore = await cookies();
+    const { searchParams } = new URL(req.url);
+    return (
+        searchParams.get('userId') ||
+        cookieStore.get('line_user_id')?.value ||
+        cookieStore.get('rag_user_id')?.value ||
+        ''
+    );
+};
+
+export async function GET(req: NextRequest) {
+    try {
+        const userId = await resolveUserId(req);
+        if (!userId) {
+            return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+        }
+
+        const { searchParams } = new URL(req.url);
+        const limitRaw = searchParams.get('limit');
+        const limit = limitRaw ? Math.max(1, parseInt(limitRaw, 10)) : 50;
+
+        const dbConfig = await resolveDbConfig();
+        const [messages, title, storage] = await Promise.all([
+            getConversationHistory(userId, Number.isNaN(limit) ? 50 : limit, {
+                mongoUri: dbConfig.mongoUri,
+                dbName: dbConfig.dbName
+            }),
+            getConversationTitle(userId, {
+                mongoUri: dbConfig.mongoUri,
+                dbName: dbConfig.dbName
+            }),
+            getStorageType({
+                mongoUri: dbConfig.mongoUri,
+                dbName: dbConfig.dbName
+            })
+        ]);
+
+        return NextResponse.json({ userId, title, messages, storage });
+    } catch (error) {
+        console.error('Get Session Error:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
 
 export async function PATCH(req: NextRequest) {
     try {
-        const { userId, title } = await req.json();
+        const { userId: bodyUserId, title } = await req.json();
+        const userId = bodyUserId || (await resolveUserId(req));
         if (!userId || !title) {
             return NextResponse.json({ error: 'Missing userId or title' }, { status: 400 });
         }
 
-        await saveConversationTitle(userId, title);
+        const dbConfig = await resolveDbConfig();
+        await saveConversationTitle(userId, title, {
+            mongoUri: dbConfig.mongoUri,
+            dbName: dbConfig.dbName
+        });
         return NextResponse.json({ success: true, title });
     } catch (error) {
         console.error('Update Title Error:', error);
@@ -19,21 +86,17 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
     try {
-        const { searchParams } = new URL(req.url);
-        const userId = searchParams.get('userId');
+        const userId = await resolveUserId(req);
 
         if (!userId) {
             return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
         }
 
-        const client = await getMongoClient();
-        const db = client.db(process.env.MONGODB_DB_NAME || 'rag_db');
-
-        // Delete history
-        await db.collection('history').deleteMany({ userId });
-
-        // Optionally delete conversation metadata or just reset it?
-        // For now, we just clear history. The title remains or can be reset if needed.
+        const dbConfig = await resolveDbConfig();
+        await deleteConversation(userId, {
+            mongoUri: dbConfig.mongoUri,
+            dbName: dbConfig.dbName
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

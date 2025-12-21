@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { cookies } from 'next/headers';
+import { getConfigValue } from '@/lib/config-store';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
-  const title = cookieStore.get('CHAT_TITLE')?.value || "RAG 工作坊";
+  const title = cookieStore.get('CHAT_TITLE')?.value || getConfigValue('CHAT_TITLE') || process.env.CHAT_TITLE || "RAG 工作坊";
   return {
     title: title,
     description: "進階 RAG 工作坊專案 (Next.js + n8n)",

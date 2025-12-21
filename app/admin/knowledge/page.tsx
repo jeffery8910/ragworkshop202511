@@ -248,7 +248,7 @@ export default function KnowledgeBasePage() {
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${activeTab === 'rag-lab' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                             }`}
                     >
-                        <Zap className="w-4 h-4" /> RAG 實驗室
+                        <Zap className="w-4 h-4" /> RAG 教學坊
                     </button>
                 </div>
             </div>

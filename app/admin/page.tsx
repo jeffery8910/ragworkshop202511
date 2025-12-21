@@ -1,6 +1,7 @@
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import { cookies } from 'next/headers';
 import { Suspense } from 'react';
+import { getConfigValue } from '@/lib/config-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,15 +26,17 @@ export default async function AdminPage() {
     const missingKeys = checkKeys.filter(key => {
         const envVal = process.env[key]?.trim();
         const cookieVal = cookieStore.get(key)?.value?.trim();
+        const storeVal = (getConfigValue(key) || '')?.toString().trim();
         const hasEnv = !!envVal && envVal.length > 0;
         const hasCookie = !!cookieVal && cookieVal.length > 0;
-        return !hasEnv && !hasCookie;
+        const hasStore = !!storeVal && storeVal.length > 0;
+        return !hasEnv && !hasCookie && !hasStore;
     });
 
     // Prepare initial config for client components
     const initialConfig: Record<string, string> = {};
     checkKeys.forEach(key => {
-        initialConfig[key] = cookieStore.get(key)?.value || process.env[key] || '';
+        initialConfig[key] = cookieStore.get(key)?.value || getConfigValue(key) || process.env[key] || '';
     });
 
     return (

@@ -38,7 +38,7 @@ ${transcript}
     const payload = JSON.parse(jsonMatch[0]) as MemoryCardPayload;
     if (payload.type !== 'summary' || !Array.isArray(payload.bullets)) return;
     const client = await getMongoClient(opts?.mongoUri);
-    const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_workshop');
+    const db = client.db(opts?.dbName || process.env.MONGODB_DB_NAME || 'rag_db');
     await db.collection('cards').insertOne({
       userId,
       type: 'summary',

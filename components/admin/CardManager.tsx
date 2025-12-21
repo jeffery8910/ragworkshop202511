@@ -17,20 +17,37 @@ interface CardDoc {
     createdAt: string;
 }
 
-export default function CardManager({ defaultUserId = 'web-user-demo' }: CardManagerProps) {
+export default function CardManager({ defaultUserId = '' }: CardManagerProps) {
     const [userId, setUserId] = useState(defaultUserId);
     const [cards, setCards] = useState<CardDoc[]>([]);
     const [loading, setLoading] = useState(false);
     const { pushToast } = useToast();
 
+    useEffect(() => {
+        if (userId) return;
+        if (typeof window === 'undefined') return;
+        const stored = window.localStorage.getItem('rag_user_id');
+        if (stored) setUserId(stored);
+    }, [userId]);
+
     const fetchCards = async () => {
+        if (!userId) {
+            setCards([]);
+            return;
+        }
         setLoading(true);
         try {
             const res = await adminFetch(`/api/admin/cards?userId=${encodeURIComponent(userId)}&limit=50`, { cache: 'no-store' });
             const data = await res.json();
+            if (!res.ok) {
+                pushToast({ type: 'error', message: data?.error || '讀取卡片失敗' });
+                setCards([]);
+                return;
+            }
             setCards(data || []);
         } catch (e) {
             console.error('Fetch cards error', e);
+            pushToast({ type: 'error', message: '讀取卡片失敗' });
         } finally {
             setLoading(false);
         }
@@ -80,6 +97,9 @@ export default function CardManager({ defaultUserId = 'web-user-demo' }: CardMan
             <div className="text-xs text-gray-500 mb-2">顯示最新 50 張卡片，可刪除無效/重複資料。</div>
 
             <div className="space-y-2 max-h-96 overflow-auto">
+                {!userId && (
+                    <div className="text-sm text-gray-500 text-center py-6">請先輸入或選擇 User ID</div>
+                )}
                 {cards.map(card => (
                     <div key={card._id} className="border rounded p-3 bg-gray-50">
                         <div className="flex items-center justify-between mb-1">
@@ -97,7 +117,7 @@ export default function CardManager({ defaultUserId = 'web-user-demo' }: CardMan
                         </pre>
                     </div>
                 ))}
-                {!cards.length && <div className="text-sm text-gray-500 text-center py-6">目前沒有卡片</div>}
+                {!!userId && !cards.length && <div className="text-sm text-gray-500 text-center py-6">目前沒有卡片</div>}
             </div>
         </div>
     );

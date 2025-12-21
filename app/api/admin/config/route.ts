@@ -39,8 +39,10 @@ export async function POST(req: NextRequest) {
             'LINE_LOGIN_CHANNEL_ID', 'LINE_LOGIN_CHANNEL_SECRET',
             'GEMINI_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY',
             'EMBEDDING_PROVIDER', 'EMBEDDING_MODEL', 'CHAT_MODEL',
+            'CHAT_TITLE', 'WELCOME_MESSAGE',
             'RAG_TOP_K',
-            'TEMPERATURE', 'PROMPT_TEMPLATE'
+            'TEMPERATURE', 'PROMPT_TEMPLATE',
+            'N8N_WEBHOOK_URL'
         ];
 
         const res = NextResponse.json({ success: true });
@@ -51,14 +53,25 @@ export async function POST(req: NextRequest) {
         saveConfig(config);
 
         keys.forEach(key => {
-            if (config[key]) {
-                res.cookies.set(key, config[key], {
-                    httpOnly: true,
-                    secure,
-                    sameSite: 'lax',
-                    maxAge: 60 * 60 * 24 * 30, // 30 days
-                    path: '/',
-                });
+            if (Object.prototype.hasOwnProperty.call(config, key)) {
+                const value = config[key];
+                if (value === '' || value === null || value === undefined) {
+                    res.cookies.set(key, '', {
+                        httpOnly: true,
+                        secure,
+                        sameSite: 'lax',
+                        maxAge: 0,
+                        path: '/',
+                    });
+                } else {
+                    res.cookies.set(key, String(value), {
+                        httpOnly: true,
+                        secure,
+                        sameSite: 'lax',
+                        maxAge: 60 * 60 * 24 * 30, // 30 days
+                        path: '/',
+                    });
+                }
             }
         });
 

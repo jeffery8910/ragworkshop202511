@@ -1,23 +1,36 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getMongoClient } from '@/lib/db/mongo';
 import { getCardsByUser } from '@/lib/features/cards';
+import { getConfigValue } from '@/lib/config-store';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
         const cookieStore = await cookies();
-        const mongoUri = cookieStore.get('MONGODB_URI')?.value;
-        const dbName = cookieStore.get('MONGODB_DB_NAME')?.value || process.env.MONGODB_DB_NAME || 'rag_workshop';
-        const userId = cookieStore.get('line_user_id')?.value || 'web-user-demo';
+        const getConfig = (key: string) =>
+            cookieStore.get(key)?.value || getConfigValue(key) || process.env[key];
+        const mongoUri = getConfig('MONGODB_URI');
+        const dbName = getConfig('MONGODB_DB_NAME') || 'rag_db';
+
+        const { searchParams } = new URL(req.url);
+        const userId =
+            cookieStore.get('line_user_id')?.value
+            || searchParams.get('userId')
+            || cookieStore.get('rag_user_id')?.value
+            || '';
+
+        if (!userId) {
+            return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+        }
 
         const client = await getMongoClient(mongoUri);
         const db = client.db(dbName);
 
         // Fetch latest student stats
-        // In a real app, we would filter by userId. Here we take the latest or a specific demo user.
-        const stats = await db.collection('student_stats').findOne({}, { sort: { _id: -1 } });
+        const statsByUser = await db.collection('student_stats').findOne({ userId }, { sort: { _id: -1 } });
+        const stats = statsByUser || await db.collection('student_stats').findOne({}, { sort: { _id: -1 } });
 
         // Build topics, mistakes, summaries from cards
         const cards = await getCardsByUser(userId, { mongoUri, dbName }, 100);

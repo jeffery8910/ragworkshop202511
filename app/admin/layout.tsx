@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Home, Database, Activity, Settings, FlaskConical, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import ToastProvider from '@/components/ui/ToastProvider';
 
 export default function AdminLayout({
@@ -12,14 +11,15 @@ export default function AdminLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
-    const [activeTab, setActiveTab] = useState<string>('setup');
-
-    useEffect(() => {
-        const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-        const tab = params.get('tab') || 'setup';
-        const derived = pathname.startsWith('/admin/status') ? 'status' : tab;
-        setActiveTab(derived);
-    }, [pathname]);
+    const searchParams = useSearchParams();
+    const tab = searchParams.get('tab') || 'setup';
+    const activeTab = pathname.startsWith('/admin/status')
+        ? 'status'
+        : pathname.startsWith('/admin/knowledge')
+            ? 'knowledge'
+            : pathname.startsWith('/admin/analytics')
+                ? 'analytics'
+                : tab;
 
     const activeClass = 'flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium';
     const inactiveClass = 'flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors';
@@ -45,7 +45,7 @@ export default function AdminLayout({
                     </Link>
                     <Link href="/admin?tab=rag-lab" className={activeTab === 'rag-lab' ? activeClass : inactiveClass}>
                         <FlaskConical className="w-4 h-4" />
-                        RAG 實驗室 (Lab)
+                        RAG 教學坊
                     </Link>
                     <div className={`rounded-lg ${activeTab === 'knowledge' ? 'bg-blue-50 border border-blue-200' : ''}`}>
                         <Link
@@ -61,7 +61,7 @@ export default function AdminLayout({
                             <div className="pl-6 pb-3 space-y-1">
                                 <Link href="/admin?tab=knowledge&sub=viz" className="block text-xs text-gray-600 hover:text-blue-700">視覺化</Link>
                                 <Link href="/admin?tab=knowledge&sub=advanced" className="block text-xs text-gray-600 hover:text-blue-700">進階設定</Link>
-                                <Link href="/admin?tab=knowledge&sub=lab" className="block text-xs text-gray-600 hover:text-blue-700">RAG 實驗室</Link>
+                                <Link href="/admin?tab=knowledge&sub=lab" className="block text-xs text-gray-600 hover:text-blue-700">RAG 教學坊</Link>
                                 <Link href="/admin?tab=knowledge&sub=cards" className="block text-xs text-gray-600 hover:text-blue-700">卡片管理</Link>
                             </div>
                         )}

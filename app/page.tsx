@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { Bot, GraduationCap, Settings, ArrowRight } from 'lucide-react';
 import { cookies } from 'next/headers';
+import { getConfigValue } from '@/lib/config-store';
 
 export default async function Home() {
   const cookieStore = await cookies();
-  const chatTitle = cookieStore.get('CHAT_TITLE')?.value || 'RAG 工作坊';
-  const welcomeMessage = cookieStore.get('WELCOME_MESSAGE')?.value || '結合 Next.js 與 n8n 的進階混合式 RAG 架構。\n支援多模型切換、結構化輸出與適性化學習系統。';
+  const chatTitle = cookieStore.get('CHAT_TITLE')?.value || getConfigValue('CHAT_TITLE') || process.env.CHAT_TITLE || 'RAG 工作坊';
+  const welcomeMessage = cookieStore.get('WELCOME_MESSAGE')?.value
+    || getConfigValue('WELCOME_MESSAGE')
+    || process.env.WELCOME_MESSAGE
+    || '結合 Next.js 與 n8n 的進階混合式 RAG 架構。\n支援多模型切換、結構化輸出與適性化學習系統。';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col items-center justify-center p-4">

@@ -5,22 +5,31 @@ import { generateRagQuiz } from '@/lib/features/quiz';
 import { createQuizFlexMessage } from '@/lib/line/templates/quiz';
 import { checkRateLimit } from '@/lib/features/ratelimit';
 import { logConversation } from '@/lib/features/logs';
+import { getConfigValue } from '@/lib/config-store';
 
 // Force Node.js runtime
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
-const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
-
 let client: Client | null = null;
+let clientKey = '';
 
-function getClient() {
-    if (!client) {
+function getRuntimeConfig() {
+    return {
+        channelSecret: getConfigValue('LINE_CHANNEL_SECRET') || process.env.LINE_CHANNEL_SECRET || '',
+        channelAccessToken: getConfigValue('LINE_CHANNEL_ACCESS_TOKEN') || process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+        n8nWebhookUrl: getConfigValue('N8N_WEBHOOK_URL') || process.env.N8N_WEBHOOK_URL || ''
+    };
+}
+
+function getClient(channelAccessToken: string, channelSecret: string) {
+    const key = `${channelAccessToken}::${channelSecret}`;
+    if (!client || clientKey !== key) {
         client = new Client({
-            channelAccessToken: channelAccessToken,
-            channelSecret: channelSecret,
+            channelAccessToken,
+            channelSecret,
         });
+        clientKey = key;
     }
     return client;
 }
@@ -28,6 +37,7 @@ function getClient() {
 export async function POST(req: NextRequest) {
     const body = await req.text();
     const signature = req.headers.get('x-line-signature') as string;
+    const { channelSecret } = getRuntimeConfig();
 
     if (!channelSecret) {
         return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
@@ -49,13 +59,20 @@ async function processEvents(events: any[]) {
     for (const event of events) {
         if (event.type !== 'message' || event.message.type !== 'text') continue;
 
+        const { channelSecret, channelAccessToken, n8nWebhookUrl } = getRuntimeConfig();
+
         const userId = event.source.userId;
         const text = event.message.text;
         const replyToken = event.replyToken;
 
+        if (!channelAccessToken || !channelSecret) {
+            await logConversation({ type: 'error', userId, text: '[Missing LINE access token/secret]', meta: {} });
+            continue;
+        }
+
         // 0. Rate Limit Check
         if (!checkRateLimit(userId)) {
-            await getClient().replyMessage(replyToken, { type: 'text', text: '您的訊息發送太快，請稍後再試。' });
+            await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, { type: 'text', text: '您的訊息發送太快，請稍後再試。' });
             continue;
         }
 
@@ -72,7 +89,7 @@ async function processEvents(events: any[]) {
 
         if (rule) {
             if (rule.action === 'reply' && rule.replyText) {
-                await getClient().replyMessage(replyToken, { type: 'text', text: rule.replyText });
+                await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, { type: 'text', text: rule.replyText });
                 await logConversation({ type: 'reply', userId, text: rule.replyText, meta: { rule: rule.keyword } });
                 continue;
             }
@@ -84,23 +101,23 @@ async function processEvents(events: any[]) {
             const topic = text.replace(/測驗|quiz/i, '').trim() || '隨機主題';
             const quiz = await generateRagQuiz(topic);
             const flex = createQuizFlexMessage(quiz, topic);
-            await getClient().replyMessage(replyToken, flex);
+            await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, flex);
             await logConversation({ type: 'reply', userId, text: `[Quiz] ${topic}`, meta: { quiz } });
             continue;
         }
 
         // 3. Async Handoff to n8n (Default RAG)
 
-        if (process.env.N8N_WEBHOOK_URL) {
-            await fetch(process.env.N8N_WEBHOOK_URL, {
+        if (n8nWebhookUrl) {
+            await fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ events: [event] }) // Forward single event
             });
-            await logConversation({ type: 'event', userId, text: '[Forwarded to n8n]', meta: { url: process.env.N8N_WEBHOOK_URL } });
+            await logConversation({ type: 'event', userId, text: '[Forwarded to n8n]', meta: { url: n8nWebhookUrl } });
         } else {
             // Fallback: If n8n is not configured, reply with a friendly message
-            await getClient().replyMessage(replyToken, {
+            await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, {
                 type: 'text',
                 text: '⚠️ 系統提示：尚未設定 n8n Webhook URL，無法進行 AI 回覆。\n\n請檢查 .env.local 設定或部署狀態，確認 N8N_WEBHOOK_URL 已正確填寫。'
             });

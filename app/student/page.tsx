@@ -33,9 +33,23 @@ export default function StudentDashboard() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        const ensureUserId = () => {
+            if (typeof window === 'undefined') return '';
+            const key = 'rag_user_id';
+            let id = window.localStorage.getItem(key);
+            if (!id) {
+                id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+                    ? `web-${crypto.randomUUID()}`
+                    : `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+                window.localStorage.setItem(key, id);
+            }
+            return id;
+        };
+
         const fetchData = async () => {
             try {
-                const res = await fetch('/api/student/dashboard');
+                const userId = ensureUserId();
+                const res = await fetch(`/api/student/dashboard?userId=${encodeURIComponent(userId)}`);
                 if (res.ok) {
                     const data = await res.json();
                     setXp(data.xp);

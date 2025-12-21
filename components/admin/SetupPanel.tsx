@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Settings, Database, CheckCircle, AlertCircle, Cpu, RefreshCw, Smartphone, Lock, Eye, EyeOff } from 'lucide-react';
+import { Settings, Database, CheckCircle, AlertCircle, Cpu, RefreshCw, Smartphone, Lock, Eye, EyeOff, Layers, FolderTree } from 'lucide-react';
 import { adminFetch } from '@/lib/client/adminFetch';
 import { useToast } from '@/components/ui/ToastProvider';
 
@@ -71,7 +71,9 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         LINE_LOGIN_CHANNEL_SECRET: initialConfig['LINE_LOGIN_CHANNEL_SECRET'] || '',
         EMBEDDING_PROVIDER: initialConfig['EMBEDDING_PROVIDER'] || 'gemini',
         EMBEDDING_MODEL: initialConfig['EMBEDDING_MODEL'] || '',
-        CHAT_MODEL: initialConfig['CHAT_MODEL'] || ''
+        CHAT_MODEL: initialConfig['CHAT_MODEL'] || '',
+        CHAT_TITLE: initialConfig['CHAT_TITLE'] || '',
+        WELCOME_MESSAGE: initialConfig['WELCOME_MESSAGE'] || ''
     });
 
     const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -97,7 +99,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
     );
     const { pushToast } = useToast();
 
-    const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         setConfig({ ...config, [e.target.name]: e.target.value });
     };
 
@@ -258,6 +260,25 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
                         <Database className="w-4 h-4" /> 資料庫設定
                     </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-600">
+                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                            <div className="flex items-center gap-2 font-semibold text-blue-700 mb-2">
+                                <Layers className="w-4 h-4" />
+                                名詞小卡
+                            </div>
+                            <div>Cluster（叢集）= 資料庫主機</div>
+                            <div>Database = 資料庫名稱</div>
+                            <div>Collection = 資料表</div>
+                        </div>
+                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                            <div className="flex items-center gap-2 font-semibold text-amber-700 mb-2">
+                                <FolderTree className="w-4 h-4" />
+                                Atlas 路徑小卡
+                            </div>
+                            <div>1) Database → Clusters → Connect 取得 MONGODB_URI</div>
+                            <div>2) Database → Data Explorer → Databases 找 DB Name</div>
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">MongoDB URI</label>
@@ -274,7 +295,7 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                 name="MONGODB_DB_NAME"
                                 value={config.MONGODB_DB_NAME}
                                 onChange={handleChange}
-                                placeholder="rag_workshop"
+                                placeholder="rag_db"
                             />
                         </div>
                     </div>
@@ -597,6 +618,38 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                         {message}
                     </div>
                 )}
+
+                {/* Frontend Copy */}
+                <div className="space-y-4">
+                    <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
+                        <Settings className="w-4 h-4" /> 前台文案
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">CHAT_TITLE</label>
+                            <input
+                                name="CHAT_TITLE"
+                                value={config.CHAT_TITLE}
+                                onChange={handleChange}
+                                placeholder="RAG 工作坊"
+                                className="w-full border rounded p-2 text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">WELCOME_MESSAGE</label>
+                            <textarea
+                                name="WELCOME_MESSAGE"
+                                value={config.WELCOME_MESSAGE}
+                                onChange={handleChange}
+                                placeholder="你好！我是你的 AI 學習助手..."
+                                className="w-full border rounded p-2 text-sm h-24"
+                            />
+                        </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                        此文案會顯示在首頁與聊天室標題／歡迎訊息中。
+                    </p>
+                </div>
 
                 <button
                     type="submit"

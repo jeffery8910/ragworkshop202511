@@ -5,6 +5,7 @@ import { getConversationTitle, saveConversationTitle } from '@/lib/features/memo
 import { generateText } from '@/lib/llm';
 import type { EmbeddingProvider } from '@/lib/vector/embedding';
 import { saveCard, pruneCards, logCardError } from '@/lib/features/cards';
+import { getConfigValue } from '@/lib/config-store';
 import { z } from 'zod';
 import { generateAndSaveShortMemory } from '@/lib/features/memoryCards';
 import { logConversation } from '@/lib/features/logs';
@@ -17,15 +18,16 @@ export async function POST(req: NextRequest) {
         userMessage = message;
 
         const cookieStore = await cookies();
-        // Use a fixed userId for web demo if not provided
-        uid = userId || cookieStore.get('line_user_id')?.value || 'web-user-demo';
+        uid = userId || cookieStore.get('line_user_id')?.value || cookieStore.get('rag_user_id')?.value || '';
         if (!uid) {
             return NextResponse.json({ error: 'userId is required.' }, { status: 400 });
         }
 
         // Extract config from cookies
+        const readConfig = (key: string) =>
+            cookieStore.get(key)?.value || getConfigValue(key) || process.env[key];
 
-        const embeddingProviderCookie = cookieStore.get('EMBEDDING_PROVIDER')?.value;
+        const embeddingProviderCookie = readConfig('EMBEDDING_PROVIDER');
         const validEmbeddingProviders: EmbeddingProvider[] = ['gemini', 'openai', 'openrouter', 'pinecone'];
         const embeddingProvider = validEmbeddingProviders.includes(
             embeddingProviderCookie as EmbeddingProvider,
@@ -33,20 +35,21 @@ export async function POST(req: NextRequest) {
             ? (embeddingProviderCookie as EmbeddingProvider)
             : undefined;
 
+        const topKRaw = readConfig('RAG_TOP_K');
+        const parsedTopK = topKRaw ? parseInt(topKRaw, 10) : NaN;
+
         const config = {
-            pineconeIndex: cookieStore.get('PINECONE_INDEX_NAME')?.value || process.env.PINECONE_INDEX_NAME,
-            geminiApiKey: cookieStore.get('GEMINI_API_KEY')?.value || process.env.GEMINI_API_KEY,
-            openaiApiKey: cookieStore.get('OPENAI_API_KEY')?.value || process.env.OPENAI_API_KEY,
-            openrouterApiKey: cookieStore.get('OPENROUTER_API_KEY')?.value || process.env.OPENROUTER_API_KEY,
-            pineconeApiKey: cookieStore.get('PINECONE_API_KEY')?.value || process.env.PINECONE_API_KEY,
+            pineconeIndex: readConfig('PINECONE_INDEX_NAME'),
+            geminiApiKey: readConfig('GEMINI_API_KEY'),
+            openaiApiKey: readConfig('OPENAI_API_KEY'),
+            openrouterApiKey: readConfig('OPENROUTER_API_KEY'),
+            pineconeApiKey: readConfig('PINECONE_API_KEY'),
             embeddingProvider,
-            embeddingModel: cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL,
-            chatModel: cookieStore.get('CHAT_MODEL')?.value || process.env.CHAT_MODEL,
-            topK: cookieStore.get('RAG_TOP_K')?.value
-                ? parseInt(cookieStore.get('RAG_TOP_K')?.value!)
-                : (process.env.RAG_TOP_K ? parseInt(process.env.RAG_TOP_K) : 5),
-            mongoUri: cookieStore.get('MONGODB_URI')?.value || process.env.MONGODB_URI,
-            mongoDbName: cookieStore.get('MONGODB_DB_NAME')?.value || process.env.MONGODB_DB_NAME,
+            embeddingModel: readConfig('EMBEDDING_MODEL'),
+            chatModel: readConfig('CHAT_MODEL'),
+            topK: Number.isNaN(parsedTopK) ? 5 : parsedTopK,
+            mongoUri: readConfig('MONGODB_URI'),
+            mongoDbName: readConfig('MONGODB_DB_NAME'),
         };
 
         // Validate chat model against provider to avoid unsupported IDs or embeddings
@@ -95,7 +98,7 @@ export async function POST(req: NextRequest) {
 
         if (!validateChatModel(providerForChat, config.chatModel)) {
             return NextResponse.json({
-                error: 'RAG Lab CHAT_MODEL 與供應商不匹配，或為 embedding / rerank 型模型，請重新選擇聊天模型。'
+                error: 'RAG 教學坊 CHAT_MODEL 與供應商不匹配，或為 embedding / rerank 型模型，請重新選擇聊天模型。'
             }, { status: 400 });
         }
 
@@ -236,7 +239,19 @@ export async function POST(req: NextRequest) {
             await logConversation({ type: 'reply', userId: uid, text: result.answer });
         }
 
-        return NextResponse.json({ ...result, structuredPayloads: payloads, newTitle });
+        const res = NextResponse.json({ ...result, structuredPayloads: payloads, newTitle });
+        if (!cookieStore.get('line_user_id')?.value && uid) {
+            const isHttps = req.headers.get('x-forwarded-proto') === 'https';
+            const secure = process.env.NODE_ENV === 'production' ? isHttps : false;
+            res.cookies.set('rag_user_id', uid, {
+                httpOnly: true,
+                secure,
+                sameSite: 'lax',
+                maxAge: 60 * 60 * 24 * 30,
+                path: '/',
+            });
+        }
+        return res;
     } catch (error) {
         console.error('Chat API Error:', error);
         if (uid) {

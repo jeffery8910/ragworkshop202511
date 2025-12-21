@@ -415,6 +415,44 @@ function extractStructuredPayload(text: string): { payload?: StructuredPayload; 
     }
 }
 
+function createAnonymousId() {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+        return `web-${crypto.randomUUID()}`;
+    }
+    return `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function hydrateHistoryMessage(message: Message): Message {
+    if (message.role !== 'assistant' || typeof message.content !== 'string') {
+        return message;
+    }
+    const { payload, cleaned, error } = extractStructuredPayload(message.content);
+    const hydrated: Message = { ...message, content: cleaned };
+
+    if (payload?.type === 'quiz') {
+        hydrated.quizData = payload as QuizData;
+        if (!hydrated.content) hydrated.content = '為您生成了以下測驗：';
+    } else if (payload?.type === 'card') {
+        hydrated.conceptCard = payload as ConceptCardData;
+        if (!hydrated.content) hydrated.content = '為您生成了以下重點卡片：';
+    } else if (payload?.type === 'summary') {
+        hydrated.summaryCard = payload as SummaryCardData;
+        if (!hydrated.content) hydrated.content = '以下是對話摘要：';
+    } else if (payload?.type === 'card-qa') {
+        hydrated.qaCard = payload as QACardData;
+        if (!hydrated.content) hydrated.content = '以下是問答卡片：';
+    } else if (payload?.type === 'ability') {
+        hydrated.abilityCard = payload as AbilityCardData;
+        if (!hydrated.content) hydrated.content = '以下是學科能力分析：';
+    } else if (payload?.type === 'mistake') {
+        hydrated.mistakeCard = payload as MistakeCardData;
+        if (!hydrated.content) hydrated.content = '以下是錯題分析：';
+    }
+
+    if (error) hydrated.parseError = error;
+    return hydrated;
+}
+
 export default function ChatInterface({
     chatTitle,
     welcomeMessage,
@@ -422,14 +460,16 @@ export default function ChatInterface({
     initialUserName,
     initialUserPicture
 }: ChatInterfaceProps) {
-    const userId = initialUserId || 'web-user-demo';
-    const apiConfigured = typeof welcomeMessage === 'string' && welcomeMessage.trim().length > 0;
+    const normalizedWelcome = (typeof welcomeMessage === 'string' && welcomeMessage.trim().length > 0)
+        ? welcomeMessage
+        : '你好！我是你的 AI 學習助手。有什麼我可以幫你的嗎？';
+    const [userId, setUserId] = useState(initialUserId || '');
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const hasUserInteractedRef = useRef(false);
     const [messages, setMessages] = useState<Message[]>([
         {
             role: 'assistant',
-            content: apiConfigured
-                ? welcomeMessage
-                : '系統尚未設定聊天模型或 API Key，請聯絡網站管理員於後台填寫相關設定。',
+            content: normalizedWelcome,
         },
     ]);
     const [input, setInput] = useState('');
@@ -444,9 +484,74 @@ export default function ChatInterface({
         scrollToBottom();
     }, [messages]);
 
+    useEffect(() => {
+        if (initialUserId) {
+            setUserId(initialUserId);
+            return;
+        }
+        if (typeof window === 'undefined') return;
+        const storageKey = 'rag_user_id';
+        let stored = window.localStorage.getItem(storageKey);
+        if (!stored) {
+            stored = createAnonymousId();
+            window.localStorage.setItem(storageKey, stored);
+        }
+        setUserId(stored);
+    }, [initialUserId]);
+
     const [currentTitle, setCurrentTitle] = useState(chatTitle);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [tempTitle, setTempTitle] = useState(chatTitle);
+
+    useEffect(() => {
+        if (!userId) return;
+        let cancelled = false;
+        setHistoryLoading(true);
+
+        fetch(`/api/chat/session?userId=${encodeURIComponent(userId)}&limit=50`)
+            .then(async res => {
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err?.error || '載入對話紀錄失敗');
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (cancelled || hasUserInteractedRef.current) return;
+                if (data?.title) {
+                    setCurrentTitle(data.title);
+                    if (!isEditingTitle) {
+                        setTempTitle(data.title);
+                    }
+                }
+                if (Array.isArray(data?.messages) && data.messages.length > 0) {
+                    setMessages(data.messages.map((msg: Message) => hydrateHistoryMessage(msg)));
+                } else {
+                    setMessages([
+                        {
+                            role: 'assistant',
+                            content: normalizedWelcome,
+                        },
+                    ]);
+                }
+            })
+            .catch(() => {
+                // Keep current welcome message on failure
+            })
+            .finally(() => {
+                if (!cancelled) setHistoryLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [userId]);
+
+    useEffect(() => {
+        if (!isEditingTitle) {
+            setTempTitle(currentTitle);
+        }
+    }, [currentTitle, isEditingTitle]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -455,6 +560,11 @@ export default function ChatInterface({
     };
 
     const sendMessage = async (text: string, displayText?: string) => {
+        if (!userId) {
+            setMessages(prev => [...prev, { role: 'assistant', content: '系統正在初始化使用者資訊，請稍候再試。' }]);
+            return;
+        }
+        hasUserInteractedRef.current = true;
         const userMsg = text;
         setInput('');
         setMessages(prev => [...prev, { role: 'user', content: displayText || userMsg }]);
@@ -575,6 +685,10 @@ export default function ChatInterface({
     ];
 
     const handleTitleSave = async () => {
+        if (!userId) {
+            alert('使用者資訊尚未初始化，請稍後再試。');
+            return;
+        }
         if (!tempTitle.trim()) return;
         const oldTitle = currentTitle;
         setCurrentTitle(tempTitle);
@@ -593,8 +707,12 @@ export default function ChatInterface({
     };
 
     const handleClearHistory = async () => {
+        if (!userId) {
+            alert('使用者資訊尚未初始化，請稍後再試。');
+            return;
+        }
         if (!confirm('確定要刪除所有對話紀錄嗎？此動作無法復原。')) return;
-        setMessages([{ role: 'assistant', content: welcomeMessage }]);
+        setMessages([{ role: 'assistant', content: normalizedWelcome }]);
         try {
             const res = await fetch(`/api/chat/session?userId=${userId}`, {
                 method: 'DELETE'
@@ -762,7 +880,7 @@ export default function ChatInterface({
                                 type="button"
                                 onClick={() => sendMessage(action.prompt, action.display)}
                                 className="flex items-center gap-1 text-xs px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700"
-                                disabled={loading}
+                                disabled={loading || historyLoading || !userId}
                             >
                                 <Icon className="w-4 h-4" />
                                 {action.label}
@@ -780,11 +898,11 @@ export default function ChatInterface({
                             onChange={(e) => setInput(e.target.value)}
                             placeholder="輸入問題，例如：什麼是微積分？"
                             className="flex-1 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
-                            disabled={loading}
+                            disabled={loading || historyLoading || !userId}
                         />
                         <button
                             type="submit"
-                            disabled={loading || !input.trim()}
+                            disabled={loading || historyLoading || !userId || !input.trim()}
                             className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             <Send className="w-5 h-5" />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { RefreshCw, Info, Share2, FileText, Search, X, GitBranch } from 'lucide-react';
 import { adminFetch } from '@/lib/client/adminFetch';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -9,6 +9,15 @@ import { useSearchParams } from 'next/navigation';
 interface KnowledgeGraphProps {
     onAction?: (msg: string) => void;
 }
+
+type SideTabKey = 'node' | 'evidence' | 'path' | 'docs';
+
+const SIDE_TABS: Array<{ id: SideTabKey; label: string; icon: ComponentType<{ className?: string }> }> = [
+    { id: 'node', label: '節點', icon: Info },
+    { id: 'evidence', label: '標示', icon: Search },
+    { id: 'path', label: '路徑', icon: GitBranch },
+    { id: 'docs', label: '文件', icon: FileText },
+];
 
 interface GraphNode {
     id: string;
@@ -52,6 +61,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [docFilter, setDocFilter] = useState<string | null>(null);
     const [docSearch, setDocSearch] = useState('');
     const [reindexingDoc, setReindexingDoc] = useState<string | null>(null);
+    const [sideTab, setSideTab] = useState<SideTabKey>('node');
     
     // Viewport state
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -172,7 +182,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
             setPathEdgeKeys([]);
             setPathSummary('');
 
-            onAction?.(`圖譜高亮：${matchedIds.length} 節點 / ${(data.edges || []).length} 關係`);
+            onAction?.(`圖譜標示：${matchedIds.length} 節點 / ${(data.edges || []).length} 關係`);
         } catch (e: any) {
             console.error(e);
             pushToast({ type: 'error', message: e?.message || 'Graph evidence 查詢失敗' });
@@ -607,375 +617,501 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
 
                 {/* Side Panel */}
                 <div className="w-80 flex flex-col gap-3 min-h-0">
-                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                        <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
-                            <Info className="w-4 h-4 text-blue-600" /> 節點詳情
-                        </h3>
-                        {selectedNode ? (
-                            <div className="space-y-3 text-sm">
-                                <div>
-                                    <label className="text-xs text-gray-500 block">名稱 (Label)</label>
-                                    <div className="font-medium text-gray-800">{selectedNode.label}</div>
-                                </div>
-                                <div>
-                                    <label className="text-xs text-gray-500 block">類型 (Type)</label>
-                                    <div className={`inline-block px-2 py-0.5 rounded text-xs ${
-                                        selectedNode.type === 'Person' ? 'bg-red-50 text-red-700' : 
-                                        selectedNode.type === 'Organization' ? 'bg-blue-50 text-blue-700' : 
-                                        'bg-purple-50 text-purple-700'
-                                    }`}>
-                                        {selectedNode.type}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-xs text-gray-500 block">ID</label>
-                                    <div className="text-gray-400 text-xs break-all">{selectedNode.id}</div>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs text-gray-500 block">來源文件</label>
-                                    <div className="text-sm text-gray-800">
-                                        {selectedNode.docId
-                                            ? (docMap.get(selectedNode.docId)?.filename || '未命名檔案')
-                                            : '未標註文件'}
-                                    </div>
-                                    {selectedNode.docId && (
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-gray-400 text-[11px] break-all">{selectedNode.docId}</span>
+                    <div className="flex flex-wrap gap-2">
+                        {SIDE_TABS.map(tab => {
+                            const Icon = tab.icon;
+                            const active = sideTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setSideTab(tab.id)}
+                                    className={`flex items-center gap-1 px-3 py-2 text-xs rounded-full border transition-colors ${
+                                        active ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    <Icon className={`w-3.5 h-3.5 ${active ? 'text-white' : 'text-gray-500'}`} />
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {sideTab === 'node' && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                            <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
+                                <Info className="w-4 h-4 text-blue-600" /> 節點詳情
+                            </h3>
+                            <details className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                                <summary className="cursor-pointer font-medium text-slate-700">操作說明（可展開）</summary>
+                                <div className="mt-2 space-y-2">
+                                    <p>點擊節點可查看細節，滾輪縮放、拖曳空白處可平移畫布。</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => setSelectedNode(null)}
+                                            className="rounded-full bg-white px-3 py-1 text-[11px] text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                        >
+                                            清除選取
+                                        </button>
+                                        {docFilter && (
                                             <button
-                                                className="text-[11px] text-purple-700 bg-purple-50 px-2 py-1 rounded hover:bg-purple-100"
-                                                onClick={() => toggleDocFilter(selectedNode.docId!)}
+                                                onClick={() => setDocFilter(null)}
+                                                className="rounded-full bg-white px-3 py-1 text-[11px] text-slate-600 border border-slate-200 hover:bg-slate-100"
                                             >
-                                                {docFilter === selectedNode.docId ? '取消篩選' : '只看此文件'}
+                                                清除文件篩選
                                             </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </details>
+                            {selectedNode ? (
+                                <div className="space-y-3 text-sm">
+                                    <div>
+                                        <label className="text-xs text-gray-500 block">名稱 (Label)</label>
+                                        <div className="font-medium text-gray-800">{selectedNode.label}</div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500 block">類型 (Type)</label>
+                                        <div className={`inline-block px-2 py-0.5 rounded text-xs ${
+                                            selectedNode.type === 'Person' ? 'bg-red-50 text-red-700' : 
+                                            selectedNode.type === 'Organization' ? 'bg-blue-50 text-blue-700' : 
+                                            'bg-purple-50 text-purple-700'
+                                        }`}>
+                                            {selectedNode.type}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500 block">ID</label>
+                                        <div className="text-gray-400 text-xs break-all">{selectedNode.id}</div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-gray-500 block">來源文件</label>
+                                        <div className="text-sm text-gray-800">
+                                            {selectedNode.docId
+                                                ? (docMap.get(selectedNode.docId)?.filename || '未命名檔案')
+                                                : '未標註文件'}
+                                        </div>
+                                        {selectedNode.docId && (
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-400 text-[11px] break-all">{selectedNode.docId}</span>
+                                                <button
+                                                    className="text-[11px] text-purple-700 bg-purple-50 px-2 py-1 rounded hover:bg-purple-100"
+                                                    onClick={() => toggleDocFilter(selectedNode.docId!)}
+                                                >
+                                                    {docFilter === selectedNode.docId ? '取消篩選' : '只看此文件'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {selectedNode.sectionId && (
+                                        <div>
+                                            <label className="text-xs text-gray-500 block">章節 (Section)</label>
+                                            <div className="text-[11px] text-gray-500 break-all">{selectedNode.sectionId}</div>
                                         </div>
                                     )}
                                 </div>
-                                {selectedNode.sectionId && (
-                                    <div>
-                                        <label className="text-xs text-gray-500 block">章節 (Section)</label>
-                                        <div className="text-[11px] text-gray-500 break-all">{selectedNode.sectionId}</div>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="text-sm text-gray-500 py-4 text-center">
-                                點擊圖中節點查看詳細資訊
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                        <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
-                            <Search className="w-4 h-4 text-amber-600" /> Graph Evidence 高亮
-                        </h3>
-                        <div className="flex items-center gap-2">
-                            <input
-                                value={evidenceQuery}
-                                onChange={e => setEvidenceQuery(e.target.value)}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter') runEvidence();
-                                }}
-                                placeholder="輸入查詢關鍵字"
-                                className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200"
-                            />
-                            <button
-                                onClick={() => runEvidence()}
-                                className="px-3 py-2 text-xs bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100"
-                            >
-                                高亮
-                            </button>
-                        </div>
-                        <div className="flex items-center justify-between mt-2 text-[11px] text-gray-500">
-                            <span>
-                                Matched {matchedNodeIds.length} · Related {relatedNodeIds.length} · Edges {highlightEdgeKeys.length}
-                            </span>
-                            <button
-                                onClick={clearHighlight}
-                                className="text-[11px] text-gray-500 hover:text-gray-700"
-                            >
-                                清除
-                            </button>
-                        </div>
-                        {matchedNodes.length > 0 && (
-                            <div className="mt-2">
-                                <div className="text-[11px] text-gray-500 mb-1">Matched nodes</div>
-                                <div className="flex flex-wrap gap-1">
-                                    {matchedNodes.map(n => (
-                                        <button
-                                            key={n.id}
-                                            className="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100"
-                                            onClick={() => setSelectedNode(n)}
-                                        >
-                                            {n.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {evidenceDocIds.length > 0 && (
-                            <div className="mt-2">
-                                <div className="text-[11px] text-gray-500 mb-1">來源文件</div>
-                                <div className="flex flex-wrap gap-1">
-                                    {evidenceDocIds.slice(0, 6).map(docId => (
-                                        <span
-                                            key={docId}
-                                            className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-600"
-                                        >
-                                            {docMap.get(docId)?.filename || docId}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                        <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
-                            <GitBranch className="w-4 h-4 text-purple-600" /> Path Explorer
-                        </h3>
-                        <div className="space-y-2">
-                            <div>
-                                <label className="text-[11px] text-gray-500 block mb-1">起點節點</label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        value={startQuery}
-                                        onChange={e => {
-                                            const value = e.target.value;
-                                            setStartQuery(value);
-                                            if (!value.trim()) setStartOptions([]);
-                                        }}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter') searchNodes(startQuery, 'start');
-                                        }}
-                                        placeholder="搜尋起點"
-                                        className="flex-1 px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200"
-                                    />
-                                    <button
-                                        onClick={() => searchNodes(startQuery, 'start')}
-                                        className="px-2 py-2 text-[11px] bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
-                                    >
-                                        搜尋
-                                    </button>
-                                </div>
-                                {startOptions.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                        {startOptions.map(option => (
-                                            <button
-                                                key={option.id}
-                                                className="text-[11px] px-2 py-1 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100"
-                                                onClick={() => {
-                                                    setStartNode(option);
-                                                    setStartQuery(option.label);
-                                                    setStartOptions([]);
-                                                }}
-                                            >
-                                                {option.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                {startNode && (
-                                    <div className="text-[11px] text-gray-500 mt-1">
-                                        已選: {startNode.label}
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <label className="text-[11px] text-gray-500 block mb-1">終點節點</label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        value={endQuery}
-                                        onChange={e => {
-                                            const value = e.target.value;
-                                            setEndQuery(value);
-                                            if (!value.trim()) setEndOptions([]);
-                                        }}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter') searchNodes(endQuery, 'end');
-                                        }}
-                                        placeholder="搜尋終點"
-                                        className="flex-1 px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200"
-                                    />
-                                    <button
-                                        onClick={() => searchNodes(endQuery, 'end')}
-                                        className="px-2 py-2 text-[11px] bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
-                                    >
-                                        搜尋
-                                    </button>
-                                </div>
-                                {endOptions.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                        {endOptions.map(option => (
-                                            <button
-                                                key={option.id}
-                                                className="text-[11px] px-2 py-1 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100"
-                                                onClick={() => {
-                                                    setEndNode(option);
-                                                    setEndQuery(option.label);
-                                                    setEndOptions([]);
-                                                }}
-                                            >
-                                                {option.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                {endNode && (
-                                    <div className="text-[11px] text-gray-500 mt-1">
-                                        已選: {endNode.label}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-3 text-[11px] text-gray-600">
-                                <label className="flex items-center gap-2">
-                                    hops
-                                    <select
-                                        value={pathMaxHops}
-                                        onChange={e => setPathMaxHops(Number(e.target.value))}
-                                        className="border rounded px-2 py-1 text-[11px]"
-                                    >
-                                        {[1, 2, 3, 4, 5, 6].map(n => (
-                                            <option key={n} value={n}>{n}</option>
-                                        ))}
-                                    </select>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={allowCrossDoc}
-                                        onChange={e => setAllowCrossDoc(e.target.checked)}
-                                    />
-                                    跨文件
-                                </label>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={runPath}
-                                    disabled={!startNode || !endNode}
-                                    className="px-3 py-2 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
-                                >
-                                    尋找路徑
-                                </button>
-                                <button
-                                    onClick={clearPath}
-                                    className="px-3 py-2 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
-                                >
-                                    清除路徑
-                                </button>
-                            </div>
-                            <div className="text-[11px] text-gray-500">
-                                Path nodes {pathNodeIds.length} · edges {pathEdgeKeys.length}
-                            </div>
-                            {(pathSummary || pathLabelSummary) && (
-                                <div className="text-[11px] text-gray-600 bg-purple-50 rounded-lg p-2">
-                                    {pathLabelSummary || pathSummary}
+                            ) : (
+                                <div className="text-sm text-gray-500 py-4 text-center">
+                                    點擊圖中節點查看詳細資訊
                                 </div>
                             )}
                         </div>
-                    </div>
+                    )}
 
-                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex-1 min-h-[220px] overflow-hidden">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-emerald-600" /> 文件列表
+                    {sideTab === 'evidence' && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                            <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
+                                <Search className="w-4 h-4 text-amber-600" /> 圖譜關聯標示
                             </h3>
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={() => reindexGraph()}
-                                    disabled={docsLoading || !!reindexingDoc}
-                                    className="px-3 py-2 text-xs bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 flex items-center gap-1"
-                                    title="重建全部圖譜 (向量+Graph)"
-                                >
-                                    <RefreshCw className={`w-3 h-3 ${reindexingDoc === 'all' ? 'animate-spin' : ''}`} /> 全部重建
-                                </button>
-                                <button
-                                    onClick={fetchDocuments}
-                                    disabled={docsLoading}
-                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                                    title="重新整理文件列表"
-                                >
-                                    <RefreshCw className={`w-4 h-4 text-gray-500 ${docsLoading ? 'animate-spin' : ''}`} />
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="relative flex-1">
-                                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                            <details className="mb-3 rounded-lg border border-amber-100 bg-amber-50/40 p-3 text-xs text-amber-800">
+                                <summary className="cursor-pointer font-medium text-amber-900">操作說明（可展開）</summary>
+                                <div className="mt-2 space-y-2">
+                                    <p>輸入關鍵字後按 Enter 或點「標示」，系統會把相關節點與連線標出來。</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {['人物', '公司', '產品'].map(sample => (
+                                            <button
+                                                key={sample}
+                                                onClick={() => setEvidenceQuery(sample)}
+                                                className="rounded-full bg-white px-3 py-1 text-[11px] text-amber-800 border border-amber-200 hover:bg-amber-100"
+                                            >
+                                                例：{sample}
+                                            </button>
+                                        ))}
+                                        <button
+                                            onClick={() => {
+                                                setEvidenceQuery('');
+                                                clearHighlight();
+                                            }}
+                                            className="rounded-full bg-white px-3 py-1 text-[11px] text-amber-800 border border-amber-200 hover:bg-amber-100"
+                                        >
+                                            清空標示
+                                        </button>
+                                    </div>
+                                </div>
+                            </details>
+                            <div className="flex items-center gap-2">
                                 <input
-                                    value={docSearch}
-                                    onChange={e => setDocSearch(e.target.value)}
-                                    placeholder="搜尋檔名或 docId"
-                                    className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                    value={evidenceQuery}
+                                    onChange={e => setEvidenceQuery(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') runEvidence();
+                                    }}
+                                    placeholder="輸入查詢關鍵字"
+                                    className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200"
                                 />
-                            </div>
-                            {docFilter && (
                                 <button
-                                    onClick={() => setDocFilter(null)}
-                                    className="text-xs text-purple-700 bg-purple-50 px-3 py-2 rounded hover:bg-purple-100"
+                                    onClick={() => runEvidence()}
+                                    className="px-3 py-2 text-xs bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100"
                                 >
-                                    顯示全部
+                                    標示
                                 </button>
+                            </div>
+                            <div className="flex items-center justify-between mt-2 text-[11px] text-gray-500">
+                                <span>
+                                    符合 {matchedNodeIds.length} · 相關 {relatedNodeIds.length} · 連線 {highlightEdgeKeys.length}
+                                </span>
+                                <button
+                                    onClick={clearHighlight}
+                                    className="text-[11px] text-gray-500 hover:text-gray-700"
+                                >
+                                    清除
+                                </button>
+                            </div>
+                            {matchedNodes.length > 0 && (
+                                <div className="mt-2">
+                                    <div className="text-[11px] text-gray-500 mb-1">符合節點</div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {matchedNodes.map(n => (
+                                            <button
+                                                key={n.id}
+                                                className="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                                onClick={() => setSelectedNode(n)}
+                                            >
+                                                {n.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {evidenceDocIds.length > 0 && (
+                                <div className="mt-2">
+                                    <div className="text-[11px] text-gray-500 mb-1">來源文件</div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {evidenceDocIds.slice(0, 6).map(docId => (
+                                            <span
+                                                key={docId}
+                                                className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-600"
+                                            >
+                                                {docMap.get(docId)?.filename || docId}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
                             )}
                         </div>
+                    )}
 
-                        {docsLoading ? (
-                            <div className="text-center py-6 text-gray-500">讀取文件中...</div>
-                        ) : filteredDocs.length > 0 ? (
-                            <div className="space-y-2 overflow-y-auto max-h-72 pr-1">
-                                {filteredDocs.map(doc => {
-                                    const stat = docStats.get(doc.docId);
-                                    const statusClass = doc.status === 'processing'
-                                        ? 'bg-amber-100 text-amber-700'
-                                        : doc.status === 'failed'
-                                            ? 'bg-red-100 text-red-700'
-                                            : 'bg-green-100 text-green-700';
-                                    const statusLabel = doc.status === 'processing' ? '處理中' : doc.status === 'failed' ? '失敗' : '已索引';
-                                    return (
-                                        <div
-                                            key={doc.docId}
-                                            className={`p-3 border rounded-lg cursor-pointer transition-colors ${docFilter === doc.docId ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-gray-50 hover:border-purple-300'}`}
-                                            onClick={() => toggleDocFilter(doc.docId)}
+                    {sideTab === 'path' && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                            <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
+                                <GitBranch className="w-4 h-4 text-purple-600" /> 路徑探索
+                            </h3>
+                            <details className="mb-3 rounded-lg border border-purple-100 bg-purple-50/40 p-3 text-xs text-purple-800">
+                                <summary className="cursor-pointer font-medium text-purple-900">操作說明（可展開）</summary>
+                                <div className="mt-2 space-y-2">
+                                    <p>先搜尋起點與終點節點，再按「尋找路徑」查找關聯路徑。</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setStartNode(null);
+                                                setEndNode(null);
+                                                setStartQuery('');
+                                                setEndQuery('');
+                                                setStartOptions([]);
+                                                setEndOptions([]);
+                                                clearPath();
+                                            }}
+                                            className="rounded-full bg-white px-3 py-1 text-[11px] text-purple-800 border border-purple-200 hover:bg-purple-100"
                                         >
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="min-w-0">
-                                                    <div className="flex items-center gap-2">
-                                                        <FileText className="w-4 h-4 text-gray-600" />
-                                                        <span className="text-sm font-medium text-gray-800 truncate">{doc.filename}</span>
-                                                    </div>
-                                                    <p className="text-[11px] text-gray-500 mt-1 break-all">docId: {doc.docId}</p>
+                                            清空起訖
+                                        </button>
+                                        <button
+                                            onClick={clearPath}
+                                            className="rounded-full bg-white px-3 py-1 text-[11px] text-purple-800 border border-purple-200 hover:bg-purple-100"
+                                        >
+                                            清除路徑
+                                        </button>
+                                    </div>
+                                </div>
+                            </details>
+                            <div className="space-y-2">
+                                <div>
+                                    <label className="text-[11px] text-gray-500 block mb-1">起點節點</label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            value={startQuery}
+                                            onChange={e => {
+                                                const value = e.target.value;
+                                                setStartQuery(value);
+                                                if (!value.trim()) setStartOptions([]);
+                                            }}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') searchNodes(startQuery, 'start');
+                                            }}
+                                            placeholder="搜尋起點"
+                                            className="flex-1 px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                        />
+                                        <button
+                                            onClick={() => searchNodes(startQuery, 'start')}
+                                            className="px-2 py-2 text-[11px] bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
+                                        >
+                                            搜尋
+                                        </button>
+                                    </div>
+                                    {startOptions.length > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-1">
+                                            {startOptions.map(option => (
+                                                <button
+                                                    key={option.id}
+                                                    className="text-[11px] px-2 py-1 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100"
+                                                    onClick={() => {
+                                                        setStartNode(option);
+                                                        setStartQuery(option.label);
+                                                        setStartOptions([]);
+                                                    }}
+                                                >
+                                                    {option.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {startNode && (
+                                        <div className="text-[11px] text-gray-500 mt-1">
+                                            已選: {startNode.label}
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="text-[11px] text-gray-500 block mb-1">終點節點</label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            value={endQuery}
+                                            onChange={e => {
+                                                const value = e.target.value;
+                                                setEndQuery(value);
+                                                if (!value.trim()) setEndOptions([]);
+                                            }}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') searchNodes(endQuery, 'end');
+                                            }}
+                                            placeholder="搜尋終點"
+                                            className="flex-1 px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                        />
+                                        <button
+                                            onClick={() => searchNodes(endQuery, 'end')}
+                                            className="px-2 py-2 text-[11px] bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
+                                        >
+                                            搜尋
+                                        </button>
+                                    </div>
+                                    {endOptions.length > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-1">
+                                            {endOptions.map(option => (
+                                                <button
+                                                    key={option.id}
+                                                    className="text-[11px] px-2 py-1 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100"
+                                                    onClick={() => {
+                                                        setEndNode(option);
+                                                        setEndQuery(option.label);
+                                                        setEndOptions([]);
+                                                    }}
+                                                >
+                                                    {option.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {endNode && (
+                                        <div className="text-[11px] text-gray-500 mt-1">
+                                            已選: {endNode.label}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-3 text-[11px] text-gray-600">
+                                    <label className="flex items-center gap-2">
+                                        步數
+                                        <select
+                                            value={pathMaxHops}
+                                            onChange={e => setPathMaxHops(Number(e.target.value))}
+                                            className="border rounded px-2 py-1 text-[11px]"
+                                        >
+                                            {[1, 2, 3, 4, 5, 6].map(n => (
+                                                <option key={n} value={n}>{n}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={allowCrossDoc}
+                                            onChange={e => setAllowCrossDoc(e.target.checked)}
+                                        />
+                                        跨文件
+                                    </label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={runPath}
+                                        disabled={!startNode || !endNode}
+                                        className="px-3 py-2 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                                    >
+                                        尋找路徑
+                                    </button>
+                                    <button
+                                        onClick={clearPath}
+                                        className="px-3 py-2 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                    >
+                                        清除路徑
+                                    </button>
+                                </div>
+                                <div className="text-[11px] text-gray-500">
+                                    路徑節點 {pathNodeIds.length} · 連線 {pathEdgeKeys.length}
+                                </div>
+                                {(pathSummary || pathLabelSummary) && (
+                                    <div className="text-[11px] text-gray-600 bg-purple-50 rounded-lg p-2">
+                                        {pathLabelSummary || pathSummary}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {sideTab === 'docs' && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex-1 min-h-[220px] overflow-hidden">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                                    <FileText className="w-4 h-4 text-emerald-600" /> 文件列表
+                                </h3>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => reindexGraph()}
+                                        disabled={docsLoading || !!reindexingDoc}
+                                        className="px-3 py-2 text-xs bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 flex items-center gap-1"
+                                        title="重建全部圖譜 (向量+Graph)"
+                                    >
+                                        <RefreshCw className={`w-3 h-3 ${reindexingDoc === 'all' ? 'animate-spin' : ''}`} /> 全部重建
+                                    </button>
+                                    <button
+                                        onClick={fetchDocuments}
+                                        disabled={docsLoading}
+                                        className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                        title="重新整理文件列表"
+                                    >
+                                        <RefreshCw className={`w-4 h-4 text-gray-500 ${docsLoading ? 'animate-spin' : ''}`} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <details className="mb-3 rounded-lg border border-emerald-100 bg-emerald-50/40 p-3 text-xs text-emerald-800">
+                                <summary className="cursor-pointer font-medium text-emerald-900">操作說明（可展開）</summary>
+                                <div className="mt-2 space-y-2">
+                                    <p>點擊文件可篩選圖譜，只顯示該文件的節點與關係。</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {docFilter && (
+                                            <button
+                                                onClick={() => setDocFilter(null)}
+                                                className="rounded-full bg-white px-3 py-1 text-[11px] text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
+                                            >
+                                                清除篩選
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={fetchDocuments}
+                                            className="rounded-full bg-white px-3 py-1 text-[11px] text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
+                                        >
+                                            重新整理
+                                        </button>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="relative flex-1">
+                                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                                    <input
+                                        value={docSearch}
+                                        onChange={e => setDocSearch(e.target.value)}
+                                        placeholder="搜尋檔名或 docId"
+                                        className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                    />
+                                </div>
+                                {docFilter && (
+                                    <button
+                                        onClick={() => setDocFilter(null)}
+                                        className="text-xs text-purple-700 bg-purple-50 px-3 py-2 rounded hover:bg-purple-100"
+                                    >
+                                        顯示全部
+                                    </button>
+                                )}
+                            </div>
+
+                            {docsLoading ? (
+                                <div className="text-center py-6 text-gray-500">讀取文件中...</div>
+                            ) : filteredDocs.length > 0 ? (
+                                <div className="space-y-2 overflow-y-auto max-h-72 pr-1">
+                                    {filteredDocs.map(doc => {
+                                        const stat = docStats.get(doc.docId);
+                                        const statusClass = doc.status === 'processing'
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : doc.status === 'failed'
+                                                ? 'bg-red-100 text-red-700'
+                                                : 'bg-green-100 text-green-700';
+                                        const statusLabel = doc.status === 'processing' ? '處理中' : doc.status === 'failed' ? '失敗' : '已索引';
+                                        return (
+                                            <div
+                                                key={doc.docId}
+                                                className={`p-3 border rounded-lg cursor-pointer transition-colors ${docFilter === doc.docId ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-gray-50 hover:border-purple-300'}`}
+                                                onClick={() => toggleDocFilter(doc.docId)}
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <FileText className="w-4 h-4 text-gray-600" />
+                                                            <span className="text-sm font-medium text-gray-800 truncate">{doc.filename}</span>
+                                                        </div>
+                                                        <p className="text-[11px] text-gray-500 mt-1 break-all">docId: {doc.docId}</p>
                                                     <p className="text-[11px] text-gray-500">
-                                                        Nodes: {stat?.nodes || 0} / Edges: {stat?.edges || 0}
-                                                        {typeof doc.chunks === 'number' ? ` | Chunks: ${doc.chunks}` : ''}
+                                                            節點: {stat?.nodes || 0} / 連線: {stat?.edges || 0}
+                                                            {typeof doc.chunks === 'number' ? ` | Chunks: ${doc.chunks}` : ''}
                                                     </p>
-                                                    {doc.indexedAt && (
-                                                        <p className="text-[11px] text-gray-400">索引時間: {new Date(doc.indexedAt).toLocaleString()}</p>
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                                    <span className={`text-[11px] px-2 py-1 rounded-full ${statusClass}`}>
-                                                        {statusLabel}
-                                                    </span>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); reindexGraph(doc.docId); }}
-                                                        disabled={!!reindexingDoc}
-                                                        className="text-[11px] px-2 py-1 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-60 flex items-center gap-1"
-                                                        title="僅重建此文件的向量與圖譜"
-                                                    >
-                                                        <RefreshCw className={`w-3 h-3 ${reindexingDoc === doc.docId ? 'animate-spin' : ''}`} /> 重建
-                                                    </button>
+                                                        {doc.indexedAt && (
+                                                            <p className="text-[11px] text-gray-400">索引時間: {new Date(doc.indexedAt).toLocaleString()}</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                                        <span className={`text-[11px] px-2 py-1 rounded-full ${statusClass}`}>
+                                                            {statusLabel}
+                                                        </span>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); reindexGraph(doc.docId); }}
+                                                            disabled={!!reindexingDoc}
+                                                            className="text-[11px] px-2 py-1 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-60 flex items-center gap-1"
+                                                            title="僅重建此文件的向量與圖譜"
+                                                        >
+                                                            <RefreshCw className={`w-3 h-3 ${reindexingDoc === doc.docId ? 'animate-spin' : ''}`} /> 重建
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border border-dashed">
-                                目前沒有文件，請先上傳或重新整理。
-                            </div>
-                        )}
-                    </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border border-dashed">
+                                    目前沒有文件，請先上傳或重新整理。
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
