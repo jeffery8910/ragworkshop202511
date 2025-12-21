@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import ToastProvider from '@/components/ui/ToastProvider';
 
+export const dynamic = 'force-dynamic';
+
 export default function AdminLayout({
     children,
 }: {
