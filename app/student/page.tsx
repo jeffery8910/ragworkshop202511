@@ -68,6 +68,11 @@ export default function StudentDashboard() {
         fetchData();
     }, []);
 
+    const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, value));
+    const nextLevelTarget = Math.max(100, level * 500);
+    const xpProgress = clamp(Math.round((xp / nextLevelTarget) * 100));
+    const remainingXp = Math.max(0, nextLevelTarget - xp);
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -103,9 +108,9 @@ export default function StudentDashboard() {
                 </div>
                 <div className="text-4xl font-bold mb-4">{xp} XP</div>
                 <div className="w-full bg-black/20 rounded-full h-2">
-                    <div className="bg-yellow-400 h-2 rounded-full" style={{ width: '70%' }}></div>
+                    <div className="bg-yellow-400 h-2 rounded-full" style={{ width: `${xpProgress}%` }}></div>
                 </div>
-                <div className="text-xs text-indigo-200 mt-2 text-right">距離下一級還差 350 XP</div>
+                <div className="text-xs text-indigo-200 mt-2 text-right">距離下一級還差 {remainingXp} XP（示意）</div>
             </div>
 
             {/* Topic Levels */}
@@ -114,7 +119,9 @@ export default function StudentDashboard() {
             </h2>
             <div className="grid grid-cols-1 gap-3 mb-6">
                 {topics.length > 0 ? (
-                    topics.map((t, idx) => (
+                    topics.map((t, idx) => {
+                        const progress = clamp(t.progress);
+                        return (
                         <div key={idx} className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-between">
                             <div>
                                 <div className="font-bold text-gray-800">{t.name}</div>
@@ -123,11 +130,11 @@ export default function StudentDashboard() {
                             <div className="w-24 bg-gray-100 rounded-full h-2">
                                 <div
                                     className="bg-green-500 h-2 rounded-full"
-                                    style={{ width: `${t.progress}%` }}
+                                    style={{ width: `${progress}%` }}
                                 ></div>
                             </div>
                         </div>
-                    ))
+                    )})
                 ) : (
                     <div className="text-gray-500 text-sm text-center py-4 bg-white rounded-lg">
                         尚無學科數據，請多與 AI 家教互動！
@@ -141,8 +148,8 @@ export default function StudentDashboard() {
             </h2>
             <div className="space-y-3">
                 {mistakes.length > 0 ? (
-                    mistakes.map((m) => (
-                        <div key={m.id} className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-400">
+                    mistakes.map((m, idx) => (
+                        <div key={`${m.id ?? idx}`} className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-400">
                             <div className="text-xs text-gray-500 mb-1">{m.topic}</div>
                             <div className="font-medium text-gray-800 mb-2">{m.question}</div>
                             <div className="bg-red-50 p-2 rounded text-xs text-red-700 mb-2">
@@ -168,9 +175,13 @@ export default function StudentDashboard() {
                 {summaries.length > 0 ? summaries.map((s, idx) => (
                     <div key={idx} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                         <div className="font-semibold text-gray-800 mb-2">{s.title || '對話摘要'}</div>
-                        <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                            {s.bullets.map((b, i) => <li key={i}>{b}</li>)}
-                        </ul>
+                        {Array.isArray(s.bullets) && s.bullets.length > 0 ? (
+                            <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                                {s.bullets.map((b, i) => <li key={i}>{b}</li>)}
+                            </ul>
+                        ) : (
+                            <div className="text-sm text-gray-500">（無摘要重點）</div>
+                        )}
                         {s.highlight && (
                             <div className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-2">
                                 {s.highlight}

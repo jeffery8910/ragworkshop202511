@@ -174,7 +174,7 @@ function QuizCard({ data }: { data: QuizData }) {
                         {showResults[q.id] && (
                             <div className={`p-4 rounded-lg text-sm ${selectedOptions[q.id] === q.answer ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
                                 <div className="font-bold mb-1">
-                                    {selectedOptions[q.id] === q.answer ? '🎉 答對了！' : '❌ 答錯了'}
+                                    {selectedOptions[q.id] === q.answer ? '答對了！' : '答錯了'}
                                 </div>
                                 <div className="text-gray-600">
                                     <span className="font-semibold text-gray-700">解析：</span>
@@ -431,10 +431,10 @@ function hydrateHistoryMessage(message: Message): Message {
 
     if (payload?.type === 'quiz') {
         hydrated.quizData = payload as QuizData;
-        if (!hydrated.content) hydrated.content = '為您生成了以下測驗：';
+        if (!hydrated.content) hydrated.content = '為您產生了以下測驗：';
     } else if (payload?.type === 'card') {
         hydrated.conceptCard = payload as ConceptCardData;
-        if (!hydrated.content) hydrated.content = '為您生成了以下重點卡片：';
+        if (!hydrated.content) hydrated.content = '為您產生了以下重點卡片：';
     } else if (payload?.type === 'summary') {
         hydrated.summaryCard = payload as SummaryCardData;
         if (!hydrated.content) hydrated.content = '以下是對話摘要：';
@@ -605,10 +605,10 @@ export default function ChatInterface({
                 answerContent = cleaned;
                 if (payload?.type === 'quiz') {
                     quizData = payload as QuizData;
-                    if (!answerContent) answerContent = '為您生成了以下測驗：';
+                    if (!answerContent) answerContent = '為您產生了以下測驗：';
                 } else if (payload?.type === 'card') {
                     conceptCard = payload as ConceptCardData;
-                    if (!answerContent) answerContent = '為您生成了以下重點卡片：';
+                    if (!answerContent) answerContent = '為您產生了以下重點卡片：';
                 } else if (payload?.type === 'summary') {
                     summaryCard = payload as SummaryCardData;
                     if (!answerContent) answerContent = '以下是對話摘要：';
@@ -647,40 +647,40 @@ export default function ChatInterface({
 
     const quickActions = [
         {
-            label: '生成測驗 JSON',
+            label: '產生測驗 JSON',
             icon: ListChecks,
             prompt: 'You must return ONLY valid JSON. 請根據目前的對話或使用者最後一個問題，輸出一份 JSON 測驗：{"type":"quiz","title":"標題","questions":[{"id":1,"question":"題目","options":["A","B","C","D"],"answer":"正確選項","explanation":"解析"}]}。不要使用 Markdown，不能出現 ```。',
-            display: '生成測驗 JSON 中...'
+            display: '產生測驗 JSON 中...'
         },
         {
             label: '對話摘要',
             icon: FileText,
             prompt: 'You must return ONLY valid JSON. 請回傳摘要 JSON：{"type":"summary","title":"對話摘要","bullets":["重點1","重點2","重點3"],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '生成對話摘要中...'
+            display: '產生對話摘要中...'
         },
         {
             label: '概念卡片',
             icon: Sparkles,
             prompt: 'You must return ONLY valid JSON. 請回傳概念卡片 JSON：{"type":"card","title":"主題","bullets":["重點1","重點2","重點3"],"highlight":"一句關鍵提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '生成概念卡片中...'
+            display: '產生概念卡片中...'
         },
         {
             label: '互動問答卡',
             icon: MessagesSquare,
             prompt: 'You must return ONLY valid JSON. 請回傳問答卡 JSON：{"type":"card-qa","title":"主題","qa":[{"q":"問題1","a":"回答1"},{"q":"問題2","a":"回答2"}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '生成互動問答卡中...'
+            display: '產生互動問答卡中...'
         },
         {
             label: '學科能力分析',
             icon: BookOpen,
             prompt: 'You must return ONLY valid JSON. 請回傳學科能力分析 JSON：{"type":"ability","title":"學科能力分析","topics":[{"name":"數學","level":2,"progress":65},{"name":"物理","level":1,"progress":40}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '生成學科能力分析中...'
+            display: '產生學科能力分析中...'
         },
         {
             label: '錯題分析與建議',
             icon: AlertCircle,
             prompt: 'You must return ONLY valid JSON. 請回傳錯題分析 JSON：{"type":"mistake","title":"錯題分析","items":[{"topic":"幾何","question":"三角形相似條件？","reason":"混淆AA與SSS","suggestion":"先複習 AA 判定並做 3 題練習"},{"topic":"微積分","question":"什麼是導數？","reason":"概念模糊","suggestion":"用極限定義推一次"}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '生成錯題分析中...'
+            display: '產生錯題分析中...'
         }
     ];
 
@@ -809,13 +809,19 @@ export default function ChatInterface({
                         </Link>
                         <div className="text-xs text-green-600 flex items-center gap-1">
                             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                            線上 (Online)
+                            線上
                         </div>
                     </div>
                 </div>
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50/50">
+                    {historyLoading && (
+                        <div className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 inline-flex items-center gap-2">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            正在載入對話紀錄...
+                        </div>
+                    )}
                     {messages.map((msg, idx) => (
                         <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-gray-800' : 'bg-blue-600'
@@ -848,7 +854,7 @@ export default function ChatInterface({
                                         {msg.context.map((ctx: any, i: number) => (
                                             <div key={i} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100" title={ctx.text}>
                                                 <BookOpen className="w-3 h-3" />
-                                                參考來源 {i + 1} (Score: {ctx.score.toFixed(2)})
+                                                參考來源 {i + 1}（相似度 {ctx.score.toFixed(2)}）
                                             </div>
                                         ))}
                                     </div>
@@ -863,7 +869,7 @@ export default function ChatInterface({
                             </div>
                             <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm flex items-center gap-2">
                                 <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                                <span className="text-sm text-gray-500">正在思考並檢索資料庫...</span>
+                                <span className="text-sm text-gray-500">正在思考並查詢知識庫...</span>
                             </div>
                         </div>
                     )}
