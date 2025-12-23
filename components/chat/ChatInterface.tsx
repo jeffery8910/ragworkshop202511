@@ -385,28 +385,71 @@ type StructuredPayload =
     | z.infer<typeof abilitySchema>
     | z.infer<typeof mistakeSchema>;
 
+function findStructuredJson(text: string) {
+    const starts: number[] = [];
+    for (let i = 0; i < text.length; i += 1) {
+        if (text[i] === '{') starts.push(i);
+    }
+    for (const start of starts) {
+        let depth = 0;
+        let inString = false;
+        let escaped = false;
+        for (let i = start; i < text.length; i += 1) {
+            const ch = text[i];
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (ch === '\\') {
+                    escaped = true;
+                } else if (ch === '"') {
+                    inString = false;
+                }
+                continue;
+            }
+
+            if (ch === '"') {
+                inString = true;
+                continue;
+            }
+
+            if (ch === '{') depth += 1;
+            if (ch === '}') {
+                depth -= 1;
+                if (depth === 0) {
+                    const candidate = text.slice(start, i + 1);
+                    if (candidate.includes('"type"')) {
+                        return { json: candidate, start, end: i + 1 };
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    return null;
+}
+
 function extractStructuredPayload(text: string): { payload?: StructuredPayload; cleaned: string; error?: string } {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return { cleaned: text };
+    const found = findStructuredJson(text);
+    if (!found) return { cleaned: text };
     try {
-        const parsed = JSON.parse(match[0]);
+        const parsed = JSON.parse(found.json);
         if (quizSchema.safeParse(parsed).success) {
-            return { payload: quizSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+            return { payload: quizSchema.parse(parsed), cleaned: `${text.slice(0, found.start)}${text.slice(found.end)}`.trim() };
         }
         if (conceptSchema.safeParse(parsed).success) {
-            return { payload: conceptSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+            return { payload: conceptSchema.parse(parsed), cleaned: `${text.slice(0, found.start)}${text.slice(found.end)}`.trim() };
         }
         if (summarySchema.safeParse(parsed).success) {
-            return { payload: summarySchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+            return { payload: summarySchema.parse(parsed), cleaned: `${text.slice(0, found.start)}${text.slice(found.end)}`.trim() };
         }
         if (qaCardSchema.safeParse(parsed).success) {
-            return { payload: qaCardSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+            return { payload: qaCardSchema.parse(parsed), cleaned: `${text.slice(0, found.start)}${text.slice(found.end)}`.trim() };
         }
         if (abilitySchema.safeParse(parsed).success) {
-            return { payload: abilitySchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+            return { payload: abilitySchema.parse(parsed), cleaned: `${text.slice(0, found.start)}${text.slice(found.end)}`.trim() };
         }
         if (mistakeSchema.safeParse(parsed).success) {
-            return { payload: mistakeSchema.parse(parsed), cleaned: text.replace(match[0], '').trim() };
+            return { payload: mistakeSchema.parse(parsed), cleaned: `${text.slice(0, found.start)}${text.slice(found.end)}`.trim() };
         }
         return { cleaned: text, error: 'JSON 內容與預期格式不符，未顯示卡片。' };
     } catch (err: any) {
@@ -851,12 +894,15 @@ export default function ChatInterface({
                                 {/* Source Citations */}
                                 {msg.context && msg.context.length > 0 && (
                                     <div className="mt-2 flex flex-wrap gap-2">
-                                        {msg.context.map((ctx: any, i: number) => (
-                                            <div key={i} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100" title={ctx.text}>
-                                                <BookOpen className="w-3 h-3" />
-                                                參考來源 {i + 1}（相似度 {ctx.score.toFixed(2)}）
-                                            </div>
-                                        ))}
+                                        {msg.context.map((ctx: any, i: number) => {
+                                            const score = typeof ctx?.score === 'number' ? ctx.score.toFixed(2) : '—';
+                                            return (
+                                                <div key={i} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100" title={ctx.text}>
+                                                    <BookOpen className="w-3 h-3" />
+                                                    參考來源 {i + 1}（相似度 {score}）
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
