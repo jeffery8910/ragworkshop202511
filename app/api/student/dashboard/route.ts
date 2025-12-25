@@ -68,7 +68,8 @@ export async function GET(req: NextRequest) {
                 level: 1,
                 topics,
                 mistakes: mistakesOut,
-                summaries: summaryCards
+                summaries: summaryCards,
+                updatedAt: new Date().toISOString()
             });
         }
 
@@ -77,7 +78,8 @@ export async function GET(req: NextRequest) {
             level: stats.level || 1,
             topics,
             mistakes: mistakesOut,
-            summaries: summaryCards
+            summaries: summaryCards,
+            updatedAt: stats?.updatedAt || stats?._id?.getTimestamp?.()?.toISOString?.() || new Date().toISOString()
         });
     } catch (error) {
         console.error('Failed to fetch student dashboard data:', error);

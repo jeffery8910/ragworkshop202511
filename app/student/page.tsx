@@ -30,6 +30,7 @@ export default function StudentDashboard() {
     const [topics, setTopics] = useState<Topic[]>([]);
     const [mistakes, setMistakes] = useState<Mistake[]>([]);
     const [summaries, setSummaries] = useState<SummaryCard[]>([]);
+    const [updatedAt, setUpdatedAt] = useState<string>('');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -57,6 +58,7 @@ export default function StudentDashboard() {
                     setTopics(data.topics);
                     setMistakes(data.mistakes);
                     setSummaries(data.summaries || []);
+                    setUpdatedAt(data.updatedAt || '');
                 }
             } catch (error) {
                 console.error('Failed to load dashboard data', error);
@@ -79,6 +81,19 @@ export default function StudentDashboard() {
         topTopic ? `加強 ${topTopic}：做 3 題基礎題 + 1 題應用題` : '',
         '練習提問：用一句話解釋 + 舉 1 個例子',
     ].filter(Boolean);
+
+    const milestoneHint = level >= 5
+        ? 'Lv.5+：嘗試自己設計 3 題測驗並比較 AI 評分。'
+        : level >= 3
+            ? 'Lv.3：開始練習「比較題」與「反例題」。'
+            : 'Lv.2：多做「概念 + 例子」的基礎練習。';
+
+    const formatUpdatedAt = (value: string) => {
+        if (!value) return '尚未更新';
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return '尚未更新';
+        return dt.toLocaleString();
+    };
 
     if (loading) {
         return (
@@ -106,6 +121,7 @@ export default function StudentDashboard() {
                     <span className="font-bold text-yellow-700">Lv.{level}</span>
                 </div>
             </header>
+            <div className="text-xs text-gray-500 mb-4">最後更新：{formatUpdatedAt(updatedAt)}</div>
 
             {/* XP Card */}
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 text-white mb-6 shadow-lg">
@@ -186,7 +202,57 @@ export default function StudentDashboard() {
                 ) : (
                     <div className="text-gray-500 text-sm">先完成一次對話或測驗，系統會生成個人化建議。</div>
                 )}
+                <div className="mt-3">
+                    <Link
+                        href="/chat"
+                        className="inline-flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                        前往聊天練習
+                    </Link>
+                </div>
             </div>
+
+            {/* Daily Task */}
+            <h2 className="text-lg font-bold text-gray-700 mt-8 mb-3 flex items-center gap-2">
+                <Trophy className="w-5 h-5" /> 今日小任務
+            </h2>
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
+                    <li>用 1 句話解釋今天學到的概念</li>
+                    <li>舉 1 個生活化例子</li>
+                    <li>請 AI 出 3 題小測驗並作答</li>
+                </ol>
+                <div className="mt-3 text-xs text-gray-500">里程碑提示：{milestoneHint}</div>
+                <div className="mt-3">
+                    <Link
+                        href="/chat"
+                        className="inline-flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                        開始今日小任務
+                    </Link>
+                </div>
+            </div>
+
+            {!topics.length && !mistakes.length && (
+                <div className="mt-8 bg-white p-4 rounded-lg shadow-sm border border-gray-200 text-sm text-gray-600">
+                    <div className="font-semibold text-gray-800 mb-1">下一步行動</div>
+                    <div>還沒有學習資料，可以先去聊天問問題或做一次小測驗。</div>
+                    <div className="mt-2 flex gap-3">
+                        <Link
+                            href="/chat"
+                            className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                        >
+                            去聊天練習
+                        </Link>
+                        <Link
+                            href="/chat"
+                            className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                        >
+                            做小測驗
+                        </Link>
+                    </div>
+                </div>
+            )}
 
             {/* Recent Summaries (short-term memory) */}
             <h2 className="text-lg font-bold text-gray-700 mt-8 mb-3 flex items-center gap-2">

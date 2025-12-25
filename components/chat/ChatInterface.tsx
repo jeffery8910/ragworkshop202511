@@ -509,6 +509,7 @@ export default function ChatInterface({
     const [userId, setUserId] = useState(initialUserId || '');
     const [historyLoading, setHistoryLoading] = useState(false);
     const hasUserInteractedRef = useRef(false);
+    const [mode, setMode] = useState<'knowledge' | 'general'>('knowledge');
     const [messages, setMessages] = useState<Message[]>([
         {
             role: 'assistant',
@@ -680,8 +681,11 @@ export default function ChatInterface({
                 mistakeCard,
                 parseError
             }]);
+            setMode(Array.isArray(data?.context) && data.context.length > 0 ? 'knowledge' : 'general');
         } catch (error: any) {
-            const msg = error?.message || '抱歉，系統發生錯誤，請稍後再試。';
+            const baseMsg = error?.message || '抱歉，系統發生錯誤，請稍後再試。';
+            const hint = '排查建議：確認是否已設定聊天模型與 API Key，或稍後重試。';
+            const msg = `${baseMsg}\n\n${hint}`;
             setMessages(prev => [...prev, { role: 'assistant', content: msg }]);
         } finally {
             setLoading(false);
@@ -842,6 +846,11 @@ export default function ChatInterface({
                         )}
                     </div>
                     <div className="flex items-center gap-3">
+                        <div className={`text-xs px-2 py-1 rounded-full border ${mode === 'knowledge'
+                            ? 'text-emerald-600 border-emerald-200 bg-emerald-50'
+                            : 'text-gray-600 border-gray-200 bg-gray-50'}`}>
+                            {mode === 'knowledge' ? '知識庫模式' : '一般聊天'}
+                        </div>
                         <button
                             onClick={handleClearHistory}
                             className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 hover:underline"
@@ -870,6 +879,13 @@ export default function ChatInterface({
                         <div className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 inline-flex items-center gap-2">
                             <Loader2 className="w-3 h-3 animate-spin" />
                             正在載入對話紀錄...
+                        </div>
+                    )}
+                    {messages.length === 1 && messages[0]?.role === 'assistant' && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-4 text-sm text-gray-700">
+                            <div className="font-semibold text-gray-800 mb-2">教學引導</div>
+                            <div>建議提問流程：先問「概念」→ 要「例子」→ 做「小測驗」→ 再「比較」</div>
+                            <div className="mt-2 text-gray-500">例子：「什麼是向量檢索？請舉 1 個例子並出 3 題小測驗」</div>
                         </div>
                     )}
                     {messages.map((msg, idx) => (
@@ -903,11 +919,20 @@ export default function ChatInterface({
                                     <div className="mt-2 flex flex-wrap gap-2">
                                         {msg.context.map((ctx: any, i: number) => {
                                             const score = typeof ctx?.score === 'number' ? ctx.score.toFixed(2) : '—';
+                                            const source = ctx?.source || ctx?.metadata?.source || ctx?.metadata?.filename;
+                                            const page = ctx?.page ?? ctx?.metadata?.page;
+                                            const preview = typeof ctx?.text === 'string' ? ctx.text.slice(0, 120) : '';
                                             return (
-                                                <div key={i} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100" title={ctx.text}>
-                                                    <BookOpen className="w-3 h-3" />
-                                                    參考來源 {i + 1}（相似度 {score}）
-                                                </div>
+                                                <details key={i} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100">
+                                                    <summary className="cursor-pointer">
+                                                        參考來源 {i + 1}（相似度 {score}）
+                                                    </summary>
+                                                    <div className="mt-1 text-[11px] text-blue-700">
+                                                        {source ? <div>來源：{source}</div> : null}
+                                                        {page !== undefined ? <div>頁碼：{page}</div> : null}
+                                                        {preview ? <div className="mt-1 text-blue-800">{preview}</div> : null}
+                                                    </div>
+                                                </details>
                                             );
                                         })}
                                     </div>
