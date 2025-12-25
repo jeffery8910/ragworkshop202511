@@ -727,6 +727,13 @@ export default function ChatInterface({
         }
     ];
 
+    const teachingPrompts = [
+        { label: '要點總結', prompt: '請用 3 點條列重點並給一個提醒。' },
+        { label: '同義改寫', prompt: '請用更白話的方式再解釋一次。' },
+        { label: '做小測驗', prompt: '請出 3 題選擇題並附上解析。' },
+        { label: '比較兩者', prompt: '請比較「A 與 B」的差異與應用場景。' },
+    ];
+
     const handleTitleSave = async () => {
         if (!userId) {
             alert('使用者資訊尚未初始化，請稍後再試。');
@@ -922,8 +929,51 @@ export default function ChatInterface({
                     <div ref={messagesEndRef} />
                 </div>
 
+                {/* Teaching tips */}
+                <div className="px-4 py-3 bg-white border-t border-b">
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <div className="text-sm font-semibold text-blue-800">教學提示卡</div>
+                                <div className="text-xs text-blue-700">用下面的指引帶學生做練習、比較、反思。</div>
+                            </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-blue-700">
+                            <div className="bg-white/70 rounded-lg p-2 border border-blue-100">
+                                <div className="font-semibold mb-1">操作步驟</div>
+                                <div>1) 先問概念</div>
+                                <div>2) 再要例子</div>
+                                <div>3) 做小測驗</div>
+                            </div>
+                            <div className="bg-white/70 rounded-lg p-2 border border-blue-100">
+                                <div className="font-semibold mb-1">比較練習</div>
+                                <div>把相近名詞放一起比較</div>
+                                <div>例如：RAG vs 微調</div>
+                            </div>
+                            <div className="bg-white/70 rounded-lg p-2 border border-blue-100">
+                                <div className="font-semibold mb-1">檢核點</div>
+                                <div>回答是否引用資料</div>
+                                <div>是否有舉例與限制</div>
+                            </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {teachingPrompts.map(item => (
+                                <button
+                                    key={item.label}
+                                    type="button"
+                                    onClick={() => sendMessage(item.prompt, item.label)}
+                                    className="text-xs px-3 py-1.5 rounded-full bg-white text-blue-700 border border-blue-200 hover:bg-blue-100"
+                                    disabled={loading || historyLoading || !userId}
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
                 {/* Quick actions */}
-                <div className="px-4 pb-2 flex flex-wrap gap-2 bg-white border-t border-b">
+                <div className="px-4 pb-2 flex flex-wrap gap-2 bg-white border-b">
                     {quickActions.map((action) => {
                         const Icon = action.icon;
                         return (

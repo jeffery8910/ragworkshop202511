@@ -72,6 +72,13 @@ export default function StudentDashboard() {
     const nextLevelTarget = Math.max(100, level * 500);
     const xpProgress = clamp(Math.round((xp / nextLevelTarget) * 100));
     const remainingXp = Math.max(0, nextLevelTarget - xp);
+    const topTopic = topics[0]?.name;
+    const topMistake = mistakes[0]?.topic || mistakes[0]?.question;
+    const practiceSuggestions = [
+        topMistake ? `先複盤錯題：${topMistake}` : '',
+        topTopic ? `加強 ${topTopic}：做 3 題基礎題 + 1 題應用題` : '',
+        '練習提問：用一句話解釋 + 舉 1 個例子',
+    ].filter(Boolean);
 
     if (loading) {
         return (
@@ -164,6 +171,20 @@ export default function StudentDashboard() {
                     <div className="text-gray-500 text-sm text-center py-4 bg-white rounded-lg">
                         太棒了！目前沒有錯題記錄。
                     </div>
+                )}
+            </div>
+
+            {/* Practice Suggestions */}
+            <h2 className="text-lg font-bold text-gray-700 mt-8 mb-3 flex items-center gap-2">
+                <BookOpen className="w-5 h-5" /> 練習建議
+            </h2>
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                {practiceSuggestions.length > 0 ? (
+                    <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                        {practiceSuggestions.map((s, i) => <li key={i}>{s}</li>)}
+                    </ul>
+                ) : (
+                    <div className="text-gray-500 text-sm">先完成一次對話或測驗，系統會生成個人化建議。</div>
                 )}
             </div>
 
