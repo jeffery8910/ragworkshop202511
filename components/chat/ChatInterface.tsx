@@ -31,6 +31,7 @@ interface Message {
     parseError?: string;
     abilityCard?: AbilityCardData;
     mistakeCard?: MistakeCardData;
+    agenticTrace?: AgenticTrace;
 }
 
 interface ChatInterfaceProps {
@@ -92,6 +93,20 @@ interface MistakeCardData {
     title?: string;
     items: MistakeItem[];
     highlight?: string;
+}
+
+interface AgenticTraceStep {
+    title: string;
+    detail?: string;
+    queries?: string[];
+    retrieved?: number;
+    graphNodes?: number;
+    graphEdges?: number;
+}
+
+interface AgenticTrace {
+    level: number;
+    steps: AgenticTraceStep[];
 }
 
 function QuizCard({ data }: { data: QuizData }) {
@@ -317,6 +332,44 @@ function QACard({ data }: { data: QACardData }) {
     );
 }
 
+function AgenticTraceCard({ trace }: { trace: AgenticTrace }) {
+    const levelLabel = trace.level === 1
+        ? 'L1 輕量'
+        : trace.level === 2
+            ? 'L2 教學'
+            : trace.level === 3
+                ? 'L3 完整'
+                : '傳統';
+    return (
+        <details className="mt-2 text-xs bg-amber-50/70 border border-amber-100 rounded-lg px-3 py-2">
+            <summary className="cursor-pointer text-amber-800 font-semibold">
+                Agentic 流程摘要（{levelLabel}）
+            </summary>
+            <div className="mt-2 space-y-2 text-amber-900">
+                {trace.steps.map((step, idx) => (
+                    <div key={idx} className="rounded border border-amber-100 bg-white/70 px-2 py-1">
+                        <div className="font-semibold">{step.title}</div>
+                        {step.detail && <div className="text-[11px] text-amber-800">{step.detail}</div>}
+                        {step.queries && step.queries.length > 0 && (
+                            <div className="text-[11px] text-amber-700 mt-1">
+                                檢索句：{step.queries.join('、')}
+                            </div>
+                        )}
+                        {typeof step.retrieved === 'number' && (
+                            <div className="text-[11px] text-amber-700">片段數：{step.retrieved}</div>
+                        )}
+                        {(typeof step.graphNodes === 'number' || typeof step.graphEdges === 'number') && (
+                            <div className="text-[11px] text-amber-700">
+                                圖譜節點 {step.graphNodes ?? 0} · 關係 {step.graphEdges ?? 0}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </details>
+    );
+}
+
 // Zod schemas to validate structured JSON payloads from LLM
 const quizSchema = z.object({
     type: z.literal('quiz'),
@@ -518,6 +571,7 @@ export default function ChatInterface({
     ]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [agenticLevel, setAgenticLevel] = useState(1);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -542,6 +596,25 @@ export default function ChatInterface({
         }
         setUserId(stored);
     }, [initialUserId]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const storageKey = 'rag_agentic_level';
+        const stored = window.localStorage.getItem(storageKey);
+        if (stored !== null) {
+            const parsed = Number(stored);
+            if (Number.isFinite(parsed)) {
+                setAgenticLevel(Math.max(0, Math.min(3, parsed)));
+                return;
+            }
+        }
+        window.localStorage.setItem(storageKey, '1');
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem('rag_agentic_level', String(agenticLevel));
+    }, [agenticLevel]);
 
     const [currentTitle, setCurrentTitle] = useState(chatTitle);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -600,10 +673,14 @@ export default function ChatInterface({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() || loading) return;
-        await sendMessage(input);
+        await sendMessage(input, undefined, 'free');
     };
 
-    const sendMessage = async (text: string, displayText?: string) => {
+    const sendMessage = async (
+        text: string,
+        displayText?: string,
+        kind: 'free' | 'quickAction' | 'teachingPrompt' = 'free'
+    ) => {
         if (!userId) {
             setMessages(prev => [...prev, { role: 'assistant', content: '系統正在初始化使用者資訊，請稍候再試。' }]);
             return;
@@ -618,7 +695,15 @@ export default function ChatInterface({
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userMsg, userId })
+                body: JSON.stringify({
+                    message: userMsg,
+                    userId,
+                    agenticLevel,
+                    client: {
+                        kind,
+                        displayText: displayText || userMsg,
+                    }
+                })
             });
 
             const data = await res.json();
@@ -673,6 +758,7 @@ export default function ChatInterface({
                 role: 'assistant',
                 content: answerContent,
                 context: data.context,
+                agenticTrace: data.agenticTrace,
                 quizData,
                 conceptCard,
                 summaryCard,
@@ -697,37 +783,31 @@ export default function ChatInterface({
             label: '產生測驗 JSON',
             icon: ListChecks,
             prompt: 'You must return ONLY valid JSON. 請根據目前的對話或使用者最後一個問題，輸出一份 JSON 測驗：{"type":"quiz","title":"標題","questions":[{"id":1,"question":"題目","options":["A","B","C","D"],"answer":"正確選項","explanation":"解析"}]}。不要使用 Markdown，不能出現 ```。',
-            display: '產生測驗 JSON 中...'
         },
         {
             label: '對話摘要',
             icon: FileText,
             prompt: 'You must return ONLY valid JSON. 請回傳摘要 JSON：{"type":"summary","title":"對話摘要","bullets":["重點1","重點2","重點3"],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '產生對話摘要中...'
         },
         {
             label: '概念卡片',
             icon: Sparkles,
             prompt: 'You must return ONLY valid JSON. 請回傳概念卡片 JSON：{"type":"card","title":"主題","bullets":["重點1","重點2","重點3"],"highlight":"一句關鍵提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '產生概念卡片中...'
         },
         {
             label: '互動問答卡',
             icon: MessagesSquare,
             prompt: 'You must return ONLY valid JSON. 請回傳問答卡 JSON：{"type":"card-qa","title":"主題","qa":[{"q":"問題1","a":"回答1"},{"q":"問題2","a":"回答2"}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '產生互動問答卡中...'
         },
         {
             label: '學科能力分析',
             icon: BookOpen,
             prompt: 'You must return ONLY valid JSON. 請回傳學科能力分析 JSON：{"type":"ability","title":"學科能力分析","topics":[{"name":"數學","level":2,"progress":65},{"name":"物理","level":1,"progress":40}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '產生學科能力分析中...'
         },
         {
             label: '錯題分析與建議',
             icon: AlertCircle,
             prompt: 'You must return ONLY valid JSON. 請回傳錯題分析 JSON：{"type":"mistake","title":"錯題分析","items":[{"topic":"幾何","question":"三角形相似條件？","reason":"混淆AA與SSS","suggestion":"先複習 AA 判定並做 3 題練習"},{"topic":"微積分","question":"什麼是導數？","reason":"概念模糊","suggestion":"用極限定義推一次"}],"highlight":"一句提醒"}。不要使用 Markdown，不能出現 ```。',
-            display: '產生錯題分析中...'
         }
     ];
 
@@ -737,6 +817,14 @@ export default function ChatInterface({
         { label: '做小測驗', prompt: '請出 3 題選擇題並附上解析。' },
         { label: '比較兩者', prompt: '請比較「A 與 B」的差異與應用場景。' },
     ];
+
+    const agenticSummary = agenticLevel === 0
+        ? '傳統 RAG：單次檢索後直接回答。'
+        : agenticLevel === 1
+            ? 'L1 輕量：自動判斷是否檢索，必要時補充檢索/追問。'
+            : agenticLevel === 2
+                ? 'L2 教學：顯示檢索流程與步驟摘要，方便對照。'
+                : 'L3 完整：多步檢索 + 多跳推理（進階）。';
 
     const handleTitleSave = async () => {
         if (!userId) {
@@ -851,6 +939,17 @@ export default function ChatInterface({
                             : 'text-gray-600 border-gray-200 bg-gray-50'}`}>
                             {mode === 'knowledge' ? '知識庫模式' : '一般聊天'}
                         </div>
+                        <select
+                            value={agenticLevel}
+                            onChange={(e) => setAgenticLevel(Math.max(0, Math.min(3, Number(e.target.value) || 0)))}
+                            className="text-xs border border-blue-200 rounded-full px-3 py-1 bg-blue-50 text-blue-700"
+                            title="Agentic 模式"
+                        >
+                            <option value={0}>傳統 RAG</option>
+                            <option value={1}>Agentic L1 輕量</option>
+                            <option value={2}>Agentic L2 教學</option>
+                            <option value={3}>Agentic L3 完整</option>
+                        </select>
                         <button
                             onClick={handleClearHistory}
                             className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 hover:underline"
@@ -912,6 +1011,7 @@ export default function ChatInterface({
                                             {msg.parseError}
                                         </div>
                                     )}
+                                    {msg.agenticTrace && <AgenticTraceCard trace={msg.agenticTrace} />}
                                 </div>
 
                                 {/* Source Citations */}
@@ -961,6 +1061,7 @@ export default function ChatInterface({
                             <div>
                                 <div className="text-sm font-semibold text-blue-800">教學提示卡</div>
                                 <div className="text-xs text-blue-700">用下面的指引帶學生做練習、比較、反思。</div>
+                                <div className="text-[11px] text-blue-600 mt-1">目前模式：{agenticSummary}</div>
                             </div>
                         </div>
                         <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-blue-700">
@@ -986,7 +1087,7 @@ export default function ChatInterface({
                                 <button
                                     key={item.label}
                                     type="button"
-                                    onClick={() => sendMessage(item.prompt, item.label)}
+                                    onClick={() => sendMessage(item.prompt, item.label, 'teachingPrompt')}
                                     className="text-xs px-3 py-1.5 rounded-full bg-white text-blue-700 border border-blue-200 hover:bg-blue-100"
                                     disabled={loading || historyLoading || !userId}
                                 >
@@ -1005,7 +1106,7 @@ export default function ChatInterface({
                             <button
                                 key={action.label}
                                 type="button"
-                                onClick={() => sendMessage(action.prompt, action.display)}
+                                onClick={() => sendMessage(action.prompt, action.label, 'quickAction')}
                                 className="flex items-center gap-1 text-xs px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700"
                                 disabled={loading || historyLoading || !userId}
                             >

@@ -14,13 +14,21 @@ export async function POST(req: NextRequest) {
     let uid = '';
     let userMessage = '';
     try {
-        const { message, userId } = await req.json();
-        userMessage = message;
+        const body = await req.json().catch(() => ({} as any));
+        const message = body?.message;
+        const userId = body?.userId;
+        const agenticLevel = body?.agenticLevel;
+        const client = body?.client as { kind?: string; displayText?: string } | undefined;
+        const safeMessage = typeof message === 'string' ? message.trim() : '';
+        userMessage = safeMessage;
 
         const cookieStore = await cookies();
         uid = userId || cookieStore.get('line_user_id')?.value || cookieStore.get('rag_user_id')?.value || '';
         if (!uid) {
             return NextResponse.json({ error: 'userId is required.' }, { status: 400 });
+        }
+        if (!safeMessage) {
+            return NextResponse.json({ error: 'message is required.' }, { status: 400 });
         }
 
         // Extract config from cookies
@@ -38,6 +46,26 @@ export async function POST(req: NextRequest) {
         const topKRaw = readConfig('RAG_TOP_K');
         const parsedTopK = topKRaw ? parseInt(topKRaw, 10) : NaN;
 
+        const clampLevel = (value: any) => {
+            const parsed = Number(value);
+            if (!Number.isFinite(parsed)) return 0;
+            return Math.max(0, Math.min(3, parsed));
+        };
+
+        const normalizeTitleSeed = (value: string) => {
+            return String(value || '')
+                .replace(/\s+/g, ' ')
+                .replace(/中\.{3,}$/g, '')
+                .replace(/中…+$/g, '')
+                .trim();
+        };
+
+        const clientKind = client?.kind === 'quickAction' || client?.kind === 'teachingPrompt' ? client.kind : 'free';
+        const displayText = typeof client?.displayText === 'string' && client.displayText.trim().length
+            ? client.displayText.trim()
+            : safeMessage;
+        const titleSeed = normalizeTitleSeed(displayText || safeMessage);
+
         const config = {
             pineconeIndex: readConfig('PINECONE_INDEX_NAME'),
             geminiApiKey: readConfig('GEMINI_API_KEY'),
@@ -50,6 +78,8 @@ export async function POST(req: NextRequest) {
             topK: Number.isNaN(parsedTopK) ? 5 : parsedTopK,
             mongoUri: readConfig('MONGODB_URI'),
             mongoDbName: readConfig('MONGODB_DB_NAME'),
+            agenticLevel: clampLevel(agenticLevel),
+            displayQuestion: titleSeed,
         };
 
         // Validate chat model against provider to avoid unsupported IDs or embeddings
@@ -106,11 +136,11 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'EMBEDDING_MODEL 與供應商不匹配，請重新選擇。' }, { status: 400 });
         }
 
-        if (userMessage) {
-            await logConversation({ type: 'message', userId: uid, text: userMessage });
+        if (titleSeed) {
+            await logConversation({ type: 'message', userId: uid, text: titleSeed });
         }
 
-        const result = await ragAnswer(uid, message, config);
+        const result = await ragAnswer(uid, safeMessage, config);
 
         // Server-side structured payload parsing for persistence
         const quizSchema = z.object({
@@ -194,11 +224,6 @@ export async function POST(req: NextRequest) {
                 dbName: config.mongoDbName
             });
             if (!currentTitle) {
-                const titlePrompt = `
-                請根據使用者的問題，生成一個簡短的對話標題 (5個字以內)。
-                問題：${message}
-                標題：`;
-
                 const llmConfig = {
                     provider: providerForChat,
                     apiKey: providerForChat === 'gemini' ? config.geminiApiKey
@@ -208,7 +233,52 @@ export async function POST(req: NextRequest) {
                     model: config.chatModel,
                 } as any;
 
-                const title = await generateText(titlePrompt, llmConfig);
+                const seed = titleSeed || safeMessage;
+                const buildDirectTitle = () => {
+                    if (clientKind === 'quickAction') {
+                        if (seed.includes('測驗')) return '小測驗練習';
+                        if (seed.includes('摘要')) return '對話摘要';
+                        if (seed.includes('概念')) return '概念卡片';
+                        if (seed.includes('問答')) return '問答卡片';
+                        if (seed.includes('能力')) return '能力分析';
+                        if (seed.includes('錯題')) return '錯題分析';
+                        return seed.slice(0, 12) || '快捷練習';
+                    }
+                    if (clientKind === 'teachingPrompt') {
+                        if (seed.includes('要點')) return '要點整理';
+                        if (seed.includes('改寫')) return '白話改寫';
+                        if (seed.includes('小測驗')) return '小測驗練習';
+                        if (seed.includes('比較')) return '比較練習';
+                        return seed.slice(0, 12) || '教學練習';
+                    }
+                    return '';
+                };
+
+                const directTitle = buildDirectTitle();
+                const titlePrompt = `你是「RAG 教學坊」的對話標題產生器。\n請用「摘要式」命名，12 字以內。\n規則：\n- 只輸出標題文字（不要加引號/句號/emoji）\n- 用名詞片語，不要完整句子\n- 避免語助詞（例如：請問、可以嗎、要不要）\n- 若輸入是功能按鈕（測驗/摘要/卡片/比較），請用「練習/整理」的名詞片語表達\n\n輸入：${seed}\n標題：`;
+
+                const sanitizeTitle = (raw: string) => {
+                    const firstLine = String(raw || '').trim().split('\n')[0] || '';
+                    const cleaned = firstLine
+                        .replace(/^[「『"'\[]+/, '')
+                        .replace(/[」』"'\]]+$/, '')
+                        .replace(/[。．.]+$/g, '')
+                        .trim();
+                    if (!cleaned) return '';
+                    if (cleaned.includes('[AI')) return '';
+                    return cleaned.slice(0, 20);
+                };
+
+                let title = '';
+                if (directTitle) {
+                    title = directTitle;
+                } else if (llmConfig?.apiKey) {
+                    title = sanitizeTitle(await generateText(titlePrompt, llmConfig));
+                }
+                if (!title) {
+                    title = seed.slice(0, 12) || '新對話';
+                }
+
                 await saveConversationTitle(uid, title.trim(), {
                     mongoUri: config.mongoUri,
                     dbName: config.mongoDbName

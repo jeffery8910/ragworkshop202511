@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { searchPinecone } from '@/lib/vector/pinecone';
 import { searchGraphContext, searchGraphEvidence } from '@/lib/features/graph-search';
 import { generateText } from '@/lib/llm';
+import { planAgentic, type AgenticTrace, type AgenticTraceStep } from '@/lib/agentic';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,6 +44,12 @@ export async function POST(req: NextRequest) {
         const includeAnswer = body?.includeAnswer !== false;
         const rewrite = !!body?.rewrite;
         const useGraph = body?.useGraph !== false;
+        const clampLevel = (value: any) => {
+            const parsed = Number(value);
+            if (!Number.isFinite(parsed)) return 0;
+            return Math.max(0, Math.min(3, parsed));
+        };
+        const agenticLevel = clampLevel(body?.agenticLevel);
 
         const geminiApiKey = get('GEMINI_API_KEY');
         const openaiApiKey = get('OPENAI_API_KEY');
@@ -71,33 +78,153 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const searchQuery = rewrittenQuery || query;
-        const context = await searchPinecone(
-            searchQuery,
-            Number.isFinite(topK) ? Math.max(1, topK) : 5,
-            pineconeApiKey,
-            pineconeIndex,
-            { modelName: embeddingModel, provider: 'pinecone', pineconeApiKey, desiredDim: 1024 }
-        );
+        const baseQuery = rewrittenQuery || query;
+
+        let searchQueries = [baseQuery];
+        let needRetrieval = true;
+        let followUpQuestion: string | undefined;
+        let planSubQuestions: string[] | undefined;
+        const traceSteps: AgenticTraceStep[] = [];
+
+        if (agenticLevel > 0) {
+            const plan = await planAgentic(baseQuery, agenticLevel, llmConfig);
+            searchQueries = plan.queries?.length ? plan.queries : [baseQuery];
+            needRetrieval = plan.needRetrieval !== false;
+            followUpQuestion = plan.followUp;
+            planSubQuestions = plan.subQuestions;
+            traceSteps.push({
+                title: `Agentic L${agenticLevel} 規劃`,
+                detail: plan.reason || (needRetrieval ? '判定需要檢索' : '判定可直接回答'),
+                queries: searchQueries,
+            });
+            if (agenticLevel >= 3) {
+                traceSteps.push({
+                    title: '工具規劃',
+                    detail: '向量檢索 / 圖譜檢索 / 回答生成',
+                });
+            }
+            if (agenticLevel >= 3 && planSubQuestions?.length) {
+                traceSteps.push({
+                    title: '多跳子問題',
+                    detail: planSubQuestions.join(' / '),
+                });
+            }
+        }
+
+        let context: any[] = [];
+        const perQueryTopK = Number.isFinite(topK) ? Math.max(1, topK) : 5;
+        const maxResults = Math.min(15, Math.max(5, perQueryTopK * Math.max(1, searchQueries.length)));
+        const mergeResults = (items: any[]) => {
+            const map = new Map<string, any>();
+            const makeKey = (r: any) => {
+                const chunkId = r?.metadata?.chunk_id || r?.metadata?.chunkId;
+                if (chunkId) return String(chunkId);
+                const head = (r?.text || '').slice(0, 80);
+                return `${r?.source || '未知來源'}::${r?.page ?? ''}::${head}`;
+            };
+            const addItem = (r: any) => {
+                const key = makeKey(r);
+                const prev = map.get(key);
+                if (!prev || (r.score ?? 0) > (prev.score ?? 0)) {
+                    map.set(key, r);
+                }
+            };
+            context.forEach(addItem);
+            items.forEach(addItem);
+            context = Array.from(map.values()).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, maxResults);
+        };
+
+        if (needRetrieval) {
+            for (let i = 0; i < searchQueries.length; i += 1) {
+                const q = searchQueries[i];
+                const res = await searchPinecone(
+                    q,
+                    perQueryTopK,
+                    pineconeApiKey,
+                    pineconeIndex,
+                    { modelName: embeddingModel, provider: 'pinecone', pineconeApiKey, desiredDim: 1024 }
+                );
+                mergeResults(res);
+                if (agenticLevel > 0) {
+                    traceSteps.push({
+                        title: `向量檢索 ${i + 1}`,
+                        detail: q,
+                        retrieved: res.length,
+                    });
+                }
+            }
+        } else if (agenticLevel > 0) {
+            traceSteps.push({
+                title: '向量檢索',
+                detail: '已判定可直接回答',
+                retrieved: 0,
+            });
+        }
+
+        if (agenticLevel > 0 && followUpQuestion && needRetrieval) {
+            const needsSupplement = context.length < Math.max(3, Math.ceil(perQueryTopK / 2));
+            if (needsSupplement) {
+                const extra = await searchPinecone(
+                    followUpQuestion,
+                    Math.max(2, Math.ceil(perQueryTopK / 2)),
+                    pineconeApiKey,
+                    pineconeIndex,
+                    { modelName: embeddingModel, provider: 'pinecone', pineconeApiKey, desiredDim: 1024 }
+                );
+                mergeResults(extra);
+                traceSteps.push({
+                    title: '補充檢索',
+                    detail: followUpQuestion,
+                    retrieved: extra.length,
+                });
+                followUpQuestion = undefined;
+            }
+        }
+
+        if (agenticLevel > 0 && followUpQuestion) {
+            traceSteps.push({
+                title: '追問建議',
+                detail: followUpQuestion,
+            });
+        }
 
         let graphContext = '';
         let graphEvidence: any = undefined;
         let matchedNodeIds: string[] | undefined = undefined;
         let graphDocIds: string[] | undefined = undefined;
-        if (useGraph) {
+        if (useGraph && (!agenticLevel || needRetrieval)) {
             try {
-                graphEvidence = await searchGraphEvidence(searchQuery, { mongoUri, dbName: mongoDb });
+                graphEvidence = await searchGraphEvidence(baseQuery, { mongoUri, dbName: mongoDb });
                 graphContext = graphEvidence?.edges?.length
-                    ? await searchGraphContext(searchQuery, graphEvidence, { mongoUri, dbName: mongoDb })
+                    ? await searchGraphContext(baseQuery, graphEvidence, { mongoUri, dbName: mongoDb })
                     : '';
                 matchedNodeIds = graphEvidence?.matchedNodeIds || [];
                 const docSet = new Set<string>();
                 graphEvidence?.nodes?.forEach((n: any) => n.docId && docSet.add(n.docId));
                 graphEvidence?.edges?.forEach((e: any) => e.docId && docSet.add(e.docId));
                 graphDocIds = [...docSet];
+                if (agenticLevel > 0) {
+                    traceSteps.push({
+                        title: '圖譜檢索',
+                        detail: graphEvidence?.edges?.length ? '已補充圖譜關聯' : '沒有找到圖譜關聯',
+                        graphNodes: graphEvidence?.nodes?.length || 0,
+                        graphEdges: graphEvidence?.edges?.length || 0,
+                    });
+                }
             } catch (err) {
                 console.warn('Graph context search failed', err);
+                if (agenticLevel > 0) {
+                    traceSteps.push({
+                        title: '圖譜檢索',
+                        detail: '圖譜查詢失敗',
+                    });
+                }
             }
+        } else if (agenticLevel > 0) {
+            traceSteps.push({
+                title: '圖譜檢索',
+                detail: useGraph ? '已判定可直接回答' : '圖譜 RAG 關閉',
+            });
         }
 
         let answer = '';
@@ -119,6 +246,15 @@ ${graphContext}
 `;
             answer = await generateText(answerPrompt, llmConfig);
         }
+        if (agenticLevel > 0 && followUpQuestion && answer) {
+            answer = `${answer.trim()}\n\n追問：${followUpQuestion}`;
+        }
+        if (agenticLevel > 0) {
+            traceSteps.push({
+                title: '回答生成',
+                detail: `引用 ${context.length} 段資料${graphContext ? ' + 圖譜補充' : ''}`,
+            });
+        }
 
         return NextResponse.json({
             query,
@@ -129,6 +265,7 @@ ${graphContext}
             matchedNodeIds,
             graphDocIds,
             answer,
+            agenticTrace: agenticLevel > 0 ? ({ level: agenticLevel, steps: traceSteps } as AgenticTrace) : undefined,
         });
     } catch (error: any) {
         console.error('Retrieve error', error);

@@ -28,6 +28,21 @@ interface RagResult {
         edges?: Array<{ source: string; target: string; relation: string; docId?: string }>;
         triples?: string[];
     };
+    agenticTrace?: AgenticTrace;
+}
+
+interface AgenticTraceStep {
+    title: string;
+    detail?: string;
+    queries?: string[];
+    retrieved?: number;
+    graphNodes?: number;
+    graphEdges?: number;
+}
+
+interface AgenticTrace {
+    level: number;
+    steps: AgenticTraceStep[];
 }
 
 interface LabConfig {
@@ -35,6 +50,7 @@ interface LabConfig {
     rewrite: boolean;
     includeAnswer: boolean;
     useGraph: boolean;
+    agenticLevel: number;
 }
 
 interface TeachingDoc {
@@ -100,17 +116,20 @@ export default function RagLabPanel() {
     const [includeAnswer, setIncludeAnswer] = useState(true);
     const [elapsedMs, setElapsedMs] = useState<number | null>(null);
     const [useGraph, setUseGraph] = useState(true);
+    const [agenticLevel, setAgenticLevel] = useState(1);
     const [compareConfigA, setCompareConfigA] = useState<LabConfig>({
         topK: 5,
         rewrite: true,
         includeAnswer: true,
         useGraph: true,
+        agenticLevel: 1,
     });
     const [compareConfigB, setCompareConfigB] = useState<LabConfig>({
         topK: 5,
         rewrite: true,
         includeAnswer: true,
         useGraph: true,
+        agenticLevel: 1,
     });
     const [compareResultA, setCompareResultA] = useState<RagResult | null>(null);
     const [compareResultB, setCompareResultB] = useState<RagResult | null>(null);
@@ -147,6 +166,7 @@ export default function RagLabPanel() {
         rewrite: boolean;
         includeAnswer: boolean;
         useGraph: boolean;
+        agenticLevel: number;
         elapsedMs: number | null;
         result: RagResult;
         createdAt: number;
@@ -211,10 +231,11 @@ export default function RagLabPanel() {
         setRewrite(cfg.rewrite);
         setIncludeAnswer(cfg.includeAnswer);
         setUseGraph(cfg.useGraph);
+        setAgenticLevel(cfg.agenticLevel);
     };
 
-    const buildComparePreset = (preset: 'topk' | 'rewrite' | 'graph' | 'answer') => {
-        const base: LabConfig = { topK, rewrite, includeAnswer, useGraph };
+    const buildComparePreset = (preset: 'topk' | 'rewrite' | 'graph' | 'answer' | 'agentic') => {
+        const base: LabConfig = { topK, rewrite, includeAnswer, useGraph, agenticLevel };
         if (preset === 'topk') {
             return {
                 a: { ...base, topK: Math.max(1, Math.min(50, 3)) },
@@ -233,13 +254,19 @@ export default function RagLabPanel() {
                 b: { ...base, useGraph: true }
             };
         }
+        if (preset === 'agentic') {
+            return {
+                a: { ...base, agenticLevel: 0 },
+                b: { ...base, agenticLevel: 2 }
+            };
+        }
         return {
             a: { ...base, includeAnswer: false },
             b: { ...base, includeAnswer: true }
         };
     };
 
-    const applyComparePreset = (preset: 'topk' | 'rewrite' | 'graph' | 'answer') => {
+    const applyComparePreset = (preset: 'topk' | 'rewrite' | 'graph' | 'answer' | 'agentic') => {
         const next = buildComparePreset(preset);
         setCompareConfigA(next.a);
         setCompareConfigB(next.b);
@@ -404,7 +431,7 @@ export default function RagLabPanel() {
     }, [activeDataset]);
 
     const taskCards: Array<{
-        id: 'topk' | 'rewrite' | 'graph' | 'answer';
+        id: 'topk' | 'rewrite' | 'graph' | 'answer' | 'agentic';
         title: string;
         desc: string;
         sampleIndex: number;
@@ -442,6 +469,14 @@ export default function RagLabPanel() {
             sampleIndex: 2,
             aLabel: '回答關閉',
             bLabel: '回答開啟',
+        },
+        {
+            id: 'agentic',
+            title: 'Agentic vs 傳統 RAG',
+            desc: '比較傳統單次檢索與 Agentic 流程的差異。',
+            sampleIndex: 0,
+            aLabel: '傳統 RAG',
+            bLabel: 'Agentic L2',
         },
     ];
 
@@ -800,6 +835,9 @@ export default function RagLabPanel() {
         if (compareConfigA.useGraph !== compareConfigB.useGraph) {
             hints.push('圖譜 RAG 不同：留意「圖譜節點/關係」是否增加，並觀察回答是否更完整。');
         }
+        if (compareConfigA.agenticLevel !== compareConfigB.agenticLevel) {
+            hints.push('Agentic 等級不同：觀察流程步驟、補充檢索次數與回答是否更完整。');
+        }
         if (compareConfigA.includeAnswer !== compareConfigB.includeAnswer) {
             hints.push('回答開關不同：觀察只看檢索 vs 生成回答的差異，是否有幻覺風險。');
         }
@@ -827,6 +865,11 @@ export default function RagLabPanel() {
         const deltaSource = (evalCompareResult.b.avgSourceRecall - evalCompareResult.a.avgSourceRecall) * 100;
         const deltaHit = (evalCompareResult.b.hitRate - evalCompareResult.a.hitRate) * 100;
         const deltaScore = evalCompareResult.b.avgScore - evalCompareResult.a.avgScore;
+        const levelA = evalCompareResult.a.config.agenticLevel ?? 0;
+        const levelB = evalCompareResult.b.config.agenticLevel ?? 0;
+        if (levelA !== levelB) {
+            hints.push(`Agentic 等級不同：A=L${levelA}，B=L${levelB}。`);
+        }
         if (Math.abs(deltaTerm) >= 3) {
             hints.push(`詞彙召回差異 ${deltaTerm > 0 ? 'B 高於 A' : 'A 高於 B'} ${Math.abs(deltaTerm).toFixed(1)}%。`);
         }
@@ -876,22 +919,24 @@ export default function RagLabPanel() {
                 topK,
                 includeAnswer,
                 rewrite,
-                useGraph
+                useGraph,
+                agenticLevel
             });
             setElapsedMs(elapsed);
             setResult(data);
-            setHistory(prev => {
-                const next = [{
-                    id: `${Date.now()}`,
-                    query: trimmed,
-                    topK,
-                    rewrite,
-                    includeAnswer,
-                    useGraph,
-                    elapsedMs: elapsed,
-                    result: data,
-                    createdAt: Date.now(),
-                }, ...prev];
+                setHistory(prev => {
+                    const next = [{
+                        id: `${Date.now()}`,
+                        query: trimmed,
+                        topK,
+                        rewrite,
+                        includeAnswer,
+                        useGraph,
+                        agenticLevel,
+                        elapsedMs: elapsed,
+                        result: data,
+                        createdAt: Date.now(),
+                    }, ...prev];
                 return next.slice(0, 6);
             });
         } catch (error: any) {
@@ -944,8 +989,8 @@ export default function RagLabPanel() {
     };
 
     const syncCompareFromMain = () => {
-        setCompareConfigA({ topK, rewrite, includeAnswer, useGraph });
-        setCompareConfigB({ topK, rewrite, includeAnswer, useGraph });
+        setCompareConfigA({ topK, rewrite, includeAnswer, useGraph, agenticLevel });
+        setCompareConfigB({ topK, rewrite, includeAnswer, useGraph, agenticLevel });
     };
 
     return (
@@ -1017,7 +1062,7 @@ export default function RagLabPanel() {
                             <div className="font-semibold text-slate-700 mb-1">Step 5 評估</div>
                             <div className="text-[11px] text-slate-500 mb-2">用資料集跑評估指標。</div>
                             <button
-                                onClick={() => runEvaluation({ topK, rewrite, includeAnswer, useGraph })}
+                                onClick={() => runEvaluation({ topK, rewrite, includeAnswer, useGraph, agenticLevel })}
                                 className="rounded-full bg-white px-3 py-1 text-[11px] text-slate-600 border border-slate-200 hover:bg-slate-100"
                             >
                                 執行評估
@@ -1069,6 +1114,16 @@ export default function RagLabPanel() {
                                 className="rounded-full bg-purple-600 text-white px-3 py-1 text-xs hover:bg-purple-700"
                             >
                                 回答 開 vs 關
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const preset = applyComparePreset('agentic');
+                                    const q = ensureQuery(sampleQueries[0]);
+                                    runCompare(preset, q);
+                                }}
+                                className="rounded-full bg-purple-600 text-white px-3 py-1 text-xs hover:bg-purple-700"
+                            >
+                                Agentic vs 傳統
                             </button>
                         </div>
 
@@ -1169,6 +1224,22 @@ export default function RagLabPanel() {
                                 />
                                 圖譜 RAG
                             </label>
+                            <label className="flex items-center gap-2">
+                                Agentic
+                                <select
+                                    value={compareConfigA.agenticLevel}
+                                    onChange={(e) => setCompareConfigA(prev => ({
+                                        ...prev,
+                                        agenticLevel: Math.max(0, Math.min(3, Number(e.target.value) || 0))
+                                    }))}
+                                    className="border rounded px-2 py-1 text-xs"
+                                >
+                                    <option value={0}>L0</option>
+                                    <option value={1}>L1</option>
+                                    <option value={2}>L2</option>
+                                    <option value={3}>L3</option>
+                                </select>
+                            </label>
                         </div>
                     </div>
 
@@ -1212,6 +1283,22 @@ export default function RagLabPanel() {
                                     onChange={(e) => setCompareConfigB(prev => ({ ...prev, useGraph: e.target.checked }))}
                                 />
                                 圖譜 RAG
+                            </label>
+                            <label className="flex items-center gap-2">
+                                Agentic
+                                <select
+                                    value={compareConfigB.agenticLevel}
+                                    onChange={(e) => setCompareConfigB(prev => ({
+                                        ...prev,
+                                        agenticLevel: Math.max(0, Math.min(3, Number(e.target.value) || 0))
+                                    }))}
+                                    className="border rounded px-2 py-1 text-xs"
+                                >
+                                    <option value={0}>L0</option>
+                                    <option value={1}>L1</option>
+                                    <option value={2}>L2</option>
+                                    <option value={3}>L3</option>
+                                </select>
                             </label>
                         </div>
                     </div>
@@ -1411,7 +1498,7 @@ export default function RagLabPanel() {
                         <p className="text-xs text-gray-500 mb-3">以資料集題目評估檢索效果，支援 A/B 比較。</p>
                         <div className="flex flex-wrap gap-2 mb-3">
                             <button
-                                onClick={() => runEvaluation({ topK, rewrite, includeAnswer, useGraph })}
+                                onClick={() => runEvaluation({ topK, rewrite, includeAnswer, useGraph, agenticLevel })}
                                 disabled={evalLoading || !activeDataset}
                                 className="rounded-full bg-purple-600 text-white px-3 py-1 text-xs hover:bg-purple-700 disabled:opacity-50"
                             >
@@ -1736,6 +1823,19 @@ export default function RagLabPanel() {
                     <input type="checkbox" checked={useGraph} onChange={(e) => setUseGraph(e.target.checked)} />
                     圖譜 RAG
                 </label>
+                <label className="flex items-center gap-2">
+                    Agentic
+                    <select
+                        value={agenticLevel}
+                        onChange={(e) => setAgenticLevel(Math.max(0, Math.min(3, Number(e.target.value) || 0)))}
+                        className="border rounded px-2 py-1 text-xs"
+                    >
+                        <option value={0}>L0 傳統</option>
+                        <option value={1}>L1</option>
+                        <option value={2}>L2</option>
+                        <option value={3}>L3</option>
+                    </select>
+                </label>
                 {elapsedMs !== null && (
                     <span className="text-gray-500">耗時 {elapsedMs} ms</span>
                 )}
@@ -1778,6 +1878,7 @@ export default function RagLabPanel() {
                                     setRewrite(run.rewrite);
                                     setIncludeAnswer(run.includeAnswer);
                                     setUseGraph(run.useGraph);
+                                    setAgenticLevel(run.agenticLevel);
                                     setElapsedMs(run.elapsedMs);
                                     setResult(run.result);
                                 }}
@@ -1788,7 +1889,7 @@ export default function RagLabPanel() {
                                     <span className="text-gray-400">{new Date(run.createdAt).toLocaleTimeString()}</span>
                                 </div>
                                 <div className="text-gray-400 mt-1">
-                                    topK={run.topK} | rewrite={String(run.rewrite)} | answer={String(run.includeAnswer)} | 圖譜={String(run.useGraph)}
+                                    topK={run.topK} | rewrite={String(run.rewrite)} | answer={String(run.includeAnswer)} | 圖譜={String(run.useGraph)} | agentic=L{run.agenticLevel}
                                 </div>
                             </button>
                         ))}
@@ -1826,6 +1927,7 @@ export default function RagLabPanel() {
                                 <span className="rounded-full bg-white px-2 py-0.5 border">重寫 {compareConfigA.rewrite ? '開' : '關'}</span>
                                 <span className="rounded-full bg-white px-2 py-0.5 border">回答 {compareConfigA.includeAnswer ? '開' : '關'}</span>
                                     <span className="rounded-full bg-white px-2 py-0.5 border">圖譜 {compareConfigA.useGraph ? '開' : '關'}</span>
+                                <span className="rounded-full bg-white px-2 py-0.5 border">Agentic L{compareConfigA.agenticLevel}</span>
                             </div>
                             {compareResultA ? (
                                 <div className="space-y-2 text-xs text-slate-600">
@@ -1849,6 +1951,19 @@ export default function RagLabPanel() {
                                             ))}
                                         </div>
                                     </details>
+                                    {compareResultA.agenticTrace && (
+                                        <details className="rounded-lg border border-amber-100 bg-amber-50/60 p-2">
+                                            <summary className="cursor-pointer text-[11px] text-amber-800">查看 Agentic 步驟</summary>
+                                            <div className="mt-2 space-y-2">
+                                                {compareResultA.agenticTrace.steps.map((step, idx) => (
+                                                    <div key={idx} className="rounded border border-amber-100 bg-white/70 p-2">
+                                                        <div className="text-[11px] font-semibold text-amber-900">{step.title}</div>
+                                                        {step.detail && <div className="text-[11px] text-amber-700">{step.detail}</div>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </details>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="text-xs text-slate-400">尚未有比較結果</div>
@@ -1865,6 +1980,7 @@ export default function RagLabPanel() {
                                 <span className="rounded-full bg-white px-2 py-0.5 border">重寫 {compareConfigB.rewrite ? '開' : '關'}</span>
                                 <span className="rounded-full bg-white px-2 py-0.5 border">回答 {compareConfigB.includeAnswer ? '開' : '關'}</span>
                                     <span className="rounded-full bg-white px-2 py-0.5 border">圖譜 {compareConfigB.useGraph ? '開' : '關'}</span>
+                                <span className="rounded-full bg-white px-2 py-0.5 border">Agentic L{compareConfigB.agenticLevel}</span>
                             </div>
                             {compareResultB ? (
                                 <div className="space-y-2 text-xs text-slate-600">
@@ -1888,6 +2004,19 @@ export default function RagLabPanel() {
                                             ))}
                                         </div>
                                     </details>
+                                    {compareResultB.agenticTrace && (
+                                        <details className="rounded-lg border border-amber-100 bg-amber-50/60 p-2">
+                                            <summary className="cursor-pointer text-[11px] text-amber-800">查看 Agentic 步驟</summary>
+                                            <div className="mt-2 space-y-2">
+                                                {compareResultB.agenticTrace.steps.map((step, idx) => (
+                                                    <div key={idx} className="rounded border border-amber-100 bg-white/70 p-2">
+                                                        <div className="text-[11px] font-semibold text-amber-900">{step.title}</div>
+                                                        {step.detail && <div className="text-[11px] text-amber-700">{step.detail}</div>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </details>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="text-xs text-slate-400">尚未有比較結果</div>
@@ -1994,6 +2123,31 @@ export default function RagLabPanel() {
                             </>
                         )}
                     </div>
+
+                    {result.agenticTrace && (
+                        <div className="bg-amber-50 p-4 rounded-lg border border-amber-100">
+                            <h3 className="text-md font-semibold text-amber-800 mb-2">Agentic 流程摘要（L{result.agenticTrace.level}）</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-amber-900">
+                                {result.agenticTrace.steps.map((step, idx) => (
+                                    <div key={idx} className="rounded border border-amber-100 bg-white/70 p-2">
+                                        <div className="font-semibold">{step.title}</div>
+                                        {step.detail && <div className="text-[11px] text-amber-700">{step.detail}</div>}
+                                        {step.queries && step.queries.length > 0 && (
+                                            <div className="text-[11px] text-amber-700 mt-1">檢索句：{step.queries.join('、')}</div>
+                                        )}
+                                        {typeof step.retrieved === 'number' && (
+                                            <div className="text-[11px] text-amber-700">片段數：{step.retrieved}</div>
+                                        )}
+                                        {(typeof step.graphNodes === 'number' || typeof step.graphEdges === 'number') && (
+                                            <div className="text-[11px] text-amber-700">
+                                                圖譜節點 {step.graphNodes ?? 0} · 關係 {step.graphEdges ?? 0}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* 2. Retrieved Chunks */}
                     <div>
