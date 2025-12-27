@@ -42,3 +42,7 @@ next-env.d.ts
 
 # local data storage (JSON fallback)
 /data
+
+# generated eval/html reports (keep folder only)
+/docs/reports/*
+!/docs/reports/.gitkeep
