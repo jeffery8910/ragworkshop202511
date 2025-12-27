@@ -3,6 +3,11 @@
 這是一個結合 **Next.js (Vercel)** 與 **n8n (Render)** 的進階 RAG 工作坊專案。
 支援多模態 (文字/語音)、多模型 (OpenAI/Gemini/OpenRouter) 與進階 RAG 技術 (結構化輸出、父子索引、元數據增強)。
 
+## 作品集 / HR 入口
+
+- 給人資/主管快速看的作品集：`docs/index.html`
+- 建議把 `docs/` 開 GitHub Pages（設定方式見 `docs/README.md`）
+
 ## 🚀 快速部署 (Quick Deploy)
 
 ### 1. 部署 Frontend (Next.js) 至 Vercel
@@ -42,7 +47,7 @@ n8n 建議部署於 Render (Docker)：
 - **🛠️ 強大後台 (Admin Dashboard)**:
   - **安全登入**: 專屬管理員登入頁面 (`/admin/login`)，支援 Session Cookie 驗證。
   - **動態設定 (Dynamic Config)**: 支援線上設定 API Keys 與 RAG 參數 (TopK, Temperature)，無須重新部署。
-  - **RAG 實驗室 (RAG Lab)**: 視覺化 RAG 檢索過程，包含 Query Rewrite 與 Retrieved Chunks 預覽。
+  - **RAG 教學坊**: 視覺化 RAG 檢索過程，支援 A/B 比較、題庫管理、評估輸出 (CSV/JSON)。
   - **知識庫視覺化 (Knowledge Graph)**: 2D 向量分佈圖與索引檔案管理。
   - **檔案上傳**: 支援 PDF/TXT 拖曳或點擊上傳與向量化。
   - **系統監控**: 即時檢查 MongoDB, Pinecone, LLM 連線狀態與環境變數。
@@ -60,6 +65,11 @@ n8n 建議部署於 Render (Docker)：
 3. **啟動伺服器**:
    ```bash
    npm run dev
+   ```
+
+4. **Build**（預設使用 webpack，讓本機/CI/Vercel 更穩）:
+   ```bash
+   npm run build
    ```
 
 ## 📄 文件 (Documentation)

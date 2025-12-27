@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HR 版｜RAG 工作坊作品集</title>
+    <link rel="stylesheet" href="./assets/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container nav">
+        <div class="brand">
+          <span>RAG 工作坊作品集</span>
+          <span class="badge">HR 版：一頁看懂</span>
+        </div>
+        <div class="navlinks">
+          <a href="./index.html">總覽</a>
+          <a href="./hr.html">HR 版</a>
+          <a href="./teaching.html">教學設計</a>
+          <a href="./experiments.html">比較與評估</a>
+          <a href="./technical.html">技術細節</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="hero">
+        <div class="badge">如果你只看一頁：看這頁就好</div>
+        <h1>我做了一個「能教、能比、能驗證」的 RAG 平台</h1>
+        <p>我把 RAG 變成一個教學型產品：學生不用只聽概念，而是直接在頁面上做 A/B 比較，最後能把結果匯出成報告。</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/jeffery8910/ragworkshop202511" target="_blank" rel="noreferrer">看 GitHub</a>
+          <button class="btn" type="button" data-copy="(請填入你的 Demo URL)">複製 Demo 連結 placeholder</button>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card two">
+          <h2>這個專案在解什麼問題？</h2>
+          <p>RAG 教學常遇到兩件事：學生聽得懂名詞，但不知道「調參」到底會怎麼影響答案；以及做完也很難留下可驗證的成果。</p>
+          <hr class="hr" />
+          <p><strong>我把它變成：</strong>每個功能都可比較（A/B），每次比較都能看到差異指標，最後能輸出報告。</p>
+        </div>
+
+        <div class="card two">
+          <h2>你會在平台看到什麼？</h2>
+          <ul class="list">
+            <li><strong>聊天：</strong>可用自己的知識庫回答，並（可選）強制附來源。</li>
+            <li><strong>知識庫：</strong>上傳文件、看 chunks、管理檔案、看知識圖譜。</li>
+            <li><strong>RAG 教學坊：</strong>同一題做 Top‑K / 重寫 / 圖譜 / Agentic 的比較。</li>
+            <li><strong>學生儀表板：</strong>把練習建議、題目、觀察點整理在同頁。</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h2>我如何證明我不是「只有做 UI」？</h2>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>項目</th>
+                <th>有什麼可驗證的輸出</th>
+                <th>你看得到什麼</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>RAG A/B 比較</td>
+                <td>評估 CSV/JSON</td>
+                <td>HitRate、Recall、Score、時間等指標</td>
+              </tr>
+              <tr>
+                <td>知識圖譜</td>
+                <td>節點/關係/證據 API</td>
+                <td>圖上的每條邊都有證據來源</td>
+              </tr>
+              <tr>
+                <td>教學流程</td>
+                <td>可重做的練習清單</td>
+                <td>學生自己調參、觀察、寫結論</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card compact">
+          <h2>如果你要我現場 demo</h2>
+          <details>
+            <summary>我會怎麼 demo（3 分鐘版）</summary>
+            <p class="muted">1) 管理員上傳文件 → 2) 去 RAG 教學坊拿同一題做 A/B → 3) 匯出 eval JSON → 4) 用工具轉成 HTML 報告。</p>
+          </details>
+          <details style="margin-top:10px">
+            <summary>我希望你注意的地方</summary>
+            <ul class="list">
+              <li>不是只看「答案好不好看」，而是看「有沒有來源」、「指標有沒有變好」。</li>
+              <li>同一題用不同設定，差異是可複製、可寫進報告的。</li>
+            </ul>
+          </details>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>提示：更技術的內容在「技術細節」。</div>
+        <div>Repo：<span class="kbd">jeffery8910/ragworkshop202511</span></div>
+      </div>
+    </div>
+    <script src="./assets/app.js"></script>
+  </body>
+</html>
+

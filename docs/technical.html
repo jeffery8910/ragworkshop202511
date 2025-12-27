@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>技術細節｜RAG 工作坊作品集</title>
+    <link rel="stylesheet" href="./assets/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container nav">
+        <div class="brand">
+          <span>RAG 工作坊作品集</span>
+          <span class="badge">技術細節：架構、API、資料流</span>
+        </div>
+        <div class="navlinks">
+          <a href="./index.html">總覽</a>
+          <a href="./hr.html">HR 版</a>
+          <a href="./teaching.html">教學設計</a>
+          <a href="./experiments.html">比較與評估</a>
+          <a href="./technical.html">技術細節</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="hero">
+        <div class="badge">給工程主管：你想看什麼，這頁都有</div>
+        <h1>架構重點：把檢索、圖譜、教學比較都串在一起</h1>
+        <p>專案用 Next.js App Router，把管理員工具、學生練習與聊天放在同一個 codebase；RAG 教學坊走 API 驅動，方便做 A/B 與評估。</p>
+      </div>
+
+      <div class="grid">
+        <div class="card two">
+          <h2>資料流（簡化版）</h2>
+          <div class="codebox">
+            使用者問題\n
+              -> Embedding（把問題轉向量）\n
+              -> 向量資料庫檢索（Top‑K）\n
+              ->（可選）Query Rewrite / 圖譜擴展 / Agentic 多輪\n
+              -> 組 context + 生成答案（強制附來源）\n
+              -> 教學坊：輸出指標 + 匯出 CSV/JSON\n
+          </div>
+        </div>
+
+        <div class="card two">
+          <h2>你會看到的 API 路徑（教學用）</h2>
+          <ul class="list">
+            <li><span class="k">/api/chat</span>：聊天（可串 RAG）</li>
+            <li><span class="k">/api/admin/upload</span>：上傳文件與切分</li>
+            <li><span class="k">/api/admin/documents</span>：文件/檔案管理</li>
+            <li><span class="k">/api/admin/graph/*</span>：知識圖譜（搜尋/路徑/證據）</li>
+            <li><span class="k">/api/workshop/retrieve</span>：RAG 教學坊檢索（給公開頁用）</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h2>部署/建置重點（為什麼我改成 webpack build）</h2>
+          <p>Next.js 16 在不同環境用 Turbopack 有時會遇到不穩（例如 Windows symlink 權限、或某些 CSR bailout 檢查）。所以我把 build 改成固定用 webpack，讓本機/CI/Vercel 更穩。</p>
+          <div class="codebox">
+            # package.json\n
+            \"build\": \"next build --webpack\"
+          </div>
+        </div>
+
+        <div class="card compact">
+          <h2>資料庫欄位怎麼填？（你之前問的 cluster 是什麼）</h2>
+          <p class="muted">以 MongoDB Atlas 來說，<strong>cluster</strong> 就是你的雲端資料庫主機群。你在 Atlas 建好 cluster 後，會拿到一段連線字串（URI）。</p>
+          <details style="margin-top:10px">
+            <summary>去哪裡找 MongoDB 連線字串？</summary>
+            <ul class="list">
+              <li>進 MongoDB Atlas → 你的 Cluster → Connect</li>
+              <li>選「Drivers」拿到 URI（看起來像 <span class="k">mongodb+srv://...</span>）</li>
+              <li>把 URI 貼到管理員的 <span class="k">MONGODB_URI</span></li>
+              <li><span class="k">MONGODB_DB_NAME</span> 是「資料庫名稱」（你要用哪個 DB 放資料）</li>
+            </ul>
+          </details>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>提示：若要看教學互動設計，回「教學設計」。</div>
+        <div><a href="./teaching.html">前往教學設計 →</a></div>
+      </div>
+    </div>
+    <script src="./assets/app.js"></script>
+  </body>
+</html>
+

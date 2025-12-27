@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>教學設計｜RAG 工作坊作品集</title>
+    <link rel="stylesheet" href="./assets/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container nav">
+        <div class="brand">
+          <span>RAG 工作坊作品集</span>
+          <span class="badge">教學設計：可互動、可練習</span>
+        </div>
+        <div class="navlinks">
+          <a href="./index.html">總覽</a>
+          <a href="./hr.html">HR 版</a>
+          <a href="./teaching.html">教學設計</a>
+          <a href="./experiments.html">比較與評估</a>
+          <a href="./technical.html">技術細節</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="hero">
+        <div class="badge">目標：讓學生自己「調參 → 看差異 → 寫結論」</div>
+        <h1>RAG 教學坊怎麼教？我把它拆成可做的練習</h1>
+        <p>我不分老師/同學模式，所有人都走同一套：先做最小比較，再逐步加上圖譜與 Agentic，最後輸出報告。</p>
+      </div>
+
+      <div class="grid">
+        <div class="card two">
+          <h2>練習路徑（建議順序）</h2>
+          <ul class="list">
+            <li><strong>練習 1：</strong>Top‑K 3 vs 10（看命中率/來源 recall/答案是否變囉唆）</li>
+            <li><strong>練習 2：</strong>重寫 off vs on（看檢索結果是否更聚焦、答案是否更「貼題」）</li>
+            <li><strong>練習 3：</strong>圖譜 off vs on（看 evidence、看關係路徑、看是否更會引用來源）</li>
+            <li><strong>練習 4：</strong>Agentic L1 vs L2（看多輪檢索、補問、來源強制）</li>
+            <li><strong>練習 5：</strong>L2 vs L3（看工具行動記錄、multi‑hop/graph reasoning）</li>
+          </ul>
+        </div>
+
+        <div class="card two">
+          <h2>每次比較要看什麼？（觀察點提示）</h2>
+          <p>我把「要看什麼」寫成提示卡，讓學生不會只看答案爽不爽，而是看有沒有變好。</p>
+          <div class="chips">
+            <span class="pill ok">來源有沒有附</span>
+            <span class="pill warn">HitRate 有沒有上升</span>
+            <span class="pill warn">Recall 有沒有上升</span>
+            <span class="pill warn">Score 有沒有更穩</span>
+            <span class="pill bad">時間有沒有暴增</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>教學坊內建互動（你會真的用到）</h2>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>功能</th>
+                <th>互動方式</th>
+                <th>練習要產出什麼</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>題庫可編輯</td>
+                <td>新增/修改題目、期望關鍵字與來源</td>
+                <td>做一組自己領域的題庫（可匯出 JSON）</td>
+              </tr>
+              <tr>
+                <td>RAG A/B 比較</td>
+                <td>同題切換 A/B 設定、一鍵比較</td>
+                <td>寫出「差異點」＋「為什麼」</td>
+              </tr>
+              <tr>
+                <td>評估匯出</td>
+                <td>下載 CSV/JSON、再轉 HTML 報告</td>
+                <td>把結果附在作業/作品集</td>
+              </tr>
+              <tr>
+                <td>學生儀表板</td>
+                <td>看「下一題做什麼比較」＋「要看什麼指標」</td>
+                <td>完成一週練習清單</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card compact">
+          <h2>建議你把這套教學怎麼用在課堂</h2>
+          <details>
+            <summary>60 分鐘版本（最常用）</summary>
+            <ul class="list">
+              <li>10 分：RAG 是什麼（只講概念）</li>
+              <li>20 分：教學坊做 Top‑K / 重寫 A/B</li>
+              <li>20 分：加上圖譜/證據，教「怎麼看來源」</li>
+              <li>10 分：匯出報告（CSV/JSON/HTML）當作業</li>
+            </ul>
+          </details>
+          <details style="margin-top:10px">
+            <summary>作業題範例</summary>
+            <p class="muted">「請選 5 題，至少做 3 種比較（Top‑K/重寫/圖譜/Agentic），每題寫一句結論與一個指標證據。」</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>提示：更完整的指標與報告在「比較與評估」。</div>
+        <div><a href="./experiments.html">前往比較與評估 →</a></div>
+      </div>
+    </div>
+    <script src="./assets/app.js"></script>
+  </body>
+</html>
+

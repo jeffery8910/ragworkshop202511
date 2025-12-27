@@ -12,7 +12,7 @@ jobs:
       - name: Ping Render
         run: |
           if [ -z "${{ secrets.RENDER_URL }}" ]; then
-            echo "RENDER_URL secret not set"
-            exit 1
+            echo "RENDER_URL secret not set (skipped)"
+            exit 0
           fi
           curl -fsSL "${{ secrets.RENDER_URL }}" > /dev/null

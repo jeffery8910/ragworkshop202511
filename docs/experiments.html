@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>比較與評估｜RAG 工作坊作品集</title>
+    <link rel="stylesheet" href="./assets/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container nav">
+        <div class="brand">
+          <span>RAG 工作坊作品集</span>
+          <span class="badge">比較與評估：每個功能至少一個 A/B</span>
+        </div>
+        <div class="navlinks">
+          <a href="./index.html">總覽</a>
+          <a href="./hr.html">HR 版</a>
+          <a href="./teaching.html">教學設計</a>
+          <a href="./experiments.html">比較與評估</a>
+          <a href="./technical.html">技術細節</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="hero">
+        <div class="badge">原則：不要只看答案好不好看，要看「指標」</div>
+        <h1>這些比較，學生做完就能知道差在哪</h1>
+        <p>平台會輸出評估結果（CSV/JSON）。你也可以把 JSON 轉成 HTML 報告，直接貼到作品集或交作業。</p>
+      </div>
+
+      <div class="grid">
+        <div class="card two">
+          <h2>必做 A/B（每個功能至少一個）</h2>
+          <ul class="list">
+            <li><strong>Top‑K：</strong>3 vs 10（看 HitRate、Recall、chunk 數量、延遲）</li>
+            <li><strong>重寫：</strong>off vs on（看檢索命中與答案貼題程度）</li>
+            <li><strong>圖譜：</strong>off vs on（看 evidence、關係路徑、來源引用）</li>
+            <li><strong>Agentic：</strong>L1 vs L2（看補問/再檢索、來源強制）</li>
+            <li><strong>Agentic：</strong>L2 vs L3（看工具行動記錄、多跳推理）</li>
+          </ul>
+        </div>
+
+        <div class="card two">
+          <h2>指標怎麼解讀？（台灣用語版）</h2>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>指標</th>
+                <th>意思（白話）</th>
+                <th>你要判斷什麼</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Hit / HitRate</td>
+                <td>有沒有撈到「該撈的」文件（至少有命中）</td>
+                <td>命中率變高通常是好事，但要注意是不是撈太多</td>
+              </tr>
+              <tr>
+                <td>Term / Source Recall</td>
+                <td>期望關鍵字/期望來源有沒有被撈進來</td>
+                <td>用來看重寫、Top‑K、圖譜有沒有真的幫到檢索</td>
+              </tr>
+              <tr>
+                <td>Score（avg/top）</td>
+                <td>檢索分數（相似度/打分）</td>
+                <td>Top‑K 大時 avg 可能下降，但 top 不一定降</td>
+              </tr>
+              <tr>
+                <td>Elapsed ms</td>
+                <td>每題花多久</td>
+                <td>成效提升要值得時間成本</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h2>把 JSON 變成一份「可以交」的報告</h2>
+          <p>教學坊下載的 <span class="k">rag-eval-*.json</span> 可以用工具轉成 HTML，放到 <span class="k">docs/reports/</span>。</p>
+          <div class="codebox">
+            # 1) 在「RAG 教學坊」下載 eval JSON\n
+            # 2) 產生報告（輸出到 docs/reports/）\n
+            node ./docs/tools/export-eval-report.mjs --in ./rag-eval-demo.json --out ./docs/reports/demo.html
+          </div>
+          <div class="callout" style="margin-top:10px">
+            <strong>提醒：</strong>這份報告給 HR/主管最有用的是「你做了哪些比較」跟「每個比較的指標差異」。
+          </div>
+        </div>
+
+        <div class="card compact">
+          <h2>想更像研究/工程？</h2>
+          <details>
+            <summary>我建議你把比較寫成這樣</summary>
+            <p class="muted">「設定 A：Top‑K=3、重寫=off；設定 B：Top‑K=10、重寫=on。B 的 hitRate +12%，但平均延遲 +180ms。結論：在這組資料，B 比較適合長問句。」</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>提示：技術細節（API/資料流）在「技術細節」。</div>
+        <div><a href="./technical.html">前往技術細節 →</a></div>
+      </div>
+    </div>
+    <script src="./assets/app.js"></script>
+  </body>
+</html>
+

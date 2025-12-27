@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="RAG 工作坊作品集（教學專案）：可操作的 RAG 教學坊、知識庫管理、學生儀表板與 Agentic RAG。">
+    <title>RAG 工作坊作品集</title>
+    <link rel="stylesheet" href="./assets/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container nav">
+        <div class="brand">
+          <span>RAG 工作坊作品集</span>
+          <span class="badge">給人資/主管：快速看懂 + 可驗證</span>
+        </div>
+        <div class="navlinks">
+          <a href="./index.html">總覽</a>
+          <a href="./hr.html">HR 版</a>
+          <a href="./teaching.html">教學設計</a>
+          <a href="./experiments.html">比較與評估</a>
+          <a href="./technical.html">技術細節</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <section class="hero">
+        <div class="badge">主題：Retrieval‑Augmented Generation（RAG）＋ 圖論（Knowledge Graph）＋ Agentic RAG</div>
+        <h1>把「RAG 教學」做成能操作、能比較、能輸出報告的網站</h1>
+        <p>
+          這個專案是給學生做 RAG 上手的「教學坊」。每個功能都能做 A/B 比較（例如 Top‑K、重寫、圖譜、Agentic 等級），並把結果輸出成報告，方便複盤與教學。
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/jeffery8910/ragworkshop202511" target="_blank" rel="noreferrer">GitHub Repo</a>
+          <a class="btn secondary" href="#" data-copy="(請填入你的 Demo URL)" title="先複製 placeholder，再把 Demo URL 換掉">Demo 連結（待填）</a>
+          <a class="btn" href="./experiments.html">看 A/B 與評估</a>
+        </div>
+      </section>
+
+      <div class="grid">
+        <div class="card two">
+          <h2>三句話版本（給人資）</h2>
+          <ul class="list">
+            <li>把 RAG 常見調參（Top‑K/重寫/圖譜/Agentic）做成「可視覺化 + 可比較」的教學平台。</li>
+            <li>有題庫、可編輯 UI、可匯入匯出，並能把評估輸出成 CSV/JSON（可再轉成 HTML 報告）。</li>
+            <li>提供學生儀表板與練習建議區，讓學生能跟著做、做完能看差異。</li>
+          </ul>
+        </div>
+
+        <div class="card two">
+          <h2>快速驗證（5 分鐘內）</h2>
+          <div class="callout">
+            <strong>建議順序：</strong>先進管理員設定 → 上傳文件 → 去 RAG 教學坊做 A/B → 回到學生儀表板看練習建議。
+          </div>
+          <div class="codebox">
+            # 本機啟動\n
+            npm install\n
+            npm run dev\n
+            \n
+            # build（已改成 webpack，比較不挑環境）\n
+            npm run build
+          </div>
+        </div>
+
+        <div class="card three">
+          <h3>知識庫管理</h3>
+          <p>上傳歷史、文件管理、向量分段、知識圖譜視覺化與搜尋。</p>
+          <div class="chips">
+            <span class="chip">上傳/刪除/查 chunks</span>
+            <span class="chip">圖譜節點/關係</span>
+            <span class="chip">來源證據</span>
+          </div>
+        </div>
+
+        <div class="card three">
+          <h3>RAG 教學坊</h3>
+          <p>同一題做 A/B（重寫/Top‑K/圖譜/Agentic），並輸出評估。</p>
+          <div class="chips">
+            <span class="chip">題庫可編輯 UI</span>
+            <span class="chip">比較結果提示</span>
+            <span class="chip">CSV/JSON 匯出</span>
+          </div>
+        </div>
+
+        <div class="card three">
+          <h3>學生儀表板</h3>
+          <p>把練習路徑整理成一頁：今天做哪個比較、要看什麼指標、做完怎麼寫結論。</p>
+          <div class="chips">
+            <span class="chip">練習建議</span>
+            <span class="chip">小測驗/抽認卡</span>
+            <span class="chip">回到教學坊做比較</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>我想讓你看到的能力點</h2>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>能力點</th>
+                <th>我怎麼做</th>
+                <th>你怎麼驗證</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>產品化/教學化</td>
+                <td>把抽象概念（檢索/圖譜/Agentic）改成可操作的 UI 與練習流程。</td>
+                <td>進「RAG 教學坊」切換參數做 A/B，比較差異。</td>
+              </tr>
+              <tr>
+                <td>工程整合</td>
+                <td>把聊天、知識庫、檢索 API、評估與報表串在同一套平台。</td>
+                <td>管理員上傳 → 教學坊檢索 → 匯出 CSV/JSON。</td>
+              </tr>
+              <tr>
+                <td>可觀測/可複盤</td>
+                <td>用指標（Recall/HitRate/Score/時間）讓學生知道「差在哪」。</td>
+                <td>下載 eval JSON，跑工具產出 HTML 報告。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card compact">
+          <h2>下一步（你可以直接看）</h2>
+          <div class="row">
+            <a class="btn small" href="./teaching.html">教學流程與練習設計</a>
+            <a class="btn small" href="./experiments.html">每個功能至少一個比較</a>
+            <a class="btn small" href="./technical.html">架構、API、資料流</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>建議用法：把這個 `docs/` 直接開 GitHub Pages，HR 會更好看。</div>
+        <div>最後更新：<span id="last-updated">(由 git commit 決定)</span></div>
+      </div>
+    </div>
+
+    <script src="./assets/app.js"></script>
+  </body>
+</html>
+
