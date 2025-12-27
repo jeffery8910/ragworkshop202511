@@ -143,22 +143,46 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
     results = Array.from(map.values()).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, maxResults);
   };
 
+  // Start graph search early (in parallel) to reduce end-to-end latency.
+  const graphPromise = (useGraph && (!agenticLevel || needRetrieval))
+    ? (async () => {
+      const evidence = await searchGraphEvidence(question, { mongoUri: config?.mongoUri, dbName: config?.mongoDbName });
+      const text = await searchGraphContext(question, evidence, { mongoUri: config?.mongoUri, dbName: config?.mongoDbName });
+      return { evidence, text };
+    })()
+    : null;
+
   if (vectorEnabled && needRetrieval) {
-    for (let i = 0; i < searchQueries.length; i += 1) {
+    const settled = await Promise.allSettled(
+      searchQueries.map(async (q) => {
+        const res = await searchPinecone(
+          q,
+          perQueryTopK,
+          config?.pineconeApiKey,
+          config?.pineconeIndex,
+          embeddingConfig,
+        );
+        return { q, res };
+      }),
+    );
+
+    for (let i = 0; i < settled.length; i += 1) {
+      const item = settled[i];
       const q = searchQueries[i];
-      const res = await searchPinecone(
-        q,
-        perQueryTopK,
-        config?.pineconeApiKey,
-        config?.pineconeIndex,
-        embeddingConfig,
-      );
-      addResults(res);
-      if (agenticLevel > 0) {
+      if (item.status === 'fulfilled') {
+        addResults(item.value.res);
+        if (agenticLevel > 0) {
+          traceSteps.push({
+            title: `向量檢索 ${i + 1}`,
+            detail: item.value.q,
+            retrieved: item.value.res.length,
+          });
+        }
+      } else if (agenticLevel > 0) {
         traceSteps.push({
           title: `向量檢索 ${i + 1}`,
           detail: q,
-          retrieved: res.length,
+          retrieved: 0,
         });
       }
     }
@@ -202,10 +226,11 @@ export async function ragAnswer(userId: string, question: string, config?: RagCo
   // 2.5 Graph Search (Enhancement)
   let graphEvidence: any = undefined;
   let graphContextText = '';
-  if (useGraph && (!agenticLevel || needRetrieval)) {
+  if (graphPromise) {
     try {
-      graphEvidence = await searchGraphEvidence(question, { mongoUri: config?.mongoUri, dbName: config?.mongoDbName });
-      graphContextText = await searchGraphContext(question, graphEvidence, { mongoUri: config?.mongoUri, dbName: config?.mongoDbName });
+      const out = await graphPromise;
+      graphEvidence = out?.evidence;
+      graphContextText = out?.text || '';
       if (graphContextText) {
         context += (context ? '\n\n' : '') + graphContextText;
       }

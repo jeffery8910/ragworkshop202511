@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getMongoClient } from '@/lib/db/mongo';
 import { getConfigValue } from '@/lib/config-store';
@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
         const cookieStore = await cookies();
         const get = (key: string) => cookieStore.get(key)?.value || process.env[key] || getConfigValue(key) || '';
@@ -26,19 +26,22 @@ export async function GET() {
             .project({ _id: 0, docId: 1, filename: 1, size: 1, type: 1, chunks: 1, indexedAt: 1, mode: 1, status: 1, note: 1 })
             .toArray();
 
-        // Grab up to 500 chunks for visualization (lightweight fields only)
-        const chunkDocsRaw = await db
-            .collection('chunks')
-            .find({}, { projection: { _id: 0, chunkId: 1, docId: 1, source: 1, chunk: 1, text_length: 1, indexed_at: 1, text: 1 } })
-            .sort({ indexed_at: -1 })
-            .limit(5000) // 放寬到 5000 筆以便圖上顯示更多節點
-            .toArray();
+        const includeChunks = ['1', 'true', 'yes'].includes((req.nextUrl.searchParams.get('includeChunks') || '').toLowerCase());
+        let chunkDocs: any[] = [];
+        if (includeChunks) {
+            // Optional: fetch chunks only when explicitly requested (payload can be large)
+            const chunkDocsRaw = await db
+                .collection('chunks')
+                .find({}, { projection: { _id: 0, chunkId: 1, docId: 1, source: 1, chunk: 1, text_length: 1, indexed_at: 1, text: 1 } })
+                .sort({ indexed_at: -1 })
+                .limit(5000)
+                .toArray();
 
-        // 限制文字大小，避免回傳過大 payload
-        const chunkDocs = chunkDocsRaw.map(c => ({
-            ...c,
-            text: typeof c.text === 'string' ? c.text.slice(0, 500) : ''
-        }));
+            chunkDocs = chunkDocsRaw.map(c => ({
+                ...c,
+                text: typeof c.text === 'string' ? c.text.slice(0, 500) : ''
+            }));
+        }
 
         return new NextResponse(JSON.stringify({ documents, chunks: chunkDocs }), {
             status: 200,

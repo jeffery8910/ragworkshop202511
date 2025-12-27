@@ -128,21 +128,36 @@ export async function POST(req: NextRequest) {
         const perQueryTopK = Math.max(1, Math.ceil(topK / Math.max(1, searchQueries.length)));
 
         if (!agenticLevel || needRetrieval) {
-            for (let i = 0; i < searchQueries.length; i += 1) {
+            const settled = await Promise.allSettled(
+                searchQueries.map(async (q) => {
+                    const res = await searchPinecone(
+                        q,
+                        perQueryTopK,
+                        pineconeApiKey,
+                        pineconeIndex,
+                        { modelName: embeddingModel, provider: 'pinecone', pineconeApiKey, desiredDim: 1024 }
+                    );
+                    return { q, res };
+                })
+            );
+
+            for (let i = 0; i < settled.length; i += 1) {
+                const item = settled[i];
                 const q = searchQueries[i];
-                const res = await searchPinecone(
-                    q,
-                    perQueryTopK,
-                    pineconeApiKey,
-                    pineconeIndex,
-                    { modelName: embeddingModel, provider: 'pinecone', pineconeApiKey, desiredDim: 1024 }
-                );
-                mergeResults(res);
-                if (agenticLevel > 0) {
+                if (item.status === 'fulfilled') {
+                    mergeResults(item.value.res);
+                    if (agenticLevel > 0) {
+                        traceSteps.push({
+                            title: `向量檢索 ${i + 1}`,
+                            detail: item.value.q,
+                            retrieved: item.value.res.length,
+                        });
+                    }
+                } else if (agenticLevel > 0) {
                     traceSteps.push({
                         title: `向量檢索 ${i + 1}`,
                         detail: q,
-                        retrieved: res.length,
+                        retrieved: 0,
                     });
                 }
             }
@@ -266,4 +281,3 @@ ${graphContext}
         return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
     }
 }
-

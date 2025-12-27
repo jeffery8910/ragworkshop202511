@@ -53,6 +53,7 @@ interface DocumentMeta {
 
 export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [loading, setLoading] = useState(false);
+    const [graphVersion, setGraphVersion] = useState(0);
     const [nodes, setNodes] = useState<GraphNode[]>([]);
     const [edges, setEdges] = useState<GraphEdge[]>([]);
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
@@ -69,6 +70,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const [dragging, setDragging] = useState(false);
     const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
     const [draggedNode, setDraggedNode] = useState<GraphNode | null>(null);
+    const [simulating, setSimulating] = useState(false);
     const { pushToast } = useToast();
     const searchParams = useSearchParams();
 
@@ -93,15 +95,20 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
 
     const canvasRef = useRef<HTMLDivElement>(null);
     const requestRef = useRef<number>(0);
+    const simStateRef = useRef({ running: false, endAt: 0, lastStep: 0 });
 
     // Physics simulation parameters
     const REPULSION = 200;
     const ATTRACTION = 0.05;
     const DAMPING = 0.85;
     const CENTER_PULL = 0.02;
+    const SIM_FPS = 12;
 
     const fetchGraph = async () => {
         setLoading(true);
+        simStateRef.current.running = false;
+        setSimulating(false);
+        cancelAnimationFrame(requestRef.current);
         try {
             const res = await adminFetch('/api/admin/graph');
             const data = await res.json();
@@ -118,6 +125,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
             
             setNodes(initNodes);
             setEdges(data.edges || []);
+            setGraphVersion(v => v + 1);
             onAction?.(`已載入圖譜：${initNodes.length} 節點, ${data.edges?.length} 連線`);
         } catch (e: any) {
             console.error(e);
@@ -261,8 +269,13 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
 
     useEffect(() => {
         fetchGraph();
-        fetchDocuments();
     }, []);
+
+    useEffect(() => {
+        if (sideTab === 'docs' && documents.length === 0 && !docsLoading) {
+            fetchDocuments();
+        }
+    }, [sideTab, documents.length, docsLoading]);
 
     useEffect(() => {
         const q = searchParams?.get('graphQuery');
@@ -272,8 +285,26 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         }
     }, [searchParams]);
 
-    // Simple Force-Directed Layout Simulation
-    const runSimulation = () => {
+    const stopSimulation = () => {
+        simStateRef.current.running = false;
+        setSimulating(false);
+        cancelAnimationFrame(requestRef.current);
+    };
+
+    const runSimulation = (t: number) => {
+        if (!simStateRef.current.running) return;
+        if (t >= simStateRef.current.endAt) {
+            stopSimulation();
+            return;
+        }
+
+        const minDelta = 1000 / SIM_FPS;
+        if (simStateRef.current.lastStep && (t - simStateRef.current.lastStep) < minDelta) {
+            requestRef.current = requestAnimationFrame(runSimulation);
+            return;
+        }
+        simStateRef.current.lastStep = t;
+
         setNodes(prevNodes => {
             const newNodes = prevNodes.map(n => ({ ...n }));
             const nodeMap = new Map(newNodes.map(n => [n.id, n]));
@@ -344,12 +375,23 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         requestRef.current = requestAnimationFrame(runSimulation);
     };
 
+    const startSimulation = (durationMs = 1800) => {
+        if (nodes.length === 0) return;
+        simStateRef.current.running = true;
+        simStateRef.current.endAt = performance.now() + durationMs;
+        simStateRef.current.lastStep = 0;
+        setSimulating(true);
+        cancelAnimationFrame(requestRef.current);
+        requestRef.current = requestAnimationFrame(runSimulation);
+    };
+
     useEffect(() => {
-        if (nodes.length > 0) {
-            requestRef.current = requestAnimationFrame(runSimulation);
+        if (graphVersion > 0 && nodes.length > 0) {
+            startSimulation();
         }
         return () => cancelAnimationFrame(requestRef.current);
-    }, [nodes.length, edges.length, draggedNode]); // Restart when data changes or drag state changes
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [graphVersion]);
 
     // Interaction Handlers
     const handleWheel = (e: React.WheelEvent) => {
@@ -373,6 +415,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         });
 
         if (clickedNode) {
+            stopSimulation();
             setDraggedNode(clickedNode);
             setSelectedNode(clickedNode);
             onAction?.(`選取實體: ${clickedNode.label}`);
@@ -512,6 +555,14 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                             <X className="w-3 h-3" /> 清除文件篩選
                         </button>
                     )}
+                    <button
+                        onClick={() => startSimulation()}
+                        className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-full hover:bg-slate-200 transition-colors"
+                        disabled={nodes.length === 0 || loading}
+                        title="動態佈局（跑一下就會停）"
+                    >
+                        {simulating ? '佈局中…' : '動態佈局'}
+                    </button>
                     <button
                         onClick={fetchGraph}
                         className="p-2 hover:bg-gray-100 rounded-full transition-colors"
