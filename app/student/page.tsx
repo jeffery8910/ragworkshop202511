@@ -88,6 +88,13 @@ export default function StudentDashboard() {
             ? 'Lv.3：開始練習「比較題」與「反例題」。'
             : 'Lv.2：多做「概念 + 例子」的基礎練習。';
 
+    const workshopSuggestions = [
+        { label: 'TopK 3 vs 8', q: '請解釋 RAG 的流程，並用 1 個例子說明。' },
+        { label: '重寫 開 vs 關', q: '向量檢索的「問題重寫」會影響什麼？請舉例。' },
+        { label: '圖譜 開 vs 關', q: '知識圖譜 RAG 能補到什麼？用一段話說明。' },
+        { label: 'Agentic L0 vs L2', q: '什麼情況下「需要檢索」？請給 2 個反例。' },
+    ];
+
     const formatUpdatedAt = (value: string) => {
         if (!value) return '尚未更新';
         const dt = new Date(value);
@@ -208,6 +215,41 @@ export default function StudentDashboard() {
                         className="inline-flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700 hover:underline"
                     >
                         前往聊天練習
+                    </Link>
+                </div>
+            </div>
+
+            {/* Workshop */}
+            <h2 className="text-lg font-bold text-gray-700 mt-8 mb-3 flex items-center gap-2">
+                <BookOpen className="w-5 h-5" /> RAG 教學坊
+            </h2>
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <div className="text-sm text-gray-700 mb-3">
+                    這裡可以做 A/B 比較：TopK、問題重寫、圖譜 RAG、Agentic（含流程步驟）。
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                    {workshopSuggestions.map(item => (
+                        <Link
+                            key={item.label}
+                            href={`/workshop?q=${encodeURIComponent(item.q)}`}
+                            className="text-xs px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                        >
+                            {item.label}
+                        </Link>
+                    ))}
+                </div>
+                <div className="flex items-center gap-3">
+                    <Link
+                        href="/workshop"
+                        className="inline-flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                        前往 RAG 教學坊
+                    </Link>
+                    <Link
+                        href="/chat"
+                        className="inline-flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                        用聊天做同題練習
                     </Link>
                 </div>
             </div>

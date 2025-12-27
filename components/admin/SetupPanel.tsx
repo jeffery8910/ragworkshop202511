@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Settings, Database, CheckCircle, AlertCircle, Cpu, RefreshCw, Smartphone, Lock, Eye, EyeOff, Layers, FolderTree } from 'lucide-react';
 import { adminFetch } from '@/lib/client/adminFetch';
@@ -109,6 +109,13 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                         : 'gemini');
     });
     const { pushToast } = useToast();
+
+    useEffect(() => {
+        const inferred = inferProviderFromModel(config.CHAT_MODEL);
+        if (inferred && inferred !== chatProvider) {
+            setChatProvider(inferred);
+        }
+    }, [config.CHAT_MODEL, chatProvider]);
 
     const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         setConfig({ ...config, [e.target.name]: e.target.value });
@@ -271,25 +278,26 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                     <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
                         <Database className="w-4 h-4" /> 資料庫設定
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-600">
-                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                            <div className="flex items-center gap-2 font-semibold text-blue-700 mb-2">
-                                <Layers className="w-4 h-4" />
-                                名詞小卡
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-600">
+                            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                                <div className="flex items-center gap-2 font-semibold text-blue-700 mb-2">
+                                    <Layers className="w-4 h-4" />
+                                    名詞小卡
+                                </div>
+                            <div>Cluster（叢集）= 一套 MongoDB 部署（像「資料庫主機」）</div>
+                            <div>Database（資料庫）= 你要用的 DB 名稱（像「資料夾」）</div>
+                            <div>Collection（集合）= DB 裡的資料表（像「資料表/子資料夾」）</div>
                             </div>
-                            <div>Cluster（叢集）= 資料庫主機</div>
-                            <div>Database = 資料庫名稱</div>
-                            <div>Collection = 資料表</div>
-                        </div>
-                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
-                            <div className="flex items-center gap-2 font-semibold text-amber-700 mb-2">
-                                <FolderTree className="w-4 h-4" />
-                                Atlas 路徑小卡
+                            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                                <div className="flex items-center gap-2 font-semibold text-amber-700 mb-2">
+                                    <FolderTree className="w-4 h-4" />
+                                    Atlas 路徑小卡
+                                </div>
+                            <div>1) 左側選單 → Database → Clusters（或 Database Deployments）→ Connect → Drivers：複製 MONGODB_URI</div>
+                            <div>2) 左側選單 → Database → Data Explorer：在左側 Connections 找到 DB 名稱（看不到代表還沒寫入資料）</div>
+                            <div>3) DB Name 可先填一個（例如 rag_db）；系統寫入後會自動出現</div>
                             </div>
-                            <div>1) Database → Clusters → Connect 取得 MONGODB_URI</div>
-                            <div>2) Database → Data Explorer → Databases 找 DB Name</div>
                         </div>
-                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">MongoDB URI</label>
@@ -538,16 +546,26 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                                 <div className="flex-1">
                                     <label className="block text-xs text-gray-600 mb-1">啟用模型</label>
                                     {availableChat[chatProvider]?.length ? (
+                                        (() => {
+                                            const raw = availableChat[chatProvider] || [];
+                                            const selected = (config.CHAT_MODEL || '').trim();
+                                            const options = Array.from(new Set([...(selected ? [selected] : []), ...raw]));
+                                            const showSavedHint = selected && !raw.includes(selected);
+                                            return (
                                         <select
                                             name="CHAT_MODEL"
                                             value={config.CHAT_MODEL}
                                             onChange={handleChange}
                                             className="w-full border rounded p-2 text-sm bg-white"
                                         >
-                                            {availableChat[chatProvider].map(m => (
-                                                <option key={m} value={m}>{m}</option>
+                                            {options.map(m => (
+                                                <option key={m} value={m}>
+                                                    {showSavedHint && m === selected ? `${m}（已儲存）` : m}
+                                                </option>
                                             ))}
                                         </select>
+                                            );
+                                        })()
                                     ) : (
                                         <SecretInput
                                             name="CHAT_MODEL"
@@ -590,16 +608,26 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                             <div className="flex gap-2 items-end">
                                 <div className="flex-1">
                                     {availableEmbed[config.EMBEDDING_PROVIDER]?.length > 0 ? (
+                                        (() => {
+                                            const raw = availableEmbed[config.EMBEDDING_PROVIDER] || [];
+                                            const selected = (config.EMBEDDING_MODEL || '').trim();
+                                            const options = Array.from(new Set([...(selected ? [selected] : []), ...raw]));
+                                            const showSavedHint = selected && !raw.includes(selected);
+                                            return (
                                         <select
                                             name="EMBEDDING_MODEL"
                                             value={config.EMBEDDING_MODEL}
                                             onChange={handleChange}
                                             className="w-full border rounded p-2 text-sm bg-white"
                                         >
-                                            {availableEmbed[config.EMBEDDING_PROVIDER].map(m => (
-                                                <option key={m} value={m}>{m}</option>
+                                            {options.map(m => (
+                                                <option key={m} value={m}>
+                                                    {showSavedHint && m === selected ? `${m}（已儲存）` : m}
+                                                </option>
                                             ))}
                                         </select>
+                                            );
+                                        })()
                                     ) : (
                                         <SecretInput
                                             name="EMBEDDING_MODEL"

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Runs on every matched request to protect admin routes.
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
     const path = req.nextUrl.pathname;
     const isAdminPage = path.startsWith('/admin');
     const isAdminApi = path.startsWith('/api/admin');
@@ -28,3 +28,4 @@ export function middleware(req: NextRequest) {
 export const config = {
     matcher: ['/admin/:path*', '/api/admin/:path*'],
 };
+

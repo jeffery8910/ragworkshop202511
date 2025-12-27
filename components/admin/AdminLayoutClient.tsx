@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, Database, Activity, Settings, FlaskConical, BarChart3 } from 'lucide-react';
+import { Home, Database, Activity, Settings, FlaskConical, BarChart3, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import ToastProvider from '@/components/ui/ToastProvider';
@@ -13,8 +13,11 @@ export default function AdminLayoutClient({
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const tab = searchParams.get('tab') || 'setup';
+    const knowledgeSub = searchParams.get('sub') || 'viz';
     const activeTab = pathname.startsWith('/admin/status')
         ? 'status'
+        : pathname.startsWith('/admin/architecture')
+            ? 'architecture'
         : pathname.startsWith('/admin/knowledge')
             ? 'knowledge'
             : pathname.startsWith('/admin/analytics')
@@ -59,10 +62,30 @@ export default function AdminLayoutClient({
                             </Link>
                             {activeTab === 'knowledge' && (
                                 <div className="pl-6 pb-3 space-y-1">
-                                    <Link href="/admin?tab=knowledge&sub=viz" className="block text-xs text-gray-600 hover:text-blue-700">視覺化</Link>
-                                    <Link href="/admin?tab=knowledge&sub=advanced" className="block text-xs text-gray-600 hover:text-blue-700">進階設定</Link>
-                                    <Link href="/admin?tab=knowledge&sub=lab" className="block text-xs text-gray-600 hover:text-blue-700">RAG 教學坊</Link>
-                                    <Link href="/admin?tab=knowledge&sub=cards" className="block text-xs text-gray-600 hover:text-blue-700">卡片管理</Link>
+                                    <Link
+                                        href="/admin?tab=knowledge&sub=viz"
+                                        className={`block text-xs hover:text-blue-700 ${knowledgeSub === 'viz' ? 'text-blue-700 font-semibold' : 'text-gray-600'}`}
+                                    >
+                                        視覺化
+                                    </Link>
+                                    <Link
+                                        href="/admin?tab=knowledge&sub=advanced"
+                                        className={`block text-xs hover:text-blue-700 ${knowledgeSub === 'advanced' ? 'text-blue-700 font-semibold' : 'text-gray-600'}`}
+                                    >
+                                        進階設定
+                                    </Link>
+                                    <Link
+                                        href="/admin?tab=knowledge&sub=lab"
+                                        className={`block text-xs hover:text-blue-700 ${knowledgeSub === 'lab' ? 'text-blue-700 font-semibold' : 'text-gray-600'}`}
+                                    >
+                                        RAG 教學坊
+                                    </Link>
+                                    <Link
+                                        href="/admin?tab=knowledge&sub=cards"
+                                        className={`block text-xs hover:text-blue-700 ${knowledgeSub === 'cards' ? 'text-blue-700 font-semibold' : 'text-gray-600'}`}
+                                    >
+                                        卡片管理
+                                    </Link>
                                 </div>
                             )}
                         </div>
@@ -77,6 +100,10 @@ export default function AdminLayoutClient({
                         <Link href="/admin/status" className={activeTab === 'status' ? activeClass : inactiveClass}>
                             <Activity className="w-4 h-4" />
                             系統狀態
+                        </Link>
+                        <Link href="/admin/architecture" className={activeTab === 'architecture' ? activeClass : inactiveClass}>
+                            <BookOpen className="w-4 h-4" />
+                            架構說明
                         </Link>
                     </nav>
                 </aside>

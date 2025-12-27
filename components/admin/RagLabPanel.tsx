@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Search, Loader2, Database, MessageSquare, ArrowRight, Zap } from 'lucide-react';
 import { adminFetch } from '@/lib/client/adminFetch';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -106,7 +106,15 @@ interface EvalSummary {
     items: EvalItem[];
 }
 
-export default function RagLabPanel() {
+interface RagLabPanelProps {
+    retrievePath?: string;
+    showAdminLinks?: boolean;
+}
+
+export default function RagLabPanel({
+    retrievePath = '/api/admin/retrieve',
+    showAdminLinks = true
+}: RagLabPanelProps) {
     const [query, setQuery] = useState('');
     const [result, setResult] = useState<RagResult | null>(null);
     const [loading, setLoading] = useState(false);
@@ -172,6 +180,13 @@ export default function RagLabPanel() {
         createdAt: number;
     }>>([]);
     const { pushToast } = useToast();
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        const q = (params.get('q') || '').trim();
+        if (q) setQuery(q);
+    }, []);
 
     const normalizedScores = result?.context?.length
         ? result.context.map(c => c.score)
@@ -890,7 +905,7 @@ export default function RagLabPanel() {
 
     const runRetrieve = async (payload: { query: string } & LabConfig) => {
         const startedAt = performance.now();
-        const res = await adminFetch('/api/admin/retrieve', {
+        const res = await adminFetch(retrievePath, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -1024,12 +1039,18 @@ export default function RagLabPanel() {
                         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                             <div className="font-semibold text-slate-700 mb-1">Step 2 上傳索引</div>
                             <div className="text-[11px] text-slate-500 mb-2">到知識庫上傳並重建圖譜。</div>
-                            <a
-                                href="/admin?tab=knowledge&sub=viz"
-                                className="inline-block rounded-full bg-white px-3 py-1 text-[11px] text-slate-600 border border-slate-200 hover:bg-slate-100"
-                            >
-                                前往上傳
-                            </a>
+                            {showAdminLinks ? (
+                                <a
+                                    href="/admin?tab=knowledge&sub=viz"
+                                    className="inline-block rounded-full bg-white px-3 py-1 text-[11px] text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                >
+                                    前往上傳
+                                </a>
+                            ) : (
+                                <div className="text-[11px] text-slate-500">
+                                    需要管理權限才能上傳文件
+                                </div>
+                            )}
                         </div>
                         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                             <div className="font-semibold text-slate-700 mb-1">Step 3 單次測試</div>
@@ -1371,12 +1392,14 @@ export default function RagLabPanel() {
                             >
                                 匯入題庫 JSON
                             </button>
-                            <a
-                                href="/admin?tab=knowledge&sub=viz"
-                                className="rounded-full bg-white px-3 py-1 text-xs text-emerald-700 border border-emerald-200 hover:bg-emerald-50"
-                            >
-                                前往知識庫上傳
-                            </a>
+                            {showAdminLinks ? (
+                                <a
+                                    href="/admin?tab=knowledge&sub=viz"
+                                    className="rounded-full bg-white px-3 py-1 text-xs text-emerald-700 border border-emerald-200 hover:bg-emerald-50"
+                                >
+                                    前往知識庫上傳
+                                </a>
+                            ) : null}
                         </div>
                         {activeDataset && (
                             <>
@@ -2199,17 +2222,19 @@ export default function RagLabPanel() {
                             <div className="text-xs text-slate-600 mb-2">
                                 節點 {result.graphEvidence.nodes?.length || 0}，關係 {result.graphEvidence.edges?.length || 0}
                             </div>
-                            <div className="mb-2 flex gap-2">
-                                <button
-                                    onClick={() => {
-                                        const url = `/admin?tab=knowledge&sub=viz&graphQuery=${encodeURIComponent(query)}`;
-                                        window.open(url, '_blank');
-                                    }}
-                                    className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200"
-                                >
-                                    在圖譜標示
-                                </button>
-                            </div>
+                            {showAdminLinks ? (
+                                <div className="mb-2 flex gap-2">
+                                    <button
+                                        onClick={() => {
+                                            const url = `/admin?tab=knowledge&sub=viz&graphQuery=${encodeURIComponent(query)}`;
+                                            window.open(url, '_blank');
+                                        }}
+                                        className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200"
+                                    >
+                                        在圖譜標示
+                                    </button>
+                                </div>
+                            ) : null}
                             {result.graphEvidence.triples?.length ? (
                                 <div className="space-y-1 text-xs text-slate-700">
                                     {result.graphEvidence.triples.slice(0, 8).map((t, idx) => (

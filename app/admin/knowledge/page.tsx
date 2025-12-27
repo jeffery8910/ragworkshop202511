@@ -7,6 +7,7 @@ import RagProcessGraph from '@/components/admin/RagProcessGraph';
 import KnowledgeGraph from '@/components/admin/KnowledgeGraph';
 import UploadHistoryPanel from '@/components/admin/UploadHistoryPanel';
 import UploadPanel from '@/components/admin/UploadPanel';
+import FileManagementPanel from '@/components/admin/FileManagementPanel';
 import { useToast } from '@/components/ui/ToastProvider';
 import { adminFetch } from '@/lib/client/adminFetch';
 import Skeleton from '@/components/ui/Skeleton';
@@ -343,8 +344,6 @@ export default function KnowledgeBasePage() {
                             )}
                             {actionMsg && <p className="text-xs text-amber-700">{actionMsg}</p>}
                         </div>
-
-                        <UploadHistoryPanel />
                     </div>
 
                     {/* Middle Column: Vector Chunks */}
@@ -474,6 +473,8 @@ export default function KnowledgeBasePage() {
 
                     {/* Right Column: Visualization */}
                     <div className="lg:col-span-5 flex flex-col gap-4">
+                        <UploadHistoryPanel />
+                        <FileManagementPanel onAction={setActionMsg} />
                         {/* Replaced inline visualization with the real KnowledgeGraph component */}
                         <div className="h-[500px]">
                             <Suspense fallback={<div className="h-full w-full rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center text-sm text-slate-400">載入圖譜中…</div>}>

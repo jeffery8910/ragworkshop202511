@@ -73,6 +73,8 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
     const searchParams = useSearchParams();
 
     const [evidenceQuery, setEvidenceQuery] = useState('');
+    const [evidenceMaxNodes, setEvidenceMaxNodes] = useState(20);
+    const [evidenceMaxEdges, setEvidenceMaxEdges] = useState(60);
     const [matchedNodeIds, setMatchedNodeIds] = useState<string[]>([]);
     const [relatedNodeIds, setRelatedNodeIds] = useState<string[]>([]);
     const [highlightEdgeKeys, setHighlightEdgeKeys] = useState<string[]>([]);
@@ -156,14 +158,16 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
 
     const edgeKey = (edge: GraphEdge) => `${edge.source}__${edge.relation}__${edge.target}`;
 
-    const runEvidence = async (query?: string) => {
+    const runEvidence = async (query?: string, opts?: { maxNodes?: number; maxEdges?: number }) => {
         const q = (query ?? evidenceQuery).trim();
         if (!q) return;
+        const maxNodes = opts?.maxNodes ?? evidenceMaxNodes;
+        const maxEdges = opts?.maxEdges ?? evidenceMaxEdges;
         try {
             const res = await adminFetch('/api/admin/graph/evidence', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: q, maxNodes: 20, maxEdges: 60 })
+                body: JSON.stringify({ query: q, maxNodes, maxEdges })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || '查詢失敗');
@@ -182,7 +186,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
             setPathEdgeKeys([]);
             setPathSummary('');
 
-            onAction?.(`圖譜標示：${matchedIds.length} 節點 / ${(data.edges || []).length} 關係`);
+            onAction?.(`圖譜標示：${matchedIds.length} 節點 / ${(data.edges || []).length} 關係 (maxNodes=${maxNodes}, maxEdges=${maxEdges})`);
         } catch (e: any) {
             console.error(e);
             pushToast({ type: 'error', message: e?.message || 'Graph evidence 查詢失敗' });
@@ -220,8 +224,10 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
         }
     };
 
-    const runPath = async () => {
+    const runPath = async (opts?: { maxHops?: number; allowCrossDoc?: boolean }) => {
         if (!startNode || !endNode) return;
+        const maxHops = opts?.maxHops ?? pathMaxHops;
+        const crossDoc = typeof opts?.allowCrossDoc === 'boolean' ? opts.allowCrossDoc : allowCrossDoc;
         try {
             const res = await adminFetch('/api/admin/graph/path', {
                 method: 'POST',
@@ -229,8 +235,8 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                 body: JSON.stringify({
                     fromNodeId: startNode.id,
                     toNodeId: endNode.id,
-                    maxHops: pathMaxHops,
-                    allowCrossDoc
+                    maxHops,
+                    allowCrossDoc: crossDoc
                 })
             });
             const data = await res.json();
@@ -244,6 +250,8 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
             setPathNodeIds(pNodes);
             setPathEdgeKeys(pEdges.map((e: any) => edgeKey(e)));
             setPathSummary(summaryText);
+            if (opts?.maxHops !== undefined) setPathMaxHops(maxHops);
+            if (opts?.allowCrossDoc !== undefined) setAllowCrossDoc(crossDoc);
             onAction?.(`路徑節點 ${pNodes.length} / 關係 ${pEdges.length}`);
         } catch (e: any) {
             console.error(e);
@@ -765,9 +773,60 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                     標示
                                 </button>
                             </div>
+                            <div className="mt-2 flex flex-wrap gap-2 items-center text-[11px] text-gray-600">
+                                <span className="text-[11px] text-gray-500">強度</span>
+                                <label className="flex items-center gap-1">
+                                    節點
+                                    <select
+                                        value={evidenceMaxNodes}
+                                        onChange={e => setEvidenceMaxNodes(Number(e.target.value))}
+                                        className="border rounded px-2 py-1 text-[11px]"
+                                    >
+                                        {[10, 20, 30, 50].map(n => (
+                                            <option key={n} value={n}>{n}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className="flex items-center gap-1">
+                                    關係
+                                    <select
+                                        value={evidenceMaxEdges}
+                                        onChange={e => setEvidenceMaxEdges(Number(e.target.value))}
+                                        className="border rounded px-2 py-1 text-[11px]"
+                                    >
+                                        {[30, 60, 120, 200].map(n => (
+                                            <option key={n} value={n}>{n}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => {
+                                            setEvidenceMaxNodes(10);
+                                            setEvidenceMaxEdges(30);
+                                            runEvidence(undefined, { maxNodes: 10, maxEdges: 30 });
+                                        }}
+                                        className="rounded-full bg-white px-3 py-1 text-[11px] text-amber-800 border border-amber-200 hover:bg-amber-100"
+                                        title="比較用：少量標示"
+                                    >
+                                        少量
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setEvidenceMaxNodes(30);
+                                            setEvidenceMaxEdges(120);
+                                            runEvidence(undefined, { maxNodes: 30, maxEdges: 120 });
+                                        }}
+                                        className="rounded-full bg-white px-3 py-1 text-[11px] text-amber-800 border border-amber-200 hover:bg-amber-100"
+                                        title="比較用：大量標示"
+                                    >
+                                        大量
+                                    </button>
+                                </div>
+                            </div>
                             <div className="flex items-center justify-between mt-2 text-[11px] text-gray-500">
                                 <span>
-                                    符合 {matchedNodeIds.length} · 相關 {relatedNodeIds.length} · 連線 {highlightEdgeKeys.length}
+                                    符合 {matchedNodeIds.length} · 相關 {relatedNodeIds.length} · 連線 {highlightEdgeKeys.length} · maxNodes {evidenceMaxNodes} · maxEdges {evidenceMaxEdges}
                                 </span>
                                 <button
                                     onClick={clearHighlight}
@@ -819,6 +878,9 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                 <summary className="cursor-pointer font-medium text-purple-900">操作說明（可展開）</summary>
                                 <div className="mt-2 space-y-2">
                                     <p>先搜尋起點與終點節點，再按「尋找路徑」查找關聯路徑。</p>
+                                    <div className="text-[11px] text-purple-700">
+                                        比較練習：試試「跨文件」開/關、或把「步數」調大，看路徑與摘要有什麼差異。
+                                    </div>
                                     <div className="flex flex-wrap gap-2">
                                         <button
                                             onClick={() => {
@@ -960,7 +1022,7 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
-                                        onClick={runPath}
+                                        onClick={() => runPath()}
                                         disabled={!startNode || !endNode}
                                         className="px-3 py-2 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                                     >
@@ -971,6 +1033,40 @@ export default function KnowledgeGraph({ onAction }: KnowledgeGraphProps) {
                                         className="px-3 py-2 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
                                     >
                                         清除路徑
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        onClick={() => runPath({ allowCrossDoc: false })}
+                                        disabled={!startNode || !endNode}
+                                        className="rounded-full bg-white px-3 py-1 text-[11px] text-purple-800 border border-purple-200 hover:bg-purple-100 disabled:opacity-50"
+                                        title="比較用：只看同一份文件"
+                                    >
+                                        同文件
+                                    </button>
+                                    <button
+                                        onClick={() => runPath({ allowCrossDoc: true })}
+                                        disabled={!startNode || !endNode}
+                                        className="rounded-full bg-white px-3 py-1 text-[11px] text-purple-800 border border-purple-200 hover:bg-purple-100 disabled:opacity-50"
+                                        title="比較用：允許跨文件"
+                                    >
+                                        跨文件
+                                    </button>
+                                    <button
+                                        onClick={() => runPath({ maxHops: 2 })}
+                                        disabled={!startNode || !endNode}
+                                        className="rounded-full bg-white px-3 py-1 text-[11px] text-purple-800 border border-purple-200 hover:bg-purple-100 disabled:opacity-50"
+                                        title="比較用：步數 2"
+                                    >
+                                        2 步
+                                    </button>
+                                    <button
+                                        onClick={() => runPath({ maxHops: 5 })}
+                                        disabled={!startNode || !endNode}
+                                        className="rounded-full bg-white px-3 py-1 text-[11px] text-purple-800 border border-purple-200 hover:bg-purple-100 disabled:opacity-50"
+                                        title="比較用：步數 5"
+                                    >
+                                        5 步
                                     </button>
                                 </div>
                                 <div className="text-[11px] text-gray-500">

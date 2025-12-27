@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bot, GraduationCap, Settings, ArrowRight } from 'lucide-react';
+import { Bot, GraduationCap, Settings, ArrowRight, FlaskConical } from 'lucide-react';
 import { cookies } from 'next/headers';
 import { getConfigValue } from '@/lib/config-store';
 
@@ -22,7 +22,7 @@ export default async function Home() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl w-full">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-6xl w-full">
         <Link href="/chat" className="group">
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 h-full">
             <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-6 group-hover:bg-blue-600 transition-colors">
@@ -34,6 +34,21 @@ export default async function Home() {
             </p>
             <div className="flex items-center text-blue-600 font-medium">
               開始對話 <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/workshop" className="group">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 h-full">
+            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-6 group-hover:bg-purple-600 transition-colors">
+              <FlaskConical className="w-6 h-6 text-purple-600 group-hover:text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">RAG 教學坊</h2>
+            <p className="text-gray-500 mb-4">
+              做 A/B 比較：TopK、重寫、圖譜、Agentic，並下載 CSV/JSON 評估報告。
+            </p>
+            <div className="flex items-center text-purple-600 font-medium">
+              開始比較 <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
         </Link>
