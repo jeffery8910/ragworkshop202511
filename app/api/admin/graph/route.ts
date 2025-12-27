@@ -19,6 +19,16 @@ async function getDb() {
 export async function GET(req: NextRequest) {
     try {
         const db = await getDb();
+        const statsOnly = ['1', 'true', 'yes'].includes((req.nextUrl.searchParams.get('stats') || '').toLowerCase());
+
+        const [totalNodes, totalEdges] = await Promise.all([
+            db.collection('graph_nodes').countDocuments({}),
+            db.collection('graph_edges').countDocuments({}),
+        ]);
+
+        if (statsOnly) {
+            return NextResponse.json({ ok: true, totalNodes, totalEdges });
+        }
         
         // 限制回傳數量以免瀏覽器跑不動 (例如限制 500 個節點)
         // 實際應用可以根據 docId 篩選，這裡先抓全部
@@ -34,7 +44,7 @@ export async function GET(req: NextRequest) {
             .project({ _id: 0, source: 1, target: 1, relation: 1, docId: 1, sectionId: 1 })
             .toArray();
 
-        return NextResponse.json({ ok: true, nodes, edges });
+        return NextResponse.json({ ok: true, totalNodes, totalEdges, nodes, edges });
     } catch (error: any) {
         console.error('Fetch graph error', error);
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

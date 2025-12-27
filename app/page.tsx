@@ -5,11 +5,33 @@ import { getConfigValue } from '@/lib/config-store';
 
 export default async function Home() {
   const cookieStore = await cookies();
-  const chatTitle = cookieStore.get('CHAT_TITLE')?.value || getConfigValue('CHAT_TITLE') || process.env.CHAT_TITLE || 'RAG 工作坊';
-  const welcomeMessage = cookieStore.get('WELCOME_MESSAGE')?.value
+  const readConfig = (key: string) => cookieStore.get(key)?.value || getConfigValue(key) || process.env[key] || '';
+
+  const chatTitle = readConfig('CHAT_TITLE') || 'RAG 工作坊';
+  const welcomeMessage = readConfig('WELCOME_MESSAGE')
     || getConfigValue('WELCOME_MESSAGE')
     || process.env.WELCOME_MESSAGE
     || '結合 Next.js 與 n8n 的進階混合式 RAG 架構。\n支援多模型切換、結構化輸出與適性化學習系統。';
+
+  const chatModel = readConfig('CHAT_MODEL');
+  const embeddingModel = readConfig('EMBEDDING_MODEL');
+  const pineconeKey = readConfig('PINECONE_API_KEY');
+  const pineconeIndex = readConfig('PINECONE_INDEX_NAME');
+  const mongoUri = readConfig('MONGODB_URI');
+  const dbName = readConfig('MONGODB_DB_NAME');
+  const anyLlmKey = readConfig('GEMINI_API_KEY') || readConfig('OPENAI_API_KEY') || readConfig('OPENROUTER_API_KEY');
+
+  const setupIssues = [
+    !anyLlmKey ? '聊天 API Key 未設定（Gemini/OpenAI/OpenRouter 任一）' : '',
+    !chatModel ? '聊天模型未設定（CHAT_MODEL）' : '',
+    !embeddingModel ? 'Embedding 模型未設定（EMBEDDING_MODEL）' : '',
+    !pineconeKey ? 'Pinecone API Key 未設定（PINECONE_API_KEY）' : '',
+    !pineconeIndex ? 'Pinecone Index 未設定（PINECONE_INDEX_NAME）' : '',
+    !mongoUri ? 'MongoDB URI 未設定（MONGODB_URI）' : '',
+    !dbName ? 'MongoDB DB Name 未設定（MONGODB_DB_NAME）' : '',
+  ].filter(Boolean);
+
+  const hasSetupIssues = setupIssues.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col items-center justify-center p-4">
@@ -20,6 +42,42 @@ export default async function Home() {
         <p className="text-xl text-gray-600 max-w-2xl mx-auto whitespace-pre-line">
           {welcomeMessage}
         </p>
+        {hasSetupIssues && (
+          <div className="mt-6 max-w-3xl mx-auto rounded-2xl border border-amber-200 bg-amber-50 px-6 py-4 text-left">
+            <div className="font-semibold text-amber-900 mb-1">系統尚未準備完成</div>
+            <div className="text-sm text-amber-900/90 mb-3">
+              還缺 {setupIssues.length} 項設定。先到管理後台完成「系統快速設定」，學生端的教學坊/聊天才會穩定。
+            </div>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {setupIssues.slice(0, 4).map((t) => (
+                <span key={t} className="text-xs px-2 py-1 rounded-full bg-white border border-amber-200 text-amber-900">
+                  {t}
+                </span>
+              ))}
+              {setupIssues.length > 4 && (
+                <span className="text-xs px-2 py-1 rounded-full bg-white border border-amber-200 text-amber-900">
+                  以及其他 {setupIssues.length - 4} 項…
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/admin?tab=setup"
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-700 text-white px-4 py-2 text-sm hover:bg-amber-800"
+              >
+                去完成設定
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                href="/admin/status"
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm text-amber-900 hover:bg-amber-100"
+              >
+                看系統狀態
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-6xl w-full">
@@ -85,7 +143,7 @@ export default async function Home() {
       </div>
 
       <footer className="mt-16 text-gray-400 text-sm">
-        技術支援：Next.js 14, n8n, 與 Vercel AI SDK
+        技術支援：Next.js 16, n8n, 與 Vercel AI SDK
       </footer>
     </div>
   );

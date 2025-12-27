@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, BookOpen, Home, Sparkles, ListChecks, FileText, MessagesSquare, AlertCircle, Pencil, Check, X, Trash2 } from 'lucide-react';
+import { Send, Bot, User, Loader2, BookOpen, Home, Sparkles, ListChecks, FileText, MessagesSquare, AlertCircle, Pencil, Check, X, Trash2, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import { z } from 'zod';
@@ -569,6 +569,7 @@ export default function ChatInterface({
             content: normalizedWelcome,
         },
     ]);
+    const [workshopSeed, setWorkshopSeed] = useState('');
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [agenticLevel, setAgenticLevel] = useState(1);
@@ -687,8 +688,12 @@ export default function ChatInterface({
         }
         hasUserInteractedRef.current = true;
         const userMsg = text;
+        const shownText = displayText || userMsg;
+        if (kind === 'free') {
+            setWorkshopSeed(shownText);
+        }
         setInput('');
-        setMessages(prev => [...prev, { role: 'user', content: displayText || userMsg }]);
+        setMessages(prev => [...prev, { role: 'user', content: shownText }]);
         setLoading(true);
 
         try {
@@ -701,7 +706,7 @@ export default function ChatInterface({
                     agenticLevel,
                     client: {
                         kind,
-                        displayText: displayText || userMsg,
+                        displayText: shownText,
                     }
                 })
             });
@@ -825,6 +830,9 @@ export default function ChatInterface({
             : agenticLevel === 2
                 ? 'L2 教學：顯示檢索流程與步驟摘要，方便對照。'
                 : 'L3 完整：多步檢索 + 多跳推理（進階）。';
+
+    const workshopQuery = (input || workshopSeed).trim();
+    const workshopHref = workshopQuery ? `/workshop?q=${encodeURIComponent(workshopQuery)}` : '/workshop';
 
     const handleTitleSave = async () => {
         if (!userId) {
@@ -950,6 +958,14 @@ export default function ChatInterface({
                             <option value={2}>Agentic L2 教學</option>
                             <option value={3}>Agentic L3 完整</option>
                         </select>
+                        <Link
+                            href={workshopHref}
+                            className="hidden md:inline-flex items-center gap-1 text-xs border border-purple-200 rounded-full px-3 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100"
+                            title={workshopQuery ? '帶入目前題目到教學坊做 A/B 比較' : '前往 RAG 教學坊'}
+                        >
+                            <FlaskConical className="w-4 h-4" />
+                            去教學坊比較
+                        </Link>
                         <button
                             onClick={handleClearHistory}
                             className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 hover:underline"

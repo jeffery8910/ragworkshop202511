@@ -1519,6 +1519,18 @@ export default function RagLabPanel({
                     <div className="rounded-lg border border-purple-100 bg-white p-4">
                         <div className="text-sm font-semibold text-gray-800 mb-2">評估與對照</div>
                         <p className="text-xs text-gray-500 mb-3">以資料集題目評估檢索效果，支援 A/B 比較。</p>
+                        <details className="mb-3 rounded-lg border border-purple-100 bg-purple-50/40 p-3">
+                            <summary className="cursor-pointer text-[11px] font-semibold text-purple-800">
+                                指標小抄（可展開）
+                            </summary>
+                            <div className="mt-2 text-[11px] text-purple-900 space-y-1">
+                                <div>詞彙召回：題目設定的「期望詞彙」有多少比例出現在檢索片段文字中。</div>
+                                <div>來源召回：題目設定的「期望來源」有多少比例出現在檢索片段來源欄位中。</div>
+                                <div>命中率：只要「期望詞彙」或「期望來源」命中任一項，就算命中。</div>
+                                <div>平均分數/Top 分數：檢索相似度分數，通常越高代表越像，但也要看是否抓到正確內容。</div>
+                                <div>片段數：拿回來的 chunks 數量，TopK 越大通常越多，但雜訊也可能變多。</div>
+                            </div>
+                        </details>
                         <div className="flex flex-wrap gap-2 mb-3">
                             <button
                                 onClick={() => runEvaluation({ topK, rewrite, includeAnswer, useGraph, agenticLevel })}

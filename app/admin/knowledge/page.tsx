@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { FileText, RefreshCw, Database, Eye, Trash2, Zap } from 'lucide-react';
+import Link from 'next/link';
 import RagLabPanel from '@/components/admin/RagLabPanel';
 import RagProcessGraph from '@/components/admin/RagProcessGraph';
 import KnowledgeGraph from '@/components/admin/KnowledgeGraph';
@@ -45,6 +46,8 @@ export default function KnowledgeBasePage() {
     const [chunkTotal, setChunkTotal] = useState(-1);
     const { pushToast } = useToast();
     const [activeChunk, setActiveChunk] = useState<VectorChunk | null>(null);
+    const [graphStats, setGraphStats] = useState<{ totalNodes: number; totalEdges: number } | null>(null);
+    const [graphStatsLoading, setGraphStatsLoading] = useState(false);
 
     const loadDocuments = async () => {
         setListLoading(true);
@@ -80,8 +83,29 @@ export default function KnowledgeBasePage() {
         }
     };
 
+    const loadGraphStats = async () => {
+        setGraphStatsLoading(true);
+        try {
+            const res = await adminFetch('/api/admin/graph?stats=1', { cache: 'no-store' });
+            const data = await res.json().catch(() => ({} as any));
+            if (!res.ok || data?.ok === false) {
+                throw new Error(data?.error || '讀取圖譜統計失敗');
+            }
+            setGraphStats({
+                totalNodes: Number(data?.totalNodes || 0),
+                totalEdges: Number(data?.totalEdges || 0),
+            });
+        } catch (e: any) {
+            console.error(e);
+            setGraphStats(null);
+        } finally {
+            setGraphStatsLoading(false);
+        }
+    };
+
     useEffect(() => {
         loadDocuments();
+        loadGraphStats();
     }, []);
 
     const highlightText = (text: string, query: string) => {
@@ -226,6 +250,29 @@ export default function KnowledgeBasePage() {
         }
     };
 
+    const docTotal = indexedFiles.length;
+    const docProcessing = indexedFiles.filter(f => f.status === 'processing').length;
+    const docFailed = indexedFiles.filter(f => f.status === 'failed').length;
+    const docOk = Math.max(0, docTotal - docProcessing - docFailed);
+    const chunkTotalCount = indexedFiles.reduce((sum, f) => sum + (Number(f.chunks) || 0), 0);
+    const graphTotalNodes = graphStats?.totalNodes ?? 0;
+    const graphTotalEdges = graphStats?.totalEdges ?? 0;
+
+    const nextSteps = (() => {
+        const steps: string[] = [];
+        if (docTotal === 0) {
+            steps.push('先上傳 1 份文件並完成索引，才有東西可以檢索/比較。');
+        } else {
+            if (docFailed > 0) steps.push('有文件索引失敗：先針對失敗的檔案按「重建」或重新上傳。');
+            if (chunkTotalCount === 0) steps.push('Chunks 為 0：可能還在處理中或索引流程異常，建議先看「上傳歷史」。');
+        }
+        if (docTotal > 0 && graphTotalNodes === 0) {
+            steps.push('圖譜節點為 0：先按下方「知識圖譜」的重新整理，或重建索引後再觀察。');
+        }
+        steps.push('接著到「RAG 教學坊」用同一題做 A/B 比較（TopK/重寫/圖譜/Agentic）。');
+        return steps;
+    })();
+
     return (
         <div className="min-h-screen bg-gray-50 p-6">
             {/* Header */}
@@ -255,7 +302,85 @@ export default function KnowledgeBasePage() {
             </div>
 
             {activeTab === 'knowledge' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="space-y-6">
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                            <div className="font-semibold text-gray-800">狀態總覽</div>
+                            <button
+                                onClick={() => {
+                                    loadDocuments();
+                                    loadGraphStats();
+                                }}
+                                className="text-xs px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 inline-flex items-center gap-1"
+                                disabled={listLoading || graphStatsLoading}
+                                title="重新整理統計"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${listLoading || graphStatsLoading ? 'animate-spin' : ''}`} />
+                                重新整理
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <div className="text-xs text-slate-500 mb-1">文件</div>
+                                <div className="text-sm text-slate-800">
+                                    共 <span className="font-semibold">{docTotal}</span> 份
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600">
+                                    <span className="rounded-full bg-white border px-2 py-0.5">已完成 {docOk}</span>
+                                    <span className="rounded-full bg-white border px-2 py-0.5">處理中 {docProcessing}</span>
+                                    <span className="rounded-full bg-white border px-2 py-0.5">失敗 {docFailed}</span>
+                                </div>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <div className="text-xs text-slate-500 mb-1">向量切片</div>
+                                <div className="text-sm text-slate-800">
+                                    Chunks 合計 <span className="font-semibold">{chunkTotalCount}</span>
+                                </div>
+                                <div className="mt-2 text-[11px] text-slate-600">
+                                    建議：用「查看切片」確認內容是否合理、是否反白命中關鍵字。
+                                </div>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <div className="text-xs text-slate-500 mb-1">知識圖譜</div>
+                                <div className="text-sm text-slate-800">
+                                    節點 <span className="font-semibold">{graphTotalNodes}</span> · 關係 <span className="font-semibold">{graphTotalEdges}</span>
+                                </div>
+                                <div className="mt-2 text-[11px] text-slate-600">
+                                    建議：用「標示」與「路徑」做同題比較（少量/大量、同文件/跨文件）。
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50/60 p-3">
+                            <div className="text-xs font-semibold text-amber-900 mb-1">下一步建議</div>
+                            <ul className="list-disc pl-4 text-[12px] text-amber-900 space-y-1">
+                                {nextSteps.map((s, i) => <li key={i}>{s}</li>)}
+                            </ul>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <Link
+                                    href="/workshop"
+                                    className="text-xs px-3 py-1.5 rounded-full bg-purple-600 text-white hover:bg-purple-700"
+                                >
+                                    去 RAG 教學坊做比較
+                                </Link>
+                                <Link
+                                    href="/chat"
+                                    className="text-xs px-3 py-1.5 rounded-full bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                                >
+                                    去聊天做同題練習
+                                </Link>
+                                <Link
+                                    href="/admin/status"
+                                    className="text-xs px-3 py-1.5 rounded-full bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                                >
+                                    看系統狀態
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     {/* Left Column: File Upload */}
                     <div className="lg:col-span-3 space-y-6">
                         <UploadPanel onAction={setActionMsg} onUploadComplete={loadDocuments} />
@@ -485,6 +610,7 @@ export default function KnowledgeBasePage() {
                         {/* RAG Process Visualization */}
                         <RagProcessGraph />
                     </div>
+                </div>
                 </div>
             ) : (
                 <RagLabPanel />
