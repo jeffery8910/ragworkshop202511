@@ -19,6 +19,7 @@
           <a href="./teaching.html">教學設計</a>
           <a href="./experiments.html">比較與評估</a>
           <a href="./technical.html">技術細節</a>
+          <a href="./worklog/index.html">週誌</a>
         </div>
       </div>
     </div>
@@ -80,11 +81,9 @@
         <div class="card">
           <h2>把 JSON 變成一份「可以交」的報告</h2>
           <p>教學坊下載的 <span class="k">rag-eval-*.json</span> 可以用工具轉成 HTML，放到 <span class="k">docs/reports/</span>。</p>
-          <div class="codebox">
-            # 1) 在「RAG 教學坊」下載 eval JSON\n
-            # 2) 產生報告（輸出到 docs/reports/）\n
-            node ./docs/tools/export-eval-report.mjs --in ./rag-eval-demo.json --out ./docs/reports/demo.html
-          </div>
+          <pre class="codebox"><code># 1) 在「RAG 教學坊」下載 eval JSON
+# 2) 產生報告（輸出到 docs/reports/）
+node ./docs/tools/export-eval-report.mjs --in ./rag-eval-demo.json --out ./docs/reports/demo.html</code></pre>
           <div class="callout" style="margin-top:10px">
             <strong>提醒：</strong>這份報告給 HR/主管最有用的是「你做了哪些比較」跟「每個比較的指標差異」。
           </div>
@@ -107,4 +106,3 @@
     <script src="./assets/app.js"></script>
   </body>
 </html>
-

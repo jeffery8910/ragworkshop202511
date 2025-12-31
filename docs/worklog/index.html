@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>工作週誌｜RAG 工作坊作品集</title>
+    <link rel="stylesheet" href="../assets/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container nav">
+        <div class="brand">
+          <span>RAG 工作坊作品集</span>
+          <span class="badge">週誌：每一格都有內容與證據</span>
+        </div>
+        <div class="navlinks">
+          <a href="../index.html">總覽</a>
+          <a href="../hr.html">HR 版</a>
+          <a href="../teaching.html">教學設計</a>
+          <a href="../experiments.html">比較與評估</a>
+          <a href="../technical.html">技術細節</a>
+          <a href="./index.html">週誌</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="hero">
+        <div class="badge">建議做法：每週寫 1 篇（不用長），但要有「怎麼驗證」</div>
+        <h1>工作週誌（可直接給 HR/主管看）</h1>
+        <p>我把每次的改動用「白話＋可驗證」的方式記下來：做了什麼、怎麼驗證、指標或成果是什麼。</p>
+        <div class="callout" style="margin-top:14px">
+          <strong>自動化新增：</strong>用 <span class="kbd">docs/tools/new-worklog-entry.mjs</span> 產生一篇週誌 HTML，再正常 commit（不改日期）。
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h2>週誌清單</h2>
+          <div id="entries" class="muted">載入中…</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>提示：如果你用檔案方式直接打開而看不到清單，請用 GitHub Pages 或用本機簡單靜態伺服器預覽。</div>
+        <div><a href="../docs/README.md">docs 說明</a></div>
+      </div>
+    </div>
+
+    <script src="../assets/app.js"></script>
+    <script>
+      (async function(){
+        const root = document.getElementById('entries');
+        try{
+          const res = await fetch('./entries.json', { cache: 'no-store' });
+          if(!res.ok) throw new Error('HTTP ' + res.status);
+          const entries = await res.json();
+          if(!Array.isArray(entries) || entries.length === 0){
+            root.innerHTML = '<div class="muted">目前還沒有週誌。你可以先新增第一篇。</div>';
+            return;
+          }
+          const html = entries.map(e => {
+            const tags = Array.isArray(e.tags) ? e.tags : [];
+            const highlights = Array.isArray(e.highlights) ? e.highlights : [];
+            const tagHtml = tags.map(t => '<span class="chip">' + String(t) + '</span>').join('');
+            const hiHtml = highlights.length ? ('<ul class="list">' + highlights.map(h => '<li>' + String(h) + '</li>').join('') + '</ul>') : '';
+            return (
+              '<div class="card compact">' +
+                '<div class="row" style="justify-content:space-between; align-items:flex-start">' +
+                  '<div>' +
+                    '<div class="badge">' + String(e.date || '') + '</div>' +
+                    '<h3 style="margin-top:10px">' + String(e.title || '') + '</h3>' +
+                  '</div>' +
+                  '<div class="row">' + tagHtml + '</div>' +
+                '</div>' +
+                '<p style="margin-top:8px"><a class="btn small" href="' + String(e.href || '#') + '">打開週誌</a></p>' +
+                hiHtml +
+              '</div>'
+            );
+          }).join('');
+          root.innerHTML = html;
+        }catch(err){
+          root.innerHTML = '<div class="muted">清單載入失敗（可能是你用檔案方式打開造成 fetch 被瀏覽器擋住）。<br/>建議：用 GitHub Pages 或用本機靜態伺服器預覽。</div>';
+        }
+      })();
+    </script>
+  </body>
+</html>
+

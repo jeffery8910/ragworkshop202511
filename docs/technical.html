@@ -19,6 +19,7 @@
           <a href="./teaching.html">教學設計</a>
           <a href="./experiments.html">比較與評估</a>
           <a href="./technical.html">技術細節</a>
+          <a href="./worklog/index.html">週誌</a>
         </div>
       </div>
     </div>
@@ -33,14 +34,12 @@
       <div class="grid">
         <div class="card two">
           <h2>資料流（簡化版）</h2>
-          <div class="codebox">
-            使用者問題\n
-              -> Embedding（把問題轉向量）\n
-              -> 向量資料庫檢索（Top‑K）\n
-              ->（可選）Query Rewrite / 圖譜擴展 / Agentic 多輪\n
-              -> 組 context + 生成答案（強制附來源）\n
-              -> 教學坊：輸出指標 + 匯出 CSV/JSON\n
-          </div>
+          <pre class="codebox"><code>使用者問題
+  -> Embedding（把問題轉向量）
+  -> 向量資料庫檢索（Top‑K）
+  ->（可選）Query Rewrite / 圖譜擴展 / Agentic 多輪
+  -> 組 context + 生成答案（強制附來源）
+  -> 教學坊：輸出指標 + 匯出 CSV/JSON</code></pre>
         </div>
 
         <div class="card two">
@@ -57,10 +56,8 @@
         <div class="card">
           <h2>部署/建置重點（為什麼我改成 webpack build）</h2>
           <p>Next.js 16 在不同環境用 Turbopack 有時會遇到不穩（例如 Windows symlink 權限、或某些 CSR bailout 檢查）。所以我把 build 改成固定用 webpack，讓本機/CI/Vercel 更穩。</p>
-          <div class="codebox">
-            # package.json\n
-            \"build\": \"next build --webpack\"
-          </div>
+          <pre class="codebox"><code># package.json
+"build": "next build --webpack"</code></pre>
         </div>
 
         <div class="card compact">
@@ -86,4 +83,3 @@
     <script src="./assets/app.js"></script>
   </body>
 </html>
-

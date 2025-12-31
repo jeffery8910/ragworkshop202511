@@ -22,3 +22,10 @@
 node ./docs/tools/export-eval-report.mjs --in ./rag-eval-demo.json --out ./docs/reports/demo.html
 ```
 
+## 週誌（建議：讓貢獻度自然變綠、而且每格都有內容）
+
+用腳本快速新增一篇週誌 HTML，會同步更新 `docs/worklog/entries.json`：
+
+```bash
+node ./docs/tools/new-worklog-entry.mjs --title "本週做了什麼" --tags "教學坊,A/B"
+```

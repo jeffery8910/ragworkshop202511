@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>新增週誌機制</title>
+    <link rel="stylesheet" href="../assets/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container nav">
+        <div class="brand">
+          <span>RAG 工作坊作品集</span>
+          <span class="badge">週誌</span>
+        </div>
+        <div class="navlinks">
+          <a href="../index.html">總覽</a>
+          <a href="../hr.html">HR 版</a>
+          <a href="../teaching.html">教學設計</a>
+          <a href="../experiments.html">比較與評估</a>
+          <a href="../technical.html">技術細節</a>
+          <a href="./index.html">週誌</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="hero">
+        <div class="badge">2025-12-31</div>
+        <h1>新增週誌機制</h1>
+        <p class="muted">這篇週誌的目標：讓人看完就知道「你做了什麼」以及「怎麼驗證」。</p>
+        <div class="row" style="margin-top:12px"><span class="chip">作品集</span><span class="chip">週誌</span></div>
+      </div>
+
+      <div class="grid">
+        <div class="card two">
+          <h2>重點（先看這裡）</h2>
+          <ul class="list"><li>新增 worklog 清單頁\n新增一鍵產生週誌腳本</li></ul>
+        </div>
+
+        <div class="card two">
+          <h2>怎麼驗證（可操作）</h2>
+          <ul class="list">
+            <li>用同一題在「RAG 教學坊」做 A/B，比較 HitRate/Recall/時間差異。</li>
+            <li>把 eval JSON 匯出成 HTML 報告，附在這篇週誌裡。</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h2>紀錄內容</h2>
+          <pre class="codebox"><code>做了 worklog 頁面與產生器，讓每次教學/功能更新都有可驗證紀錄。\n\n驗證：打開 docs/worklog/index.html（建議 GitHub Pages），會看到本篇週誌。\n下一步：每週寫 1 篇，附上 eval 報告連結。</code></pre>
+          <div class="callout" style="margin-top:12px">
+            <strong>小提醒：</strong>如果你寫「變快」或「變準」，最好補一個指標或一段對照（不然看的人很難判斷）。
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div><a href="./index.html">← 回週誌清單</a></div>
+        <div>產生器：<span class="kbd">docs/tools/new-worklog-entry.mjs</span></div>
+      </div>
+    </div>
+
+    <script src="../assets/app.js"></script>
+  </body>
+</html>

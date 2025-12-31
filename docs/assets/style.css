@@ -168,6 +168,8 @@ details p{margin-top:10px}
   line-height:1.55;
   overflow:auto;
   color:#e2e8f0;
+  white-space: pre;
+  margin: 10px 0 0;
 }
 
 .callout{
@@ -239,4 +241,3 @@ details p{margin-top:10px}
   color:var(--muted);
   font-size:12px;
 }
-

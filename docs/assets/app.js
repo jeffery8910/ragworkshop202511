@@ -19,11 +19,12 @@ function bindCopyButtons(){
 }
 
 function markActiveNav(){
-  const path = location.pathname.split('/').pop() || 'index.html';
+  const segments = location.pathname.split('/').filter(Boolean);
+  const current = segments.slice(-2).join('/') || 'index.html';
   $all('.navlinks a').forEach(a => {
-    const href = (a.getAttribute('href') || '').split('/').pop();
+    const href = (a.getAttribute('href') || '').split('/').filter(Boolean).slice(-2).join('/');
     if (!href) return;
-    if (href === path) a.setAttribute('aria-current', 'page');
+    if (href === current) a.setAttribute('aria-current', 'page');
   });
 }
 
@@ -31,4 +32,3 @@ document.addEventListener('DOMContentLoaded', () => {
   bindCopyButtons();
   markActiveNav();
 });
-
