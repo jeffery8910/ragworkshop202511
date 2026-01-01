@@ -13,6 +13,8 @@ import { logConversation } from '@/lib/features/logs';
 export async function POST(req: NextRequest) {
     let uid = '';
     let userMessage = '';
+    let mongoUriForLog: string | undefined;
+    let dbNameForLog: string | undefined;
     try {
         const body = await req.json().catch(() => ({} as any));
         const message = body?.message;
@@ -81,6 +83,8 @@ export async function POST(req: NextRequest) {
             agenticLevel: clampLevel(agenticLevel),
             displayQuestion: titleSeed,
         };
+        mongoUriForLog = config.mongoUri;
+        dbNameForLog = config.mongoDbName;
 
         // Validate chat model against provider to avoid unsupported IDs or embeddings
         const validateChatModel = (provider?: string, model?: string) => {
@@ -137,7 +141,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (titleSeed) {
-            await logConversation({ type: 'message', userId: uid, text: titleSeed });
+            await logConversation({ type: 'message', userId: uid, text: titleSeed }, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
         }
 
         const result = await ragAnswer(uid, safeMessage, config);
@@ -306,7 +310,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (result?.answer) {
-            await logConversation({ type: 'reply', userId: uid, text: result.answer });
+            await logConversation({ type: 'reply', userId: uid, text: result.answer }, { mongoUri: config.mongoUri, dbName: config.mongoDbName });
         }
 
         const res = NextResponse.json({ ...result, structuredPayloads: payloads, newTitle });
@@ -330,7 +334,7 @@ export async function POST(req: NextRequest) {
                 userId: uid,
                 text: error instanceof Error ? error.message : 'Internal Server Error',
                 meta: { message: userMessage }
-            });
+            }, { mongoUri: mongoUriForLog, dbName: dbNameForLog });
         }
         return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
     }

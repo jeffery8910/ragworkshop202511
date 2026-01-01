@@ -1,5 +1,11 @@
 import { generateText } from '@/lib/llm';
 
+type LlmConfig = {
+    provider?: 'openai' | 'gemini' | 'openrouter';
+    apiKey?: string;
+    model?: string;
+};
+
 export interface Flashcard {
     title: string;
     keyword: string;
@@ -8,7 +14,7 @@ export interface Flashcard {
     color: string;
 }
 
-export async function generateFlashcard(topic: string): Promise<Flashcard> {
+export async function generateFlashcard(topic: string, config?: LlmConfig): Promise<Flashcard> {
     const prompt = `
     請針對主題「${topic}」製作一張重點單字卡。
     
@@ -22,7 +28,7 @@ export async function generateFlashcard(topic: string): Promise<Flashcard> {
     }
   `;
 
-    const raw = await generateText(prompt, { model: 'google/gemini-flash-1.5' });
+    const raw = await generateText(prompt, config || {});
 
     try {
         const jsonStr = raw.replace(/```json/g, '').replace(/```/g, '').trim();

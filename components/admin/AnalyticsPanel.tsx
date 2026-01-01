@@ -13,6 +13,29 @@ interface AnalyticsData {
     rangeDays?: number;
 }
 
+interface MonitorStudent {
+    userId: string;
+    lastActiveAt: string | null;
+    daysSince: number | null;
+    totalEvents: number;
+    messageCount: number;
+    replyCount: number;
+    errorCount: number;
+    eventCount: number;
+    events: Record<string, number>;
+    needsAttention: boolean;
+    reasons: string[];
+}
+
+interface MonitorData {
+    rangeDays: number;
+    inactiveDays: number;
+    minMessages: number;
+    totalStudents: number;
+    needsAttention: number;
+    students: MonitorStudent[];
+}
+
 interface LogEntry {
     type: 'message' | 'reply' | 'error' | 'event';
     userId?: string;
@@ -27,6 +50,8 @@ export default function AnalyticsPanel() {
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [keywords, setKeywords] = useState<string[]>([]);
     const [logs, setLogs] = useState<LogEntry[]>([]);
+    const [monitor, setMonitor] = useState<MonitorData | null>(null);
+    const [monitorLoading, setMonitorLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [logQuery, setLogQuery] = useState('');
     const [logType, setLogType] = useState('');
@@ -35,6 +60,10 @@ export default function AnalyticsPanel() {
     const [logLimit, setLogLimit] = useState(10);
     const [logTotal, setLogTotal] = useState(0);
     const [rangeDays, setRangeDays] = useState(7);
+    const [monitorRange, setMonitorRange] = useState(14);
+    const [inactiveDays, setInactiveDays] = useState(7);
+    const [minMessages, setMinMessages] = useState(3);
+    const [onlyAttention, setOnlyAttention] = useState(false);
     const [expandedLog, setExpandedLog] = useState<number | null>(null);
 
     const fetchAnalytics = async () => {
@@ -77,6 +106,25 @@ export default function AnalyticsPanel() {
         }
     };
 
+    const fetchMonitor = async () => {
+        setMonitorLoading(true);
+        try {
+            const params = new URLSearchParams({
+                range: String(monitorRange),
+                inactive: String(inactiveDays),
+                minMessages: String(minMessages),
+            });
+            const res = await adminFetch(`/api/admin/student-monitor?${params.toString()}`, { cache: 'no-store' });
+            const payload = await res.json();
+            if (!res.ok) throw new Error(payload.error || '讀取學生監測失敗');
+            setMonitor(payload);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setMonitorLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchAnalytics();
     }, [rangeDays]);
@@ -85,8 +133,13 @@ export default function AnalyticsPanel() {
         fetchLogs(0);
     }, []);
 
+    useEffect(() => {
+        fetchMonitor();
+    }, [monitorRange, inactiveDays, minMessages]);
+
     const hasData = data && (data.activeUsers > 0 || data.totalChats > 0);
     const maxSeries = data?.series?.reduce((m, s) => Math.max(m, s.count), 0) || 1;
+    const filteredStudents = (monitor?.students || []).filter(s => !onlyAttention || s.needsAttention);
 
     const highlightText = (text: string, query: string) => {
         const tokens = query.split(/\s+/).map(t => t.trim()).filter(t => t.length > 1);
@@ -123,6 +176,13 @@ export default function AnalyticsPanel() {
             </div>
         );
     }
+
+    const formatDateTime = (value?: string | null) => {
+        if (!value) return '—';
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return '—';
+        return dt.toLocaleString();
+    };
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-md">
@@ -233,6 +293,98 @@ export default function AnalyticsPanel() {
                 ) : (
                     <div className="text-center py-4 bg-gray-50 rounded border border-dashed text-xs text-gray-400">
                         點擊上方按鈕以分析對話紀錄並生成熱門關鍵字
+                    </div>
+                )}
+            </div>
+
+            <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-700">學生行為監測</h3>
+                    {monitorLoading && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
+                </div>
+                <div className="flex flex-wrap gap-2 items-center mb-3">
+                    <select
+                        value={monitorRange}
+                        onChange={e => setMonitorRange(Number(e.target.value))}
+                        className="border rounded px-2 py-1 text-xs"
+                    >
+                        <option value={7}>近 7 天</option>
+                        <option value={14}>近 14 天</option>
+                        <option value={30}>近 30 天</option>
+                    </select>
+                    <select
+                        value={inactiveDays}
+                        onChange={e => setInactiveDays(Number(e.target.value))}
+                        className="border rounded px-2 py-1 text-xs"
+                    >
+                        <option value={3}>3 天未活動</option>
+                        <option value={7}>7 天未活動</option>
+                        <option value={14}>14 天未活動</option>
+                    </select>
+                    <select
+                        value={minMessages}
+                        onChange={e => setMinMessages(Number(e.target.value))}
+                        className="border rounded px-2 py-1 text-xs"
+                    >
+                        <option value={1}>訊息 ≥ 1</option>
+                        <option value={3}>訊息 ≥ 3</option>
+                        <option value={5}>訊息 ≥ 5</option>
+                    </select>
+                    <label className="text-xs text-gray-600 flex items-center gap-1">
+                        <input
+                            type="checkbox"
+                            checked={onlyAttention}
+                            onChange={e => setOnlyAttention(e.target.checked)}
+                        />
+                        只看需關注
+                    </label>
+                    <button
+                        onClick={fetchMonitor}
+                        className="text-xs bg-gray-100 px-3 py-1 rounded hover:bg-gray-200"
+                    >
+                        重新整理
+                    </button>
+                </div>
+
+                {monitor ? (
+                    <div className="text-xs text-gray-500 mb-2">
+                        共有 {monitor.totalStudents} 位學生，需關注 {monitor.needsAttention} 位
+                    </div>
+                ) : (
+                    <div className="text-xs text-gray-400 mb-2">尚無監測資料</div>
+                )}
+
+                {filteredStudents.length ? (
+                    <div className="space-y-2">
+                        {filteredStudents.map((s, idx) => (
+                            <div
+                                key={`${s.userId}-${idx}`}
+                                className={`rounded border px-3 py-2 text-xs ${s.needsAttention ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}
+                            >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="font-medium text-gray-700 break-all">{s.userId}</div>
+                                    <div className={`px-2 py-0.5 rounded-full ${s.needsAttention ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                        {s.needsAttention ? '需關注' : '正常'}
+                                    </div>
+                                </div>
+                                <div className="mt-1 text-gray-500 flex flex-wrap gap-3">
+                                    <span>最後活動：{formatDateTime(s.lastActiveAt)}</span>
+                                    <span>距今：{s.daysSince !== null ? `${s.daysSince} 天` : '—'}</span>
+                                    <span>訊息：{s.messageCount}</span>
+                                    <span>事件：{s.eventCount}</span>
+                                    <span>錯誤：{s.errorCount}</span>
+                                </div>
+                                {s.reasons?.length > 0 && (
+                                    <div className="mt-1 text-red-600">
+                                        原因：{s.reasons.join('；')}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-4 bg-gray-50 rounded border border-dashed text-xs text-gray-400">
+                        暫無學生紀錄
                     </div>
                 )}
             </div>

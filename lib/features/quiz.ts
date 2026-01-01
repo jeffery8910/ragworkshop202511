@@ -1,5 +1,11 @@
 import { generateText } from '@/lib/llm';
 
+type LlmConfig = {
+    provider?: 'openai' | 'gemini' | 'openrouter';
+    apiKey?: string;
+    model?: string;
+};
+
 export interface Quiz {
     question: string;
     options: string[];
@@ -7,7 +13,7 @@ export interface Quiz {
     explanation: string;
 }
 
-export async function generateRagQuiz(topic: string): Promise<Quiz> {
+export async function generateRagQuiz(topic: string, config?: LlmConfig): Promise<Quiz> {
     const prompt = `
     你是一個專業的家教老師。請針對主題「${topic}」出一個單選題。
     
@@ -20,7 +26,7 @@ export async function generateRagQuiz(topic: string): Promise<Quiz> {
     }
   `;
 
-    const raw = await generateText(prompt, { model: 'google/gemini-flash-1.5' }); // Use fast model
+    const raw = await generateText(prompt, config || {});
 
     try {
         // Clean up potential markdown code blocks

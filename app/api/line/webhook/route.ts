@@ -18,7 +18,9 @@ function getRuntimeConfig() {
     return {
         channelSecret: getConfigValue('LINE_CHANNEL_SECRET') || process.env.LINE_CHANNEL_SECRET || '',
         channelAccessToken: getConfigValue('LINE_CHANNEL_ACCESS_TOKEN') || process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-        n8nWebhookUrl: getConfigValue('N8N_WEBHOOK_URL') || process.env.N8N_WEBHOOK_URL || ''
+        n8nWebhookUrl: getConfigValue('N8N_WEBHOOK_URL') || process.env.N8N_WEBHOOK_URL || '',
+        mongoUri: getConfigValue('MONGODB_URI') || process.env.MONGODB_URI || '',
+        dbName: getConfigValue('MONGODB_DB_NAME') || process.env.MONGODB_DB_NAME || 'rag_db',
     };
 }
 
@@ -59,14 +61,14 @@ async function processEvents(events: any[]) {
     for (const event of events) {
         if (event.type !== 'message' || event.message.type !== 'text') continue;
 
-        const { channelSecret, channelAccessToken, n8nWebhookUrl } = getRuntimeConfig();
+        const { channelSecret, channelAccessToken, n8nWebhookUrl, mongoUri, dbName } = getRuntimeConfig();
 
         const userId = event.source.userId;
         const text = event.message.text;
         const replyToken = event.replyToken;
 
         if (!channelAccessToken || !channelSecret) {
-            await logConversation({ type: 'error', userId, text: '[Missing LINE access token/secret]', meta: {} });
+            await logConversation({ type: 'error', userId, text: '[Missing LINE access token/secret]', meta: {} }, { mongoUri, dbName });
             continue;
         }
 
@@ -82,7 +84,7 @@ async function processEvents(events: any[]) {
             userId,
             text,
             meta: { eventId: event.webhookEventId }
-        });
+        }, { mongoUri, dbName });
 
         // 1. Keyword Matching
         const rule = await findKeywordMatch(text);
@@ -90,7 +92,7 @@ async function processEvents(events: any[]) {
         if (rule) {
             if (rule.action === 'reply' && rule.replyText) {
                 await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, { type: 'text', text: rule.replyText });
-                await logConversation({ type: 'reply', userId, text: rule.replyText, meta: { rule: rule.keyword } });
+                await logConversation({ type: 'reply', userId, text: rule.replyText, meta: { rule: rule.keyword } }, { mongoUri, dbName });
                 continue;
             }
             // Handle other actions (n8n, rag) if needed here or fall through
@@ -102,7 +104,7 @@ async function processEvents(events: any[]) {
             const quiz = await generateRagQuiz(topic);
             const flex = createQuizFlexMessage(quiz, topic);
             await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, flex);
-            await logConversation({ type: 'reply', userId, text: `[Quiz] ${topic}`, meta: { quiz } });
+            await logConversation({ type: 'reply', userId, text: `[Quiz] ${topic}`, meta: { quiz } }, { mongoUri, dbName });
             continue;
         }
 
@@ -114,14 +116,14 @@ async function processEvents(events: any[]) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ events: [event] }) // Forward single event
             });
-            await logConversation({ type: 'event', userId, text: '[Forwarded to n8n]', meta: { url: n8nWebhookUrl } });
+            await logConversation({ type: 'event', userId, text: '[Forwarded to n8n]', meta: { url: n8nWebhookUrl } }, { mongoUri, dbName });
         } else {
             // Fallback: If n8n is not configured, reply with a friendly message
             await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, {
                 type: 'text',
                 text: '⚠️ 系統提示：尚未設定 n8n Webhook URL，無法進行 AI 回覆。\n\n請檢查 .env.local 設定或部署狀態，確認 N8N_WEBHOOK_URL 已正確填寫。'
             });
-            await logConversation({ type: 'error', userId, text: '[Missing N8N_WEBHOOK_URL]', meta: {} });
+            await logConversation({ type: 'error', userId, text: '[Missing N8N_WEBHOOK_URL]', meta: {} }, { mongoUri, dbName });
         }
     }
 }

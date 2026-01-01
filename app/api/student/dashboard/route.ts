@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getMongoClient } from '@/lib/db/mongo';
 import { getCardsByUser } from '@/lib/features/cards';
 import { getConfigValue } from '@/lib/config-store';
+import { logConversation } from '@/lib/features/logs';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,26 @@ export async function GET(req: NextRequest) {
 
         if (!userId) {
             return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+        }
+
+        if (mongoUri) {
+            await logConversation({
+                type: 'event',
+                userId,
+                text: '[dashboard_view]',
+                meta: { event: 'dashboard_view' }
+            }, { mongoUri, dbName });
+        }
+
+        if (!mongoUri) {
+            return NextResponse.json({
+                xp: 0,
+                level: 1,
+                topics: [],
+                mistakes: [],
+                summaries: [],
+                updatedAt: new Date().toISOString()
+            });
         }
 
         const client = await getMongoClient(mongoUri);

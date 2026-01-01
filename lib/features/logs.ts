@@ -9,10 +9,15 @@ export interface LogEntry {
     meta?: any;
 }
 
-export async function logConversation(entry: Omit<LogEntry, 'timestamp'>) {
+interface LogOptions {
+    mongoUri?: string;
+    dbName?: string;
+}
+
+export async function logConversation(entry: Omit<LogEntry, 'timestamp'>, opts?: LogOptions) {
     try {
-        const client = await getMongoClient();
-        const dbName = getConfigValue('MONGODB_DB_NAME') || process.env.MONGODB_DB_NAME || 'rag_db';
+        const client = await getMongoClient(opts?.mongoUri);
+        const dbName = opts?.dbName || getConfigValue('MONGODB_DB_NAME') || process.env.MONGODB_DB_NAME || 'rag_db';
         const db = client.db(dbName);
         await db.collection('logs').insertOne({
             ...entry,

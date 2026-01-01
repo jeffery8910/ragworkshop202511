@@ -17,6 +17,19 @@ export default function QuizPage() {
     const [selected, setSelected] = useState<number | null>(null);
     const [showResult, setShowResult] = useState(false);
 
+    const ensureUserId = () => {
+        if (typeof window === 'undefined') return '';
+        const key = 'rag_user_id';
+        let id = window.localStorage.getItem(key);
+        if (!id) {
+            id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+                ? `web-${crypto.randomUUID()}`
+                : `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+            window.localStorage.setItem(key, id);
+        }
+        return id;
+    };
+
     const handleGenerate = async () => {
         if (!topic.trim()) return;
         setLoading(true);
@@ -25,7 +38,10 @@ export default function QuizPage() {
         setShowResult(false);
 
         try {
-            const res = await fetch(`/api/student/quiz?topic=${encodeURIComponent(topic)}`);
+            const userId = ensureUserId();
+            const params = new URLSearchParams({ topic });
+            if (userId) params.set('userId', userId);
+            const res = await fetch(`/api/student/quiz?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
                 setQuiz(data);
