@@ -181,6 +181,24 @@ export default function RagLabPanel({
     }>>([]);
     const { pushToast } = useToast();
 
+    const trackStudentEvent = (event: string, meta?: Record<string, any>) => {
+        if (showAdminLinks) return;
+        if (typeof window === 'undefined') return;
+        const key = 'rag_user_id';
+        let id = window.localStorage.getItem(key);
+        if (!id) {
+            id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+                ? `web-${crypto.randomUUID()}`
+                : `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+            window.localStorage.setItem(key, id);
+        }
+        fetch('/api/student/event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: id, event, meta })
+        }).catch(() => undefined);
+    };
+
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const params = new URLSearchParams(window.location.search);
@@ -388,6 +406,12 @@ export default function RagLabPanel({
 
     const runEvaluation = async (config: LabConfig) => {
         if (!activeDataset) return null;
+        trackStudentEvent('workshop_eval', {
+            datasetId: activeDataset.id,
+            datasetName: activeDataset.name,
+            mode: 'single',
+            config,
+        });
         setEvalLoading(true);
         setEvalError(null);
         setEvalResult(null);
@@ -410,6 +434,13 @@ export default function RagLabPanel({
 
     const runEvaluationCompare = async () => {
         if (!activeDataset) return;
+        trackStudentEvent('workshop_compare', {
+            datasetId: activeDataset.id,
+            datasetName: activeDataset.name,
+            mode: 'compare',
+            a: compareConfigA,
+            b: compareConfigB,
+        });
         setEvalLoading(true);
         setEvalError(null);
         setEvalResult(null);

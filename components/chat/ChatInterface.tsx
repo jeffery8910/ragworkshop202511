@@ -574,6 +574,7 @@ export default function ChatInterface({
     const [loading, setLoading] = useState(false);
     const [agenticLevel, setAgenticLevel] = useState(1);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const loggedOpenRef = useRef(false);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -597,6 +598,16 @@ export default function ChatInterface({
         }
         setUserId(stored);
     }, [initialUserId]);
+
+    useEffect(() => {
+        if (!userId || loggedOpenRef.current) return;
+        loggedOpenRef.current = true;
+        fetch('/api/student/event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, event: 'chat_open' })
+        }).catch(() => undefined);
+    }, [userId]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;

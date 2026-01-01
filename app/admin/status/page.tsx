@@ -78,6 +78,9 @@ export default function StatusPage() {
     const [pinging, setPinging] = useState(false);
     const [pingResult, setPingResult] = useState<{ ok: boolean; status: number; statusText?: string; elapsedMs: number; finalUrl?: string } | null>(null);
     const [pingError, setPingError] = useState<string | null>(null);
+    const [debugOpen, setDebugOpen] = useState(false);
+    const [debugLoading, setDebugLoading] = useState(false);
+    const [debugData, setDebugData] = useState<any | null>(null);
 
     const keepAliveSecret = '${{ secrets.RENDER_URL }}';
     const keepAliveYaml = `name: Render Keep Alive
@@ -94,8 +97,8 @@ jobs:
       - name: Ping Render
         run: |
           if [ -z "${keepAliveSecret}" ]; then
-            echo "RENDER_URL secret not set"
-            exit 1
+            echo "RENDER_URL secret not set (skipped)"
+            exit 0
           fi
           curl -fsSL "${keepAliveSecret}" > /dev/null
 `;
@@ -144,6 +147,19 @@ jobs:
             setPingError(e?.message || 'Ping failed');
         } finally {
             setPinging(false);
+        }
+    };
+
+    const fetchDebugEnv = async () => {
+        setDebugLoading(true);
+        try {
+            const res = await fetch('/api/admin/debug-env');
+            const data = await res.json();
+            setDebugData(data);
+        } catch (e) {
+            setDebugData({ error: '讀取失敗' });
+        } finally {
+            setDebugLoading(false);
         }
     };
 
@@ -235,6 +251,25 @@ jobs:
                                 <BoolCheck label="Channel ID" value={status.line.login.id} />
                                 <BoolCheck label="Channel Secret" value={status.line.login.secret} />
                             </div>
+                        </div>
+                    </div>
+                    <div className="mt-4 text-sm text-gray-600">
+                        Webhook URL（填在 LINE Developers 後台）：
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs bg-gray-50 border rounded px-2 py-1">
+                                {typeof window !== 'undefined' ? `${window.location.origin}/api/line/webhook` : '/api/line/webhook'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const base = typeof window !== 'undefined' ? window.location.origin : '';
+                                    copyText(`${base}/api/line/webhook`);
+                                }}
+                                className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                            >
+                                <Copy className="w-3 h-3" />
+                                複製
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -329,6 +364,48 @@ jobs:
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Debug Env */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-100 rounded-lg"><Key className="w-5 h-5 text-slate-700" /></div>
+                        <h3 className="font-semibold text-lg">環境變數來源檢查（Debug）</h3>
+                    </div>
+                    <button
+                        onClick={() => {
+                            const next = !debugOpen;
+                            setDebugOpen(next);
+                            if (next && !debugData) fetchDebugEnv();
+                        }}
+                        className="text-xs bg-gray-100 px-3 py-1 rounded hover:bg-gray-200"
+                    >
+                        {debugOpen ? '收合' : '展開'}
+                    </button>
+                </div>
+                {debugOpen && (
+                    <div className="mt-4">
+                        {debugLoading && <div className="text-xs text-gray-500">載入中…</div>}
+                        {debugData && (
+                            <div className="space-y-2 text-xs text-gray-700">
+                                <div className="text-gray-500">nodeEnv: {debugData.nodeEnv} / {debugData.timestamp}</div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {debugData.sources && Object.entries(debugData.sources).map(([key, val]: any) => (
+                                        <div key={key} className="border rounded p-2 bg-gray-50">
+                                            <div className="font-medium text-gray-800 mb-1">{key}</div>
+                                            <div className="text-gray-600">Env: {val?.fromEnv || '—'}</div>
+                                            <div className="text-gray-600">Cookie: {val?.fromCookie || '—'}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {!debugLoading && !debugData && (
+                            <div className="text-xs text-gray-500">點擊展開會讀取 /api/admin/debug-env</div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

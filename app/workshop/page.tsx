@@ -1,9 +1,29 @@
+'use client';
+
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { Home, Bot, GraduationCap } from 'lucide-react';
 import RagLabPanel from '@/components/admin/RagLabPanel';
 import ToastProvider from '@/components/ui/ToastProvider';
 
 export default function WorkshopPage() {
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const key = 'rag_user_id';
+        let id = window.localStorage.getItem(key);
+        if (!id) {
+            id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+                ? `web-${crypto.randomUUID()}`
+                : `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+            window.localStorage.setItem(key, id);
+        }
+        fetch('/api/student/event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: id, event: 'workshop_open' })
+        }).catch(() => undefined);
+    }, []);
+
     return (
         <ToastProvider>
             <div className="min-h-screen bg-gray-50 p-4">
