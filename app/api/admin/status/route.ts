@@ -15,6 +15,10 @@ export async function GET() {
 
     const status = {
         mongo: { status: 'unknown', latency: 0, message: '' },
+        n8n: {
+            webhookUrl: !!getConfig('N8N_WEBHOOK_URL'),
+            health: { status: 'unknown', latency: 0, message: '' }
+        },
         pinecone: {
             apiKey: !!getConfig('PINECONE_API_KEY'),
             indexName: !!getConfig('PINECONE_INDEX_NAME'),
@@ -67,6 +71,19 @@ export async function GET() {
         });
     } else {
         status.pinecone.connection = { status: 'error', latency: 0, message: 'Missing API Key' };
+    }
+
+    // 2.5 Check n8n Health (derived from N8N_WEBHOOK_URL)
+    const n8nWebhookUrl = getConfig('N8N_WEBHOOK_URL');
+    if (n8nWebhookUrl) {
+        status.n8n.health = await measure(async () => {
+            const u = new URL(n8nWebhookUrl);
+            const healthUrl = `${u.protocol}//${u.host}/healthz`;
+            const res = await fetch(healthUrl, { method: 'GET', cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        });
+    } else {
+        status.n8n.health = { status: 'missing', latency: 0, message: 'N8N_WEBHOOK_URL is not defined' };
     }
 
     // 3. Check LLMs individually

@@ -25,7 +25,9 @@
    - 登入 [Render Dashboard](https://dashboard.render.com/)。
    - 點擊 **New +** -> **Blueprint**。
    - 連結你的 GitHub Repository。
-   - Render 會自動讀取 `n8n/render.yaml`。
+   - Render 預設會讀 repo 根目錄的 `render.yaml`。本專案提供的是 `n8n/render.yaml`，你可以：
+     - 在 Render 建立 Blueprint 時把 **Root Directory** 指到 `n8n`；或
+     - 將 `n8n/render.yaml` 複製到 repo 根目錄再部署。
 
 2. **設定環境變數**:
    - Render 會提示你確認 `render.yaml` 中的變數。
@@ -35,12 +37,17 @@
 3. **取得 Webhook URL**:
    - 部署完成後，在 Dashboard 找到 `n8n-rag-workflow` 服務。
    - 複製其 URL (例如 `https://n8n-rag-workflow.onrender.com`)。
-   - 回到 Vercel，將此 URL 填入 `N8N_WEBHOOK_URL` 環境變數 (需加上 `/webhook/` 路徑，視你的 Workflow 而定)。
+   - 回到 Vercel，將此 URL 填入 `N8N_WEBHOOK_URL` 環境變數：
+     - 這份 repo 的預設 workflow 路徑是：`/webhook/line-rag`
+     - 例如：`https://n8n-rag-workflow.onrender.com/webhook/line-rag`
 
 ### n8n 設定
 1. 開啟 n8n 網址，使用 `admin` 與剛剛生成的密碼登入。
-2. 匯入 Workflow (可使用本專案的 `n8n/workflow.json`)。
-3. 設定 n8n 內的 Credentials (OpenAI, Pinecone, MongoDB 等)。
+2. 匯入 Workflow：`n8n/workflow.json`，並切到 **Active**。
+3. 在 Render（n8n 服務）補齊環境變數（此 workflow 會用到）：
+   - `LINE_CHANNEL_ACCESS_TOKEN`
+   - `RAG_RETRIEVE_URL`（例如 `https://<your-vercel-domain>/api/workshop/retrieve`）
+   - `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`
 
 ## 3. GitHub Actions (防休眠)
 Render 免費版會休眠。本專案包含 `.github/workflows/keep_alive.yml`。

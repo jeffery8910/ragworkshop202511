@@ -63,7 +63,12 @@ export default async function GuidePage() {
               <li>
                 健康檢查：<span className="font-mono">{n8nHealthUrl}</span> 應回 <span className="font-mono">{'{"status":"ok"}'}</span>
               </li>
-              <li>在 n8n 建一個 Workflow：第一個節點用 Webhook（HTTP POST），path 例如：<span className="font-mono">line-rag</span>。</li>
+              <li>
+                匯入本專案的預設 workflow：<span className="font-mono">n8n/workflow.json</span>（Webhook path 已是 <span className="font-mono">line-rag</span>）
+              </li>
+              <li>
+                記得在 Render（n8n 服務）設定環境變數：<span className="font-mono">LINE_CHANNEL_ACCESS_TOKEN</span>、<span className="font-mono">RAG_RETRIEVE_URL</span>、<span className="font-mono">OPENROUTER_API_KEY</span>、<span className="font-mono">OPENROUTER_MODEL</span>
+              </li>
               <li>
                 把 workflow 切到 Active，Production URL 會是：<span className="font-mono">{n8nBaseUrl}/webhook/line-rag</span>
               </li>
@@ -136,4 +141,3 @@ export default async function GuidePage() {
     </div>
   );
 }
-

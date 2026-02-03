@@ -22,9 +22,6 @@ services:
       mountPath: /home/node/.n8n
       sizeGB: 1
 
-databases:
-  # 選用: 若未來需要擴展 n8n，可使用 Render 託管的 Redis
-  # 免費層級我們使用預設的 SQLite (儲存於磁碟) 或記憶體模式
-  # 但 n8n 官方建議生產環境使用 Postgres
-  # 針對本「工作坊」規模，使用預設 SQLite 即可
-  pass
+# 選用: 若未來需要擴展 n8n，可改用 Render 託管的 Postgres/Redis
+# 免費層級這裡先不建立資料庫（n8n 預設 SQLite 會寫在 disk mount）
+databases: []

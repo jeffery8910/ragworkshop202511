@@ -77,3 +77,4 @@ n8n 建議部署於 Render (Docker)：
 詳細設定與操作請參考專案內文件：
 - [完整操作指南 (Walkthrough)](./walkthrough.md)
 - [部署指南 (Deployment Guide)](./deploy-guide.md)
+- [LINE RAG 串接指南（Vercel + Render + n8n）](./docs/LINE-RAG-SETUP.md)

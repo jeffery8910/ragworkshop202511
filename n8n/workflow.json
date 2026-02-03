@@ -1,35 +1,239 @@
 {
-  "name": "RAG Workshop Basic Workflow",
+  "name": "LINE RAG (Vercel webhook → n8n → OpenRouter → LINE)",
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "webhook",
-        "options": {}
+        "path": "line-rag",
+        "methods": [
+          "POST"
+        ],
+        "responseMode": "onReceived",
+        "options": {
+          "binaryData": false
+        }
       },
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
-        250,
+        260,
         300
       ],
-      "webhookId": "af4c9b8e-1234-4567-8901-abcdef123456"
+      "webhookId": "line-rag-openrouter"
     },
     {
       "parameters": {
-        "content": "## RAG Workshop Workflow\n這是一個基礎的 n8n 工作流範本。\n\n1. **Webhook**: 接收來自 LINE Bot 的訊息\n2. **AI Agent**: (請自行新增) 連接 OpenAI/Gemini 進行處理\n3. **HTTP Request**: (請自行新增) 將結果回傳給 LINE",
-        "height": 280,
-        "width": 340
+        "content": "## LINE RAG（預設工作流）\n\n### 你需要先在 Render（n8n）設定的環境變數\n- `LINE_CHANNEL_ACCESS_TOKEN`\n- `RAG_RETRIEVE_URL`（例如 `https://<your-vercel-domain>/api/workshop/retrieve`）\n- `OPENROUTER_API_KEY`\n- `OPENROUTER_MODEL`\n\n可選：\n- `LINE_ACK_MESSAGE`（預設：收到，我正在查資料，稍後回覆你。）\n- `RAG_TOP_K`（預設 5）\n- `LINE_MAX_CHARS`（預設 1800）\n\n### Webhook URL\n- Production：`https://<your-n8n>/webhook/line-rag`\n- Vercel 端把 `N8N_WEBHOOK_URL` 指到上面這個 URL\n\n### 這個 workflow 做什麼\n1) 收到 Vercel 轉送的 LINE event\n2) 先用 Reply API 回覆「處理中」（避免 replyToken 過期）\n3) 呼叫 Vercel 的 `/api/workshop/retrieve` 做檢索\n4) 用 OpenRouter 生成回答\n5) 用 Push API 把答案推送給使用者（userId）",
+        "height": 340,
+        "width": 420
       },
       "name": "Note",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        180,
-        100
+        240,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract LINE message and tokens from Vercel-forwarded webhook payload\n// Accept both shapes:\n// - { body: { events: [...] } }  (Webhook node wrapper)\n// - { events: [...] }           (raw body)\nconst payload = items[0].json?.body ?? items[0].json;\nconst ev = payload?.events?.[0] || {};\n\nconst replyToken = ev?.replyToken || '';\nconst userId = ev?.source?.userId || '';\n\nlet text = '';\nif (ev?.message?.type === 'text') text = ev.message.text || '';\n\nif (!replyToken || !userId) {\n  return [];\n}\n\nconst ackText = text\n  ? (process.env.LINE_ACK_MESSAGE || '收到，我正在查資料，稍後回覆你。')\n  : '目前只支援文字訊息，請改用文字提問。';\n\nreturn [{ json: { text, replyToken, userId, ackText } }];"
+      },
+      "name": "Extract LINE",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "options": {},
+        "allowUnauthorizedCerts": false,
+        "queryParametersUi": {
+          "parameter": []
+        },
+        "jsonParameters": true,
+        "sendBinaryData": false,
+        "authentication": "none",
+        "headerParametersJson": "={{ { \"Authorization\": 'Bearer ' + $env.LINE_CHANNEL_ACCESS_TOKEN, \"content-type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ { replyToken: $json.replyToken, messages: [{ type: 'text', text: $json.ackText }] } }}"
+      },
+      "name": "LINE Reply Ack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        760,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.RAG_RETRIEVE_URL}}",
+        "options": {},
+        "allowUnauthorizedCerts": false,
+        "queryParametersUi": {
+          "parameter": []
+        },
+        "jsonParameters": true,
+        "sendBinaryData": false,
+        "authentication": "none",
+        "headerParametersJson": "={{ { \"content-type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ { query: ($json.text || '（空白）'), includeAnswer: false, rewrite: true, topK: Number($env.RAG_TOP_K || 5), useGraph: true } }}"
+      },
+      "name": "RAG Retrieve",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        760,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Build prompt for OpenRouter from RAG context\nconst rag = items[0].json || {};\nconst question = $node[\"Extract LINE\"].json.text || '';\n\nconst ctx = [];\nlet used = 0;\nconst MAX = Number(process.env.PROMPT_CONTEXT_MAX_CHARS || 2000);\n\nfor (const c of (rag.context || [])) {\n  const t = (c?.text || '').trim();\n  if (!t) continue;\n  if (used + t.length > MAX) break;\n  used += t.length;\n  const src = c?.source || '-';\n  const page = (c?.page ?? '').toString().trim();\n  ctx.push(`- ${t}\\n(來源: ${src}${page ? ` p.${page}` : ''})`);\n}\n\nconst graph = (rag.graphContext || '').trim();\nconst graphBlock = graph ? `\\n\\n[圖譜補充]\\n${graph}` : '';\n\nconst sys = (process.env.LINE_SYSTEM_PROMPT || '你是一位助教，請根據提供的參考資料回答問題。若資料不足，請誠實說不知道並提出追問。');\n\nconst prompt = `${sys}\\n\\n[參考資料]\\n${ctx.join('\\n')}\\n${graphBlock}\\n\\n[問題]\\n${question}\\n\\n[回答格式]\\n- 用繁體中文\\n- 先結論，再條列重點\\n- 不要胡編`;\n\nreturn [{ json: { prompt } }];"
+      },
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "options": {},
+        "allowUnauthorizedCerts": false,
+        "queryParametersUi": {
+          "parameter": []
+        },
+        "jsonParameters": true,
+        "sendBinaryData": false,
+        "authentication": "none",
+        "headerParametersJson": "={{ { \"Authorization\": 'Bearer ' + $env.OPENROUTER_API_KEY, \"content-type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ { model: ($env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct'), messages: [ { role: 'user', content: $json.prompt } ], temperature: Number($env.OPENROUTER_TEMPERATURE || 0.2), max_tokens: Number($env.OPENROUTER_MAX_TOKENS || 512) } }}"
+      },
+      "name": "OpenRouter Chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1240,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract OpenRouter answer and push to LINE userId\nconst content = (items[0].json?.choices?.[0]?.message?.content || '').toString().trim() || '(無內容)';\nconst userId = $node[\"Extract LINE\"].json.userId;\nconst max = Number(process.env.LINE_MAX_CHARS || 1800);\nconst text = content.length > max ? content.slice(0, max - 10) + '\\n\\n(內容過長已截斷)' : content;\nreturn [{ json: { userId, text } }];"
+      },
+      "name": "Format Push",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.line.me/v2/bot/message/push",
+        "options": {},
+        "allowUnauthorizedCerts": false,
+        "queryParametersUi": {
+          "parameter": []
+        },
+        "jsonParameters": true,
+        "sendBinaryData": false,
+        "authentication": "none",
+        "headerParametersJson": "={{ { \"Authorization\": 'Bearer ' + $env.LINE_CHANNEL_ACCESS_TOKEN, \"content-type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ { to: $json.userId, messages: [{ type: 'text', text: $json.text }] } }}"
+      },
+      "name": "LINE Push Answer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1720,
+        460
       ]
     }
   ],
-  "connections": {}
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract LINE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract LINE": {
+      "main": [
+        [
+          {
+            "node": "LINE Reply Ack",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RAG Retrieve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Retrieve": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat": {
+      "main": [
+        [
+          {
+            "node": "Format Push",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Push": {
+      "main": [
+        [
+          {
+            "node": "LINE Push Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Taipei"
+  }
 }

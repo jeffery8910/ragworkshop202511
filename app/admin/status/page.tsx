@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, AlertCircle, RefreshCw, Database, Cpu, Smartphone, Key, Copy } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, RefreshCw, Database, Cpu, Smartphone, Key, Copy, Workflow } from 'lucide-react';
 
 interface StatusDetail {
     status: 'ok' | 'error' | 'missing';
@@ -11,6 +11,10 @@ interface StatusDetail {
 
 interface DetailedStatus {
     mongo: StatusDetail;
+    n8n: {
+        webhookUrl: boolean;
+        health: StatusDetail;
+    };
     pinecone: {
         apiKey: boolean;
         indexName: boolean;
@@ -190,6 +194,21 @@ jobs:
                     <div className="flex justify-between items-center">
                         <span className="text-gray-600">連線狀態</span>
                         <StatusBadge {...status.mongo} />
+                    </div>
+                </div>
+
+                {/* n8n */}
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-orange-100 rounded-lg"><Workflow className="w-5 h-5 text-orange-600" /></div>
+                        <h3 className="font-semibold text-lg">n8n (Render)</h3>
+                    </div>
+                    <div className="space-y-2 mb-4">
+                        <BoolCheck label="N8N_WEBHOOK_URL" value={status.n8n.webhookUrl} />
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t">
+                        <span className="text-gray-600">Health (/healthz)</span>
+                        <StatusBadge {...status.n8n.health} />
                     </div>
                 </div>
 
