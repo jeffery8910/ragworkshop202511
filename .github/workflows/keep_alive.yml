@@ -15,4 +15,12 @@ jobs:
             echo "RENDER_URL secret not set (skipped)"
             exit 0
           fi
-          curl -fsSL "${{ secrets.RENDER_URL }}" > /dev/null
+
+          BASE="${{ secrets.RENDER_URL }}"
+          case "$BASE" in
+            */healthz|*/api/health) URL="$BASE" ;;
+            *) URL="${BASE%/}/healthz" ;;
+          esac
+
+          echo "Pinging: $URL"
+          curl -fsSL "$URL" > /dev/null

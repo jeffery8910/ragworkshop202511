@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bot, GraduationCap, Settings, ArrowRight, FlaskConical } from 'lucide-react';
+import { Bot, GraduationCap, Settings, ArrowRight, FlaskConical, BookOpen } from 'lucide-react';
 import { cookies } from 'next/headers';
 import { getConfigValue } from '@/lib/config-store';
 
@@ -58,6 +58,13 @@ export default async function Home() {
               LINE 登入未設定（需要 LINE_LOGIN_CHANNEL_ID / SECRET）
             </div>
           )}
+          <Link
+            href="/guide"
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            部署/LINE 指南
+            <BookOpen className="w-4 h-4" />
+          </Link>
         </div>
         {hasSetupIssues && (
           <div className="mt-6 max-w-3xl mx-auto rounded-2xl border border-amber-200 bg-amber-50 px-6 py-4 text-left">

@@ -46,3 +46,5 @@ next-env.d.ts
 # generated eval/html reports (keep folder only)
 /docs/reports/*
 !/docs/reports/.gitkeep
+
+.vercel
