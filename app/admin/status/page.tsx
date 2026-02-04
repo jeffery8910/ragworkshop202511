@@ -11,6 +11,14 @@ interface StatusDetail {
 
 interface DetailedStatus {
     mongo: StatusDetail;
+    vectorStore: {
+        provider: string;
+    };
+    atlasVector: {
+        enabled: boolean;
+        indexName: string;
+        vectorSearch: StatusDetail;
+    };
     n8n: {
         webhookUrl: boolean;
         health: StatusDetail;
@@ -225,6 +233,28 @@ jobs:
                     <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-gray-600">連線測試</span>
                         <StatusBadge {...status.pinecone.connection} />
+                    </div>
+                </div>
+
+                {/* Atlas Vector Search */}
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-green-100 rounded-lg"><Database className="w-5 h-5 text-green-600" /></div>
+                        <div className="flex flex-col">
+                            <h3 className="font-semibold text-lg">MongoDB Atlas Vector Search</h3>
+                            <div className="text-xs text-gray-500">目前向量庫：{status.vectorStore?.provider || 'auto'}</div>
+                        </div>
+                    </div>
+                    <div className="space-y-2 mb-4">
+                        <BoolCheck label="Enabled" value={!!status.atlasVector?.enabled} />
+                        <div className="flex items-center justify-between text-sm py-1 border-b border-gray-100 last:border-0">
+                            <span className="text-gray-600">Index Name</span>
+                            <span className="font-mono text-xs text-gray-700">{status.atlasVector?.indexName || 'vector_index'}</span>
+                        </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t">
+                        <span className="text-gray-600">Vector Search 測試</span>
+                        <StatusBadge {...status.atlasVector.vectorSearch} />
                     </div>
                 </div>
 

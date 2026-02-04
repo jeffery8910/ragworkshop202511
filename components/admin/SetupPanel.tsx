@@ -71,6 +71,8 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
         MONGODB_DB_NAME: initialConfig['MONGODB_DB_NAME'] || '',
         PINECONE_API_KEY: initialConfig['PINECONE_API_KEY'] || '',
         PINECONE_INDEX_NAME: initialConfig['PINECONE_INDEX_NAME'] || '',
+        VECTOR_STORE_PROVIDER: initialConfig['VECTOR_STORE_PROVIDER'] || '',
+        ATLAS_VECTOR_INDEX_NAME: initialConfig['ATLAS_VECTOR_INDEX_NAME'] || '',
         GEMINI_API_KEY: initialConfig['GEMINI_API_KEY'] || '',
         OPENAI_API_KEY: initialConfig['OPENAI_API_KEY'] || '',
         OPENROUTER_API_KEY: initialConfig['OPENROUTER_API_KEY'] || '',
@@ -334,8 +336,38 @@ export default function SetupPanel({ initialConfig }: SetupPanelProps) {
                 {/* Vector DB Section */}
                 <div className="space-y-4">
                     <h3 className="text-md font-semibold text-gray-700 flex items-center gap-2 border-b pb-2">
-                        <Database className="w-4 h-4" /> 向量資料庫 (Pinecone)
+                        <Database className="w-4 h-4" /> 向量資料庫（Pinecone / Atlas）
                     </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Vector Store Provider</label>
+                            <select
+                                name="VECTOR_STORE_PROVIDER"
+                                value={config.VECTOR_STORE_PROVIDER}
+                                onChange={handleChange}
+                                className="w-full border rounded p-2 text-sm bg-white"
+                            >
+                                <option value="">Auto（有 Pinecone key → Pinecone，否則 Atlas）</option>
+                                <option value="pinecone">Pinecone</option>
+                                <option value="atlas">MongoDB Atlas Vector Search</option>
+                            </select>
+                            <p className="mt-1 text-xs text-gray-500">
+                                這個設定只影響「向量檢索」：LINE webhook 仍建議走 Vercel→n8n 架構。
+                            </p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ATLAS_VECTOR_INDEX_NAME（可選）</label>
+                            <SecretInput
+                                name="ATLAS_VECTOR_INDEX_NAME"
+                                value={config.ATLAS_VECTOR_INDEX_NAME}
+                                onChange={handleChange}
+                                placeholder="vector_index"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                                Atlas 模式需要先在 Atlas 建立 <span className="font-mono">chunks.embedding</span> 的 vector index。
+                            </p>
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Pinecone API Key</label>

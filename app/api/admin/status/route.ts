@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getMongoClient } from '@/lib/db/mongo';
 import { getPineconeClient } from '@/lib/vector/pinecone';
+import { getEmbedding } from '@/lib/vector/embedding';
+import { getAtlasVectorIndexName, resolveVectorStoreProvider } from '@/lib/vector/store';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import { cookies } from 'next/headers';
@@ -13,14 +15,39 @@ export async function GET() {
     // Helper to get config value (Env or Cookie)
     const getConfig = (key: string) => process.env[key] || cookieStore.get(key)?.value || '';
 
+    const mongoUri = getConfig('MONGODB_URI');
+    const mongoDb = getConfig('MONGODB_DB_NAME') || 'rag_db';
+    const pineKey = getConfig('PINECONE_API_KEY');
+
+    const vectorStore = resolveVectorStoreProvider({
+        explicit: getConfig('VECTOR_STORE_PROVIDER'),
+        pineconeApiKey: pineKey,
+        mongoUri,
+    });
+    const atlasIndexName = getAtlasVectorIndexName(getConfig('ATLAS_VECTOR_INDEX_NAME'));
+
+    const geminiKey = getConfig('GEMINI_API_KEY');
+    const openaiKey = getConfig('OPENAI_API_KEY');
+    const openrouterKey = getConfig('OPENROUTER_API_KEY');
+    const embeddingProviderRaw = (getConfig('EMBEDDING_PROVIDER') || '').trim().toLowerCase();
+    const embeddingModel = (getConfig('EMBEDDING_MODEL') || '').trim();
+
     const status = {
         mongo: { status: 'unknown', latency: 0, message: '' },
+        vectorStore: {
+            provider: vectorStore || 'auto',
+        },
+        atlasVector: {
+            enabled: vectorStore === 'atlas',
+            indexName: atlasIndexName,
+            vectorSearch: { status: 'unknown', latency: 0, message: '' },
+        },
         n8n: {
             webhookUrl: !!getConfig('N8N_WEBHOOK_URL'),
             health: { status: 'unknown', latency: 0, message: '' }
         },
         pinecone: {
-            apiKey: !!getConfig('PINECONE_API_KEY'),
+            apiKey: !!pineKey,
             indexName: !!getConfig('PINECONE_INDEX_NAME'),
             connection: { status: 'unknown', latency: 0, message: '' }
         },
@@ -53,7 +80,6 @@ export async function GET() {
     };
 
     // 1. Check MongoDB
-    const mongoUri = getConfig('MONGODB_URI');
     if (mongoUri) {
         status.mongo = await measure(async () => {
             const client = await getMongoClient(mongoUri);
@@ -61,6 +87,49 @@ export async function GET() {
         });
     } else {
         status.mongo = { status: 'missing', latency: 0, message: 'MONGODB_URI is not defined' };
+    }
+
+    // 1.5 Check Atlas Vector Search (only when selected)
+    if (!mongoUri) {
+        status.atlasVector.vectorSearch = { status: 'missing', latency: 0, message: 'MONGODB_URI is not defined' };
+    } else if (vectorStore !== 'atlas') {
+        status.atlasVector.vectorSearch = { status: 'missing', latency: 0, message: `VECTOR_STORE_PROVIDER is ${vectorStore || 'auto'} (not atlas)` };
+    } else {
+        status.atlasVector.vectorSearch = await measure(async () => {
+            const embeddingProvider =
+                embeddingProviderRaw === 'gemini' && geminiKey ? 'gemini'
+                    : embeddingProviderRaw === 'openai' && openaiKey ? 'openai'
+                        : embeddingProviderRaw === 'openrouter' && openrouterKey ? 'openrouter'
+                            : embeddingProviderRaw === 'pinecone' && pineKey ? 'pinecone'
+                                : undefined;
+
+            const queryVector = await getEmbedding('ping', {
+                ...(embeddingProvider ? { provider: embeddingProvider as any } : {}),
+                ...(embeddingProvider && embeddingModel ? { modelName: embeddingModel } : {}),
+                geminiApiKey: geminiKey || undefined,
+                openaiApiKey: openaiKey || undefined,
+                openrouterApiKey: openrouterKey || undefined,
+                pineconeApiKey: pineKey || undefined,
+            });
+
+            const client = await getMongoClient(mongoUri);
+            const db = client.db(mongoDb);
+            const col = db.collection('chunks');
+            await col
+                .aggregate([
+                    {
+                        $vectorSearch: {
+                            index: atlasIndexName,
+                            path: 'embedding',
+                            queryVector,
+                            numCandidates: 20,
+                            limit: 1,
+                        },
+                    },
+                    { $project: { _id: 1 } },
+                ])
+                .toArray();
+        });
     }
 
     // 2. Check Pinecone Connection
@@ -89,7 +158,6 @@ export async function GET() {
     // 3. Check LLMs individually
 
     // Gemini
-    const geminiKey = getConfig('GEMINI_API_KEY');
     if (geminiKey) {
         status.llm.gemini = await measure(async () => {
             const genAI = new GoogleGenerativeAI(geminiKey);
@@ -102,7 +170,6 @@ export async function GET() {
     }
 
     // OpenAI
-    const openaiKey = getConfig('OPENAI_API_KEY');
     if (openaiKey) {
         status.llm.openai = await measure(async () => {
             const openai = new OpenAI({ apiKey: openaiKey });
@@ -113,7 +180,6 @@ export async function GET() {
     }
 
     // OpenRouter
-    const openrouterKey = getConfig('OPENROUTER_API_KEY');
     if (openrouterKey) {
         status.llm.openrouter = await measure(async () => {
             const openai = new OpenAI({

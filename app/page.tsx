@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Bot, GraduationCap, Settings, ArrowRight, FlaskConical, BookOpen } from 'lucide-react';
 import { cookies } from 'next/headers';
 import { getConfigValue } from '@/lib/config-store';
+import { resolveVectorStoreProvider } from '@/lib/vector/store';
 
 export default async function Home() {
   const cookieStore = await cookies();
@@ -19,6 +20,11 @@ export default async function Home() {
   const pineconeIndex = readConfig('PINECONE_INDEX_NAME');
   const mongoUri = readConfig('MONGODB_URI');
   const dbName = readConfig('MONGODB_DB_NAME');
+  const vectorStore = resolveVectorStoreProvider({
+    explicit: readConfig('VECTOR_STORE_PROVIDER'),
+    pineconeApiKey: pineconeKey,
+    mongoUri,
+  });
   const lineLoginId = readConfig('LINE_LOGIN_CHANNEL_ID');
   const lineLoginSecret = readConfig('LINE_LOGIN_CHANNEL_SECRET');
   const anyLlmKey = readConfig('GEMINI_API_KEY') || readConfig('OPENAI_API_KEY') || readConfig('OPENROUTER_API_KEY');
@@ -28,9 +34,10 @@ export default async function Home() {
   const setupIssues = [
     !anyLlmKey ? '聊天 API Key 未設定（Gemini/OpenAI/OpenRouter 任一）' : '',
     !chatModel ? '聊天模型未設定（CHAT_MODEL）' : '',
-    !embeddingModel ? 'Embedding 模型未設定（EMBEDDING_MODEL）' : '',
-    !pineconeKey ? 'Pinecone API Key 未設定（PINECONE_API_KEY）' : '',
-    !pineconeIndex ? 'Pinecone Index 未設定（PINECONE_INDEX_NAME）' : '',
+    !embeddingModel ? 'Embedding 模型未設定（EMBEDDING_MODEL；不填會使用預設）' : '',
+    !vectorStore ? '向量庫未設定（需要 PINECONE_API_KEY 或 MONGODB_URI）' : '',
+    vectorStore === 'pinecone' && !pineconeKey ? 'Pinecone API Key 未設定（PINECONE_API_KEY）' : '',
+    vectorStore === 'pinecone' && !pineconeIndex ? 'Pinecone Index 未設定（PINECONE_INDEX_NAME）' : '',
     !mongoUri ? 'MongoDB URI 未設定（MONGODB_URI）' : '',
     !dbName ? 'MongoDB DB Name 未設定（MONGODB_DB_NAME）' : '',
   ].filter(Boolean);

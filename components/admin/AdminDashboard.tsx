@@ -30,7 +30,7 @@ export default function AdminDashboard({ missingKeys, initialConfig }: AdminDash
         <div className="space-y-6">
             {activeTab === 'setup' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <EnvCheck missingKeys={missingKeys} />
+                    <EnvCheck missingKeys={missingKeys} initialConfig={initialConfig} />
                     <SetupPanel initialConfig={initialConfig} />
                 </div>
             )}

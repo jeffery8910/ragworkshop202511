@@ -58,9 +58,14 @@
    - `LINE_CHANNEL_ACCESS_TOKEN`
    - `N8N_WEBHOOK_URL`：填剛剛的 `https://<your-n8n>.onrender.com/webhook/line-rag`
    - `ADMIN_PASSWORD`：管理後台登入密碼（未設定時預設 `admin`，建議設定長且難猜的密碼）
-2. 確認你的 Vercel 專案是「公開」的（不要把整站鎖在 Protection 後面）
-3. 進 `/guide` 看你現在部署網域對應的 webhook URL
-4. 進 `/admin/status` 看狀態（Mongo/Pinecone/LLM/LINE）
+2. 向量庫選擇（擇一）
+   - **Pinecone（預設）**：有設 `PINECONE_API_KEY` 就會走 Pinecone
+   - **MongoDB Atlas Vector Search（可選）**：沒有 Pinecone key 時會自動走 Atlas；或你也可明確設定 `VECTOR_STORE_PROVIDER=atlas`
+     - 需要先在 Atlas 建 `chunks.embedding` 的 vector index（預設名稱 `vector_index`）
+     - 詳細：`docs/MONGODB-ATLAS-VECTOR-SEARCH.md`
+3. 確認你的 Vercel 專案是「公開」的（不要把整站鎖在 Protection 後面）
+4. 進 `/guide` 看你現在部署網域對應的 webhook URL
+5. 進 `/admin/status` 看狀態（Mongo / Pinecone 或 Atlas / LLM / LINE）
 
 ### C) LINE Developers
 
@@ -95,4 +100,7 @@
 - **Admin API 保護**：`/api/admin/*` 需要 `admin_session` cookie；未登入會回 `401`。
 - **Chat 對話刪除**：`DELETE /api/chat/session?userId=<id>`（前端會使用 `localStorage.rag_user_id` 當 userId）。
 - **LINE Webhook**：`POST /api/line/webhook` 必須能在 1–2 秒內回 200；慢的流程交給 n8n。
+- **向量庫切換**：
+  - `VECTOR_STORE_PROVIDER`：`pinecone` / `atlas`（不填則自動：有 `PINECONE_API_KEY`→pinecone，否則→atlas）
+  - `ATLAS_VECTOR_INDEX_NAME`：Atlas Vector Search index 名稱（預設 `vector_index`）
 - **n8n 健康檢查**：用 `GET https://<your-n8n>.onrender.com/healthz`（不是看 `GET /rest/ping`）。

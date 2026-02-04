@@ -13,6 +13,7 @@ export default async function AdminPage() {
     const checkKeys = [
         'MONGODB_URI', 'MONGODB_DB_NAME',
         'PINECONE_API_KEY', 'PINECONE_INDEX_NAME',
+        'VECTOR_STORE_PROVIDER', 'ATLAS_VECTOR_INDEX_NAME',
         'LINE_CHANNEL_SECRET', 'LINE_CHANNEL_ACCESS_TOKEN',
         'LINE_LOGIN_CHANNEL_ID', 'LINE_LOGIN_CHANNEL_SECRET',
         'ADMIN_PASSWORD',

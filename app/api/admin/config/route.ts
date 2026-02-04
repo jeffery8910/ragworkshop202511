@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
         const keys = [
             'MONGODB_URI', 'MONGODB_DB_NAME',
             'PINECONE_API_KEY', 'PINECONE_INDEX_NAME',
+            'VECTOR_STORE_PROVIDER', 'ATLAS_VECTOR_INDEX_NAME',
             'LINE_CHANNEL_SECRET', 'LINE_CHANNEL_ACCESS_TOKEN',
             'LINE_LOGIN_CHANNEL_ID', 'LINE_LOGIN_CHANNEL_SECRET',
             'GEMINI_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY',

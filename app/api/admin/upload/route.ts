@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { getMongoClient } from '@/lib/db/mongo';
 import { getPineconeClient } from '@/lib/vector/pinecone';
 import { getEmbedding } from '@/lib/vector/embedding';
+import type { EmbeddingProvider } from '@/lib/vector/embedding';
+import { resolveVectorStoreProvider } from '@/lib/vector/store';
 import { nanoid } from 'nanoid';
 
 export const runtime = 'nodejs';
@@ -166,14 +168,27 @@ async function extractWithLLM(text: string, fileName: string, llm: LlmConfig) {
 export async function POST(req: NextRequest) {
     try {
         const cookieStore = await cookies();
-        const mongoUri = cookieStore.get('MONGODB_URI')?.value || process.env.MONGODB_URI;
-        const mongoDb = cookieStore.get('MONGODB_DB_NAME')?.value || process.env.MONGODB_DB_NAME || 'rag_db';
-        const pineKey = cookieStore.get('PINECONE_API_KEY')?.value || process.env.PINECONE_API_KEY;
-        const pineIndex = cookieStore.get('PINECONE_INDEX_NAME')?.value || process.env.PINECONE_INDEX_NAME || 'rag-index';
+        const get = (key: string) => cookieStore.get(key)?.value || process.env[key] || '';
+        const mongoUri = get('MONGODB_URI');
+        const mongoDb = get('MONGODB_DB_NAME') || 'rag_db';
+        const pineKey = get('PINECONE_API_KEY');
+        const pineIndex = get('PINECONE_INDEX_NAME') || 'rag-index';
         const pineDim = Number(process.env.PINECONE_DIM || '1024');
 
         if (!mongoUri) return NextResponse.json({ error: 'MONGODB_URI not set' }, { status: 400 });
-        const pineconeEnabled = !!pineKey;
+
+        const vectorStore = resolveVectorStoreProvider({
+            explicit: get('VECTOR_STORE_PROVIDER'),
+            pineconeApiKey: pineKey,
+            mongoUri,
+        });
+        if (!vectorStore) {
+            return NextResponse.json({ error: 'No vector store configured (need PINECONE_API_KEY or MONGODB_URI)' }, { status: 400 });
+        }
+        const pineconeEnabled = vectorStore === 'pinecone';
+        if (pineconeEnabled && !pineKey) {
+            return NextResponse.json({ error: 'VECTOR_STORE_PROVIDER=pinecone but PINECONE_API_KEY not set' }, { status: 400 });
+        }
 
         const form = await req.formData();
         const mode = (form.get('mode') as Mode) || 'text';
@@ -202,20 +217,22 @@ export async function POST(req: NextRequest) {
         const pinecone = pineconeEnabled ? await getPineconeClient(pineKey) : null;
         const pine = pineconeEnabled && pinecone ? pinecone.index(pineIndex) : null;
 
-        const embeddingProvider = (cookieStore.get('EMBEDDING_PROVIDER')?.value || process.env.EMBEDDING_PROVIDER || 'pinecone') as any;
-        const embeddingModel = pineconeEnabled
-            ? (cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL || 'multilingual-e5-large')
-            : (cookieStore.get('EMBEDDING_MODEL')?.value || process.env.EMBEDDING_MODEL);
+        const embeddingProviderRaw = (get('EMBEDDING_PROVIDER') || '').trim().toLowerCase();
+        const embeddingProvider: EmbeddingProvider | undefined =
+            embeddingProviderRaw === 'gemini' || embeddingProviderRaw === 'openai' || embeddingProviderRaw === 'openrouter' || embeddingProviderRaw === 'pinecone'
+                ? (embeddingProviderRaw as EmbeddingProvider)
+                : undefined;
+        const embeddingModel = (get('EMBEDDING_MODEL') || '').trim();
         const allowedPineModels = ['multilingual-e5-large', 'llama-text-embed-v2'];
-        if (pineconeEnabled && embeddingProvider === 'pinecone' && embeddingModel && !allowedPineModels.includes(embeddingModel)) {
+        if (pineconeEnabled && embeddingModel && !allowedPineModels.includes(embeddingModel)) {
             return NextResponse.json({
                 error: `Pinecone 嵌入目前只支援 ${allowedPineModels.join(', ')}，請改用這些模型或切換 EMBEDDING_PROVIDER。當前設定: ${embeddingModel}`
             }, { status: 400 });
         }
-        const chatModel = cookieStore.get('CHAT_MODEL')?.value || process.env.CHAT_MODEL || '';
-        const geminiKey = cookieStore.get('GEMINI_API_KEY')?.value || process.env.GEMINI_API_KEY;
-        const openaiKey = cookieStore.get('OPENAI_API_KEY')?.value || process.env.OPENAI_API_KEY;
-        const openrouterKey = cookieStore.get('OPENROUTER_API_KEY')?.value || process.env.OPENROUTER_API_KEY;
+        const chatModel = get('CHAT_MODEL') || '';
+        const geminiKey = get('GEMINI_API_KEY') || '';
+        const openaiKey = get('OPENAI_API_KEY') || '';
+        const openrouterKey = get('OPENROUTER_API_KEY') || '';
         // fallback: 若沒在 cookie，且 Chat 模型屬於某 provider，沿用該 provider 的 key 作為 OCR/LLM
         const providerFromModel = chatModel.toLowerCase().startsWith('gpt') || chatModel.toLowerCase().startsWith('o') ? 'openai'
             : chatModel.toLowerCase().startsWith('gemini') ? 'gemini'
@@ -238,6 +255,14 @@ export async function POST(req: NextRequest) {
         };
         const llmConfig = resolveLlm();
         const llmUsable = !!llmConfig.provider && !!llmConfig.apiKey;
+
+        // Embedding config for Atlas Vector Search (do not force provider unless key exists)
+        const embeddingProviderForAtlas: EmbeddingProvider | undefined =
+            embeddingProvider === 'gemini' && effGeminiKey ? 'gemini'
+                : embeddingProvider === 'openai' && effOpenAIKey ? 'openai'
+                    : embeddingProvider === 'openrouter' && openrouterKey ? 'openrouter'
+                        : embeddingProvider === 'pinecone' && pineKey ? 'pinecone'
+                            : undefined;
 
         const results = [];
         const uploadId = nanoid();
@@ -283,12 +308,24 @@ export async function POST(req: NextRequest) {
 
             for (let i = 0; i < chunks.length; i++) {
                 const c = chunks[i];
-                const embedding = await getEmbedding(c.text, {
-                    provider: 'pinecone',
-                    pineconeApiKey: pineKey,
-                    modelName: embeddingModel,
-                    desiredDim: pineDim,
-                });
+                const embedding = await getEmbedding(
+                    c.text,
+                    pineconeEnabled
+                        ? {
+                            provider: 'pinecone',
+                            pineconeApiKey: pineKey,
+                            modelName: embeddingModel || 'multilingual-e5-large',
+                            desiredDim: pineDim,
+                        }
+                        : {
+                            ...(embeddingProviderForAtlas ? { provider: embeddingProviderForAtlas } : {}),
+                            ...(embeddingProviderForAtlas && embeddingModel ? { modelName: embeddingModel } : {}),
+                            geminiApiKey: effGeminiKey,
+                            openaiApiKey: effOpenAIKey,
+                            openrouterApiKey: openrouterKey,
+                            pineconeApiKey: pineKey,
+                        }
+                );
 
                 if (pineconeEnabled && embedding.length !== pineDim) {
                     throw new Error(`Embedding dimension ${embedding.length} != index dimension ${pineDim}`);
@@ -317,6 +354,14 @@ export async function POST(req: NextRequest) {
                     text: c.text,
                     text_length: c.text.length,
                     indexed_at: new Date(),
+                    ...(pineconeEnabled
+                        ? {}
+                        : {
+                            embedding,
+                            embedding_dim: embedding.length,
+                            embedding_provider: embeddingProviderForAtlas || 'auto',
+                            ...(embeddingProviderForAtlas && embeddingModel ? { embedding_model: embeddingModel } : {}),
+                        }),
                 });
             }
 
@@ -334,8 +379,8 @@ export async function POST(req: NextRequest) {
                 mode: localMode,
             });
 
-            const status = pineconeEnabled ? 'ok' : 'ok_mongo_only';
-            const note = pineconeEnabled ? undefined : 'PINECONE_API_KEY 未設定，僅寫入 Mongo，未寫入向量庫';
+            const status = pineconeEnabled ? 'ok' : 'ok_atlas';
+            const note = pineconeEnabled ? undefined : '已寫入 MongoDB（Atlas Vector Search：chunks.embedding）';
             results.push({
                 file: filename,
                 chunks: chunks.length,
@@ -463,12 +508,24 @@ export async function POST(req: NextRequest) {
 
             for (let i = 0; i < chunks.length; i++) {
                 const c = chunks[i];
-                const embedding = await getEmbedding(c.text, {
-                    provider: 'pinecone',
-                    pineconeApiKey: pineKey,
-                    modelName: embeddingModel,
-                    desiredDim: pineDim,
-                });
+                const embedding = await getEmbedding(
+                    c.text,
+                    pineconeEnabled
+                        ? {
+                            provider: 'pinecone',
+                            pineconeApiKey: pineKey,
+                            modelName: embeddingModel || 'multilingual-e5-large',
+                            desiredDim: pineDim,
+                        }
+                        : {
+                            ...(embeddingProviderForAtlas ? { provider: embeddingProviderForAtlas } : {}),
+                            ...(embeddingProviderForAtlas && embeddingModel ? { modelName: embeddingModel } : {}),
+                            geminiApiKey: effGeminiKey,
+                            openaiApiKey: effOpenAIKey,
+                            openrouterApiKey: openrouterKey,
+                            pineconeApiKey: pineKey,
+                        }
+                );
 
                 const chunkId = `${docId}#${i}`;
                 vectors.push({
@@ -493,6 +550,14 @@ export async function POST(req: NextRequest) {
                     text: c.text,
                     text_length: c.text.length,
                     indexed_at: new Date(),
+                    ...(pineconeEnabled
+                        ? {}
+                        : {
+                            embedding,
+                            embedding_dim: embedding.length,
+                            embedding_provider: embeddingProviderForAtlas || 'auto',
+                            ...(embeddingProviderForAtlas && embeddingModel ? { embedding_model: embeddingModel } : {}),
+                        }),
                 });
             }
 
@@ -510,8 +575,8 @@ export async function POST(req: NextRequest) {
                 mode,
             });
 
-            const status = pineconeEnabled ? 'ok' : 'ok_mongo_only';
-            const note = pineconeEnabled ? undefined : 'PINECONE_API_KEY 未設定，僅寫入 Mongo，未寫入向量庫';
+            const status = pineconeEnabled ? 'ok' : 'ok_atlas';
+            const note = pineconeEnabled ? undefined : '已寫入 MongoDB（Atlas Vector Search：chunks.embedding）';
             results.push({
                 file: name,
                 chunks: chunks.length,
@@ -531,7 +596,7 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-            const successStatuses = new Set(['ok', 'ok_mongo_only']);
+            const successStatuses = new Set(['ok', 'ok_mongo_only', 'ok_atlas']);
             const successFiles = uploadFiles.filter(f => successStatuses.has(f.status)).length;
             const failedFiles = uploadFiles.length - successFiles;
             const overallStatus = successFiles === 0 ? 'failed' : failedFiles === 0 ? 'ok' : 'partial';

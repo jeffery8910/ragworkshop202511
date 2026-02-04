@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getConfigValue } from '@/lib/config-store';
 import { searchPinecone } from '@/lib/vector/pinecone';
+import { searchAtlas } from '@/lib/vector/atlas';
+import { resolveVectorStoreProvider } from '@/lib/vector/store';
+import type { EmbeddingProvider } from '@/lib/vector/embedding';
 import { searchGraphContext, searchGraphEvidence } from '@/lib/features/graph-search';
 import { generateText } from '@/lib/llm';
 import { planAgentic, type AgenticTrace, type AgenticTraceStep } from '@/lib/agentic';
@@ -32,15 +35,27 @@ export async function POST(req: NextRequest) {
 
         const pineconeApiKey = get('PINECONE_API_KEY');
         const pineconeIndex = get('PINECONE_INDEX_NAME') || 'rag-index';
-        if (!pineconeApiKey) {
-            return NextResponse.json({ error: 'PINECONE_API_KEY is not set' }, { status: 400 });
-        }
 
         const mongoUri = get('MONGODB_URI');
         const mongoDb = get('MONGODB_DB_NAME') || 'rag_db';
 
+        const vectorStore = resolveVectorStoreProvider({
+            explicit: get('VECTOR_STORE_PROVIDER'),
+            pineconeApiKey,
+            mongoUri,
+        });
+        if (!vectorStore) {
+            return NextResponse.json({ error: 'No vector store configured (need PINECONE_API_KEY or MONGODB_URI)' }, { status: 400 });
+        }
+        if (vectorStore === 'pinecone' && !pineconeApiKey) {
+            return NextResponse.json({ error: 'VECTOR_STORE_PROVIDER=pinecone but PINECONE_API_KEY is not set' }, { status: 400 });
+        }
+        if (vectorStore === 'atlas' && !mongoUri) {
+            return NextResponse.json({ error: 'VECTOR_STORE_PROVIDER=atlas but MONGODB_URI is not set' }, { status: 400 });
+        }
+
         const topK = Math.max(1, Math.min(50, Number(body?.topK || get('RAG_TOP_K') || 5)));
-        const embeddingModel = get('EMBEDDING_MODEL') || 'multilingual-e5-large';
+        const embeddingModel = get('EMBEDDING_MODEL') || '';
         const chatModel = get('CHAT_MODEL') || '';
         const includeAnswer = body?.includeAnswer !== false;
         const rewrite = !!body?.rewrite;
@@ -69,6 +84,43 @@ export async function POST(req: NextRequest) {
                 : provider === 'openrouter'
                     ? { provider, apiKey: openrouterApiKey, model: chatModel }
                     : undefined;
+
+        const embeddingProviderRaw = (get('EMBEDDING_PROVIDER') || '').trim().toLowerCase();
+        const embeddingProvider: EmbeddingProvider | undefined =
+            embeddingProviderRaw === 'gemini' || embeddingProviderRaw === 'openai' || embeddingProviderRaw === 'openrouter' || embeddingProviderRaw === 'pinecone'
+                ? (embeddingProviderRaw as EmbeddingProvider)
+                : undefined;
+        const embeddingProviderForAtlas: EmbeddingProvider | undefined =
+            embeddingProvider === 'gemini' && geminiApiKey ? 'gemini'
+                : embeddingProvider === 'openai' && openaiApiKey ? 'openai'
+                    : embeddingProvider === 'openrouter' && openrouterApiKey ? 'openrouter'
+                        : embeddingProvider === 'pinecone' && pineconeApiKey ? 'pinecone'
+                            : undefined;
+
+        const searchVector = async (q: string, k: number) => {
+            if (vectorStore === 'pinecone') {
+                return searchPinecone(
+                    q,
+                    k,
+                    pineconeApiKey,
+                    pineconeIndex,
+                    { modelName: (embeddingModel || 'multilingual-e5-large'), provider: 'pinecone', pineconeApiKey, desiredDim: 1024 }
+                );
+            }
+            return searchAtlas(q, k, {
+                mongoUri,
+                dbName: mongoDb,
+                indexName: get('ATLAS_VECTOR_INDEX_NAME') || undefined,
+                embeddingConfig: {
+                    ...(embeddingProviderForAtlas ? { provider: embeddingProviderForAtlas } : {}),
+                    ...(embeddingProviderForAtlas && embeddingModel ? { modelName: embeddingModel } : {}),
+                    geminiApiKey,
+                    openaiApiKey,
+                    openrouterApiKey,
+                    pineconeApiKey,
+                },
+            });
+        };
 
         let rewrittenQuery: string | undefined;
         if (rewrite && llmConfig?.apiKey) {
@@ -130,13 +182,7 @@ export async function POST(req: NextRequest) {
         if (!agenticLevel || needRetrieval) {
             const settled = await Promise.allSettled(
                 searchQueries.map(async (q) => {
-                    const res = await searchPinecone(
-                        q,
-                        perQueryTopK,
-                        pineconeApiKey,
-                        pineconeIndex,
-                        { modelName: embeddingModel, provider: 'pinecone', pineconeApiKey, desiredDim: 1024 }
-                    );
+                    const res = await searchVector(q, perQueryTopK);
                     return { q, res };
                 })
             );
@@ -172,13 +218,7 @@ export async function POST(req: NextRequest) {
         if (agenticLevel > 0 && followUpQuestion && needRetrieval) {
             const needsSupplement = context.length < Math.max(3, Math.ceil(perQueryTopK / 2));
             if (needsSupplement) {
-                const extra = await searchPinecone(
-                    followUpQuestion,
-                    Math.max(2, Math.ceil(perQueryTopK / 2)),
-                    pineconeApiKey,
-                    pineconeIndex,
-                    { modelName: embeddingModel, provider: 'pinecone', pineconeApiKey, desiredDim: 1024 }
-                );
+                const extra = await searchVector(followUpQuestion, Math.max(2, Math.ceil(perQueryTopK / 2)));
                 mergeResults(extra);
                 traceSteps.push({
                     title: '補充檢索',

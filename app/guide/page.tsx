@@ -111,7 +111,25 @@ export default async function GuidePage() {
           </section>
 
           <section className="rounded-2xl border border-gray-200 bg-white p-6">
-            <h2 className="text-lg font-bold text-gray-900">4) 快速自我檢查（不靠 UI）</h2>
+            <h2 className="text-lg font-bold text-gray-900">4) 向量資料庫（Pinecone / MongoDB Atlas Vector Search）</h2>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-gray-700">
+              <li>
+                預設規則：如果你有設 <span className="font-mono">PINECONE_API_KEY</span> 就走 Pinecone；否則改用 Atlas Vector Search。
+              </li>
+              <li>
+                若你同時有 Pinecone key 但仍想強制用 Atlas：設定 <span className="font-mono">VECTOR_STORE_PROVIDER=atlas</span>
+              </li>
+              <li>
+                Atlas 模式需要你先在 Atlas 建好 <span className="font-mono">chunks.embedding</span> 的 vector index（預設索引名 <span className="font-mono">vector_index</span>；可用 <span className="font-mono">ATLAS_VECTOR_INDEX_NAME</span> 調整）
+              </li>
+              <li>
+                設定與索引建立細節請看：<span className="font-mono">docs/MONGODB-ATLAS-VECTOR-SEARCH.md</span>
+              </li>
+            </ul>
+          </section>
+
+          <section className="rounded-2xl border border-gray-200 bg-white p-6">
+            <h2 className="text-lg font-bold text-gray-900">5) 快速自我檢查（不靠 UI）</h2>
             <p className="mt-2 text-sm text-gray-700">n8n 健康：</p>
             <CodeBlock>{`curl -sS -i ${n8nHealthUrl}`}</CodeBlock>
             <p className="mt-4 text-sm text-gray-700">如果你 n8n Webhook 看到 404 類似「webhook is not registered」，通常是 workflow 還沒 Active 或 path 填錯。</p>

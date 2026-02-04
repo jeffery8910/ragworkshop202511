@@ -3,8 +3,10 @@ import { cookies } from 'next/headers';
 import { getMongoClient } from '@/lib/db/mongo';
 import { getPineconeClient } from '@/lib/vector/pinecone';
 import { getEmbedding } from '@/lib/vector/embedding';
+import type { EmbeddingProvider } from '@/lib/vector/embedding';
 import { extractGraphFromText, saveGraphData, deleteGraphDataForDoc } from '@/lib/features/graph';
 import { getConfigValue } from '@/lib/config-store';
+import { resolveVectorStoreProvider } from '@/lib/vector/store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,12 +56,23 @@ function splitIntoSections(text: string) {
 async function pickConfig() {
     const cookieStore = await cookies();
     const get = (key: string) => cookieStore.get(key)?.value || process.env[key] || getConfigValue(key) || '';
+
+    const embeddingProviderRaw = (get('EMBEDDING_PROVIDER') || '').trim().toLowerCase();
+    const embeddingProvider: EmbeddingProvider | undefined =
+        embeddingProviderRaw === 'gemini' || embeddingProviderRaw === 'openai' || embeddingProviderRaw === 'openrouter' || embeddingProviderRaw === 'pinecone'
+            ? (embeddingProviderRaw as EmbeddingProvider)
+            : undefined;
+
     return {
         mongoUri: get('MONGODB_URI'),
         mongoDb: get('MONGODB_DB_NAME') || 'rag_db',
         pineKey: get('PINECONE_API_KEY'),
         pineIndex: get('PINECONE_INDEX_NAME') || 'rag-index',
-        embeddingProvider: (get('EMBEDDING_PROVIDER') || process.env.EMBEDDING_PROVIDER || 'pinecone') as any,
+        vectorStoreProvider: get('VECTOR_STORE_PROVIDER'),
+        geminiKey: get('GEMINI_API_KEY'),
+        openaiKey: get('OPENAI_API_KEY'),
+        openrouterKey: get('OPENROUTER_API_KEY'),
+        embeddingProvider,
         embeddingModel: get('EMBEDDING_MODEL'),
     };
 }
@@ -81,9 +94,30 @@ async function getPine(cfg?: Awaited<ReturnType<typeof pickConfig>>) {
 async function reindexDocs(docIds: string[]) {
     const { db, cfg } = await getDb();
     const chunkCol = db.collection('chunks');
-    const pine = await getPine(cfg);
-    const provider = cfg.pineKey ? 'pinecone' : cfg.embeddingProvider;
-    const model = cfg.pineKey ? (cfg.embeddingModel || 'multilingual-e5-large') : cfg.embeddingModel;
+
+    const vectorStore = resolveVectorStoreProvider({
+        explicit: cfg.vectorStoreProvider,
+        pineconeApiKey: cfg.pineKey,
+        mongoUri: cfg.mongoUri,
+    });
+    const usePinecone = vectorStore === 'pinecone';
+    if (usePinecone && !cfg.pineKey) {
+        throw new Error('VECTOR_STORE_PROVIDER=pinecone but PINECONE_API_KEY not set');
+    }
+
+    const pine = usePinecone ? await getPine(cfg) : null;
+
+    const embeddingProviderForAtlas: EmbeddingProvider | undefined =
+        cfg.embeddingProvider === 'gemini' && cfg.geminiKey ? 'gemini'
+            : cfg.embeddingProvider === 'openai' && cfg.openaiKey ? 'openai'
+                : cfg.embeddingProvider === 'openrouter' && cfg.openrouterKey ? 'openrouter'
+                    : cfg.embeddingProvider === 'pinecone' && cfg.pineKey ? 'pinecone'
+                        : undefined;
+
+    const provider: EmbeddingProvider | undefined = usePinecone ? 'pinecone' : embeddingProviderForAtlas;
+    const model = usePinecone
+        ? (cfg.embeddingModel || 'multilingual-e5-large')
+        : (embeddingProviderForAtlas ? cfg.embeddingModel : undefined);
     const pineDim = Number(process.env.PINECONE_DIM || '1024');
     const allowedPineModels = ['multilingual-e5-large', 'llama-text-embed-v2'];
 
@@ -98,35 +132,58 @@ async function reindexDocs(docIds: string[]) {
             continue;
         }
 
-        if (cfg.pineKey && cfg.embeddingProvider === 'pinecone' && cfg.embeddingModel && !allowedPineModels.includes(cfg.embeddingModel)) {
+        if (usePinecone && cfg.embeddingModel && !allowedPineModels.includes(cfg.embeddingModel)) {
             throw new Error(`Pinecone 嵌入目前只支援 ${allowedPineModels.join(', ')}，請改用這些模型或切換 EMBEDDING_PROVIDER。當前設定: ${cfg.embeddingModel}`);
         }
 
         const vectors: { id: string; values: number[]; metadata: any }[] = [];
+        const bulkOps: any[] = [];
         for (const c of chunks) {
             // 1. Embedding Generation
             const embedding = await getEmbedding(c.text, {
-                provider,
-                geminiApiKey: process.env.GEMINI_API_KEY,
-                openaiApiKey: process.env.OPENAI_API_KEY,
-                openrouterApiKey: process.env.OPENROUTER_API_KEY,
+                ...(provider ? { provider } : {}),
+                geminiApiKey: cfg.geminiKey || process.env.GEMINI_API_KEY,
+                openaiApiKey: cfg.openaiKey || process.env.OPENAI_API_KEY,
+                openrouterApiKey: cfg.openrouterKey || process.env.OPENROUTER_API_KEY,
                 pineconeApiKey: cfg.pineKey || process.env.PINECONE_API_KEY,
-                modelName: model || undefined,
-                desiredDim: cfg.pineKey ? pineDim : undefined,
+                ...(provider && model ? { modelName: model } : {}),
+                desiredDim: usePinecone ? pineDim : undefined,
             });
-            if (cfg.pineKey && embedding.length !== pineDim) {
+            if (usePinecone && embedding.length !== pineDim) {
                 throw new Error(`Embedding dimension ${embedding.length} != index dimension ${pineDim}`);
             }
-            vectors.push({
-                id: c.chunkId,
-                values: embedding,
-                metadata: {
-                    docId,
-                    source: c.source,
-                    chunk: c.chunk,
-                    text_length: c.text_length,
-                },
-            });
+
+            if (usePinecone) {
+                vectors.push({
+                    id: c.chunkId,
+                    values: embedding,
+                    metadata: {
+                        docId,
+                        source: c.source,
+                        chunk: c.chunk,
+                        text_length: c.text_length,
+                    },
+                });
+            } else {
+                bulkOps.push({
+                    updateOne: {
+                        filter: { _id: c._id },
+                        update: {
+                            $set: {
+                                embedding,
+                                embedding_dim: embedding.length,
+                                embedding_provider: embeddingProviderForAtlas || 'auto',
+                                ...(embeddingProviderForAtlas && cfg.embeddingModel ? { embedding_model: cfg.embeddingModel } : {}),
+                                embedding_updated_at: new Date(),
+                            },
+                        },
+                    },
+                });
+            }
+        }
+
+        if (!usePinecone && bulkOps.length) {
+            await chunkCol.bulkWrite(bulkOps, { ordered: false });
         }
 
         // 2. Document-level Graph Extraction (no chunk slicing)
@@ -151,7 +208,7 @@ async function reindexDocs(docIds: string[]) {
         }
 
         await db.collection('documents').updateOne({ docId }, { $set: { indexedAt: new Date(), status: 'reindexed', graphMode: 'document' } });
-        results.push({ docId, status: 'ok', vectors: vectors.length, graph: 'extracted' });
+        results.push({ docId, status: 'ok', vectors: usePinecone ? vectors.length : chunks.length, vectorStore: vectorStore || 'atlas', graph: 'extracted' });
     }
 
     return results;
@@ -159,7 +216,17 @@ async function reindexDocs(docIds: string[]) {
 
 async function deleteDocs(docIds: string[]) {
     const { db, cfg } = await getDb();
-    const pine = await getPine(cfg);
+
+    const vectorStore = resolveVectorStoreProvider({
+        explicit: cfg.vectorStoreProvider,
+        pineconeApiKey: cfg.pineKey,
+        mongoUri: cfg.mongoUri,
+    });
+    const usePinecone = vectorStore === 'pinecone';
+    if (usePinecone && !cfg.pineKey) {
+        throw new Error('VECTOR_STORE_PROVIDER=pinecone but PINECONE_API_KEY not set');
+    }
+    const pine = usePinecone ? await getPine(cfg) : null;
 
     const chunkCol = db.collection('chunks');
     const docCol = db.collection('documents');
@@ -205,7 +272,17 @@ export async function DELETE(req: NextRequest) {
         const { db, cfg } = await getDb();
         const chunkCol = db.collection('chunks');
         const docCol = db.collection('documents');
-        const pine = await getPine(cfg);
+
+        const vectorStore = resolveVectorStoreProvider({
+            explicit: cfg.vectorStoreProvider,
+            pineconeApiKey: cfg.pineKey,
+            mongoUri: cfg.mongoUri,
+        });
+        const usePinecone = vectorStore === 'pinecone';
+        if (usePinecone && !cfg.pineKey) {
+            throw new Error('VECTOR_STORE_PROVIDER=pinecone but PINECONE_API_KEY not set');
+        }
+        const pine = usePinecone ? await getPine(cfg) : null;
 
         if (scope === 'doc' && body.docId) {
             const results = await deleteDocs([body.docId]);

@@ -12,6 +12,9 @@
 ### 注意事項
 - **Function Timeout**: Vercel 免費版限制 10 秒。本專案已實作 **Async Handoff**，將耗時任務轉交給 n8n，因此不會超時。
 - **MongoDB Integration**: 建議直接在 Vercel Marketplace 安裝 MongoDB Atlas Integration，會自動設定 `MONGODB_URI`。
+- **Vector DB 選擇**:
+  - 有 `PINECONE_API_KEY` 時預設走 Pinecone
+  - 沒有 Pinecone 時可改用 MongoDB Atlas Vector Search（需要先建立 `chunks.embedding` 的 vector index；見 `docs/MONGODB-ATLAS-VECTOR-SEARCH.md`）
 
 ## 2. Render 部署 (n8n 自動化)
 我們已準備好 `render.yaml` (Blueprint)，可實現 Infrastructure as Code 自動部署。

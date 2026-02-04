@@ -2,14 +2,18 @@ import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
 interface EnvCheckProps {
     missingKeys: string[];
+    initialConfig: Record<string, string>;
 }
 
-export default function EnvCheck({ missingKeys }: EnvCheckProps) {
+export default function EnvCheck({ missingKeys, initialConfig }: EnvCheckProps) {
+    const explicitVector = (initialConfig['VECTOR_STORE_PROVIDER'] || '').trim().toLowerCase();
+    const hasPineKey = !!initialConfig['PINECONE_API_KEY'];
+    const usePinecone = explicitVector === 'pinecone' || (!explicitVector && hasPineKey);
+
     const requiredKeys = [
         'MONGODB_URI',
         'MONGODB_DB_NAME',
-        'PINECONE_API_KEY',
-        'PINECONE_INDEX_NAME',
+        ...(usePinecone ? ['PINECONE_API_KEY', 'PINECONE_INDEX_NAME'] : []),
         'LINE_CHANNEL_SECRET',
         'LINE_CHANNEL_ACCESS_TOKEN',
         'LINE_LOGIN_CHANNEL_ID',
@@ -21,7 +25,9 @@ export default function EnvCheck({ missingKeys }: EnvCheckProps) {
         'GEMINI_API_KEY',
         'OPENAI_API_KEY',
         'OPENROUTER_API_KEY',
-        'N8N_WEBHOOK_URL'
+        'N8N_WEBHOOK_URL',
+        'VECTOR_STORE_PROVIDER',
+        'ATLAS_VECTOR_INDEX_NAME'
     ];
 
     const isCriticalMissing = missingKeys.some(k => requiredKeys.includes(k));
