@@ -64,6 +64,9 @@ export default async function GuidePage() {
                 健康檢查：<span className="font-mono">{n8nHealthUrl}</span> 應回 <span className="font-mono">{'{"status":"ok"}'}</span>
               </li>
               <li>
+                若你看到 <span className="font-mono">Cannot GET /</span> 或前端一時開不起來：通常是 Render 免費方案冷啟動/休眠，先等 30–60 秒或先打 <span className="font-mono">/healthz</span> 喚醒即可。
+              </li>
+              <li>
                 匯入本專案的預設 workflow：<span className="font-mono">n8n/workflow.json</span>（Webhook path 已是 <span className="font-mono">line-rag</span>）
               </li>
               <li>
