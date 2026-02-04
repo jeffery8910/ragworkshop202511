@@ -6,6 +6,7 @@
 - 不要被 Vercel Auth/Protection 擋：LINE Webhook 必須是公開可打
 - Webhook 要能 **1–2 秒內回 200**：LLM 再慢都不能卡住 webhook
 - 需要能觀測健康狀態：health / ports / logs（至少要能知道是哪一層壞）
+  - Vercel（本專案）提供：`GET /api/healthz`、`GET /api/readyz`（`/api/readyz?deep=1` 會額外 ping n8n）
 
 ## 我怎麼選環境（結論）
 
