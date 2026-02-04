@@ -18,7 +18,7 @@
 
 ## 我怎麼查（你要的「過程」）
 
-1. **盤點資料夾版本**：以 `NextJS_重構版_20251228` 當主線（有 async handoff、admin/status、可擴充）
+1. **盤點資料夾版本**：以「最新版主線」當主線（本機資料夾已整理成 `rag-workshop-latest/`；有 async handoff、admin/status、可擴充）
 2. **實測線上端點**：確認 n8n health（`/healthz`）與 webhook 路徑存在
 3. **用 MCP 查 Vercel/Render 現況**：確認 Vercel 部署是否成功、Render 服務是否存活、網址是否正確
 4. **針對 LINE 不回覆走最短修補路徑**
@@ -31,6 +31,7 @@
 
 - **Vercel `/api/line/webhook` 回 500**：通常是 `LINE_CHANNEL_SECRET` 沒設定（無法驗簽）
 - **n8n `/webhook/line-rag` 回 404 / webhook not registered**：workflow 沒 Active 或 path 不一致
+- **你完全沒收到任何回覆**：通常代表 n8n workflow 沒 Active / Webhook 沒註冊；本 repo 的 Vercel webhook 會在偵測到 n8n 不可用時回一則提示（避免「完全沒回覆」）
 - **有收到「處理中」但沒收到答案**：OpenRouter key/model 沒設、或 Push 權限/Token 錯、或 replyToken 過期（本 workflow 用「先 Reply 再 Push」避免過期）
 
 ## 一次設定到可跑（建議順序）
@@ -67,7 +68,7 @@
      - 詳細：`docs/MONGODB-ATLAS-VECTOR-SEARCH.md`
 3. 確認你的 Vercel 專案是「公開」的（不要把整站鎖在 Protection 後面）
 4. 進 `/guide` 看你現在部署網域對應的 webhook URL
-5. 進 `/admin/status` 看狀態（Mongo / Pinecone 或 Atlas / LLM / LINE）
+5. 進 `/admin/status` 看狀態（Mongo / Pinecone 或 Atlas / LLM / LINE / n8n health + webhook）
 
 ### C) LINE Developers
 
