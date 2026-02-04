@@ -1,161 +1,154 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSignature, Client } from '@line/bot-sdk';
+import { validateSignature } from '@line/bot-sdk';
 import { findKeywordMatch } from '@/lib/features/keywords';
-import { generateRagQuiz } from '@/lib/features/quiz';
-import { createQuizFlexMessage } from '@/lib/line/templates/quiz';
-import { checkRateLimit } from '@/lib/features/ratelimit';
-import { logConversation } from '@/lib/features/logs';
 import { getConfigValue } from '@/lib/config-store';
 
 // Force Node.js runtime
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-let client: Client | null = null;
-let clientKey = '';
+const N8N_TIMEOUT_MS = 900;
+const LINE_REPLY_TIMEOUT_MS = 900;
 
 function getRuntimeConfig() {
     return {
         channelSecret: getConfigValue('LINE_CHANNEL_SECRET') || process.env.LINE_CHANNEL_SECRET || '',
         channelAccessToken: getConfigValue('LINE_CHANNEL_ACCESS_TOKEN') || process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
         n8nWebhookUrl: getConfigValue('N8N_WEBHOOK_URL') || process.env.N8N_WEBHOOK_URL || '',
-        mongoUri: getConfigValue('MONGODB_URI') || process.env.MONGODB_URI || '',
-        dbName: getConfigValue('MONGODB_DB_NAME') || process.env.MONGODB_DB_NAME || 'rag_db',
     };
 }
 
-function getClient(channelAccessToken: string, channelSecret: string) {
-    const key = `${channelAccessToken}::${channelSecret}`;
-    if (!client || clientKey !== key) {
-        client = new Client({
-            channelAccessToken,
-            channelSecret,
+async function replyText(replyToken: string, text: string, channelAccessToken: string) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), LINE_REPLY_TIMEOUT_MS);
+
+    try {
+        const res = await fetch('https://api.line.me/v2/bot/message/reply', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                Authorization: `Bearer ${channelAccessToken}`,
+            },
+            body: JSON.stringify({
+                replyToken,
+                messages: [{ type: 'text', text }],
+            }),
+            signal: controller.signal,
+            cache: 'no-store',
         });
-        clientKey = key;
+
+        if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            throw new Error(`LINE reply HTTP ${res.status}: ${errText.slice(0, 200)}`);
+        }
+    } finally {
+        clearTimeout(timeout);
     }
-    return client;
+}
+
+async function handoffToN8n(n8nWebhookUrl: string, event: any) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), N8N_TIMEOUT_MS);
+
+    try {
+        const res = await fetch(n8nWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ events: [event] }),
+            signal: controller.signal,
+            cache: 'no-store',
+        });
+
+        if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            throw new Error(`n8n webhook HTTP ${res.status}: ${errText.slice(0, 200)}`);
+        }
+    } finally {
+        clearTimeout(timeout);
+    }
 }
 
 export async function POST(req: NextRequest) {
     const body = await req.text();
-    const signature = req.headers.get('x-line-signature') as string;
-    const { channelSecret } = getRuntimeConfig();
+    const signature = req.headers.get('x-line-signature');
+    const { channelSecret, channelAccessToken, n8nWebhookUrl } = getRuntimeConfig();
 
     if (!channelSecret) {
         return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
+    if (!signature) {
+        return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
     }
 
     if (!validateSignature(body, channelSecret, signature)) {
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    const events = JSON.parse(body).events;
+    let parsed: any = null;
+    try {
+        parsed = JSON.parse(body);
+    } catch {
+        return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
 
-    // Async Handoff: Process events in background
-    processEvents(events).catch(err => console.error('Event processing error:', err));
+    const events: any[] = Array.isArray(parsed?.events) ? parsed.events : [];
+    if (events.length === 0) {
+        return NextResponse.json({ status: 'ok' });
+    }
 
-    return NextResponse.json({ status: 'ok' });
-}
+    // Prefer the first text message event (most common webhook shape)
+    const firstTextEvent =
+        events.find((e) => e?.type === 'message' && e?.message?.type === 'text' && typeof e?.replyToken === 'string') || events[0];
 
-async function processEvents(events: any[]) {
-    for (const event of events) {
-        if (event.type !== 'message' || event.message.type !== 'text') continue;
+    const replyToken = firstTextEvent?.replyToken || '';
+    const text = firstTextEvent?.message?.type === 'text' ? String(firstTextEvent?.message?.text || '') : '';
 
-        const { channelSecret, channelAccessToken, n8nWebhookUrl, mongoUri, dbName } = getRuntimeConfig();
-
-        const userId = event.source.userId;
-        const text = event.message.text;
-        const replyToken = event.replyToken;
-
-        if (!channelAccessToken || !channelSecret) {
-            await logConversation({ type: 'error', userId, text: '[Missing LINE access token/secret]', meta: {} }, { mongoUri, dbName });
-            continue;
-        }
-
-        // 0. Rate Limit Check
-        if (!checkRateLimit(userId)) {
-            await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, { type: 'text', text: '您的訊息發送太快，請稍後再試。' });
-            continue;
-        }
-
-        // 0. Log Inbound
-        await logConversation({
-            type: 'message',
-            userId,
-            text,
-            meta: { eventId: event.webhookEventId }
-        }, { mongoUri, dbName });
-
-        // 1. Keyword Matching
+    // 1) Keyword shortcuts (fast local reply)
+    if (text && replyToken && channelAccessToken) {
         const rule = await findKeywordMatch(text);
-
-        if (rule) {
-            if (rule.action === 'reply' && rule.replyText) {
-                await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, { type: 'text', text: rule.replyText });
-                await logConversation({ type: 'reply', userId, text: rule.replyText, meta: { rule: rule.keyword } }, { mongoUri, dbName });
-                continue;
-            }
-            // Handle other actions (n8n, rag) if needed here or fall through
-        }
-
-        // 2. Quiz Feature
-        if (text.startsWith('測驗') || text.startsWith('quiz')) {
-            const topic = text.replace(/測驗|quiz/i, '').trim() || '隨機主題';
-            const quiz = await generateRagQuiz(topic);
-            const flex = createQuizFlexMessage(quiz, topic);
-            await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, flex);
-            await logConversation({ type: 'reply', userId, text: `[Quiz] ${topic}`, meta: { quiz } }, { mongoUri, dbName });
-            continue;
-        }
-
-        // 3. Async Handoff to n8n (Default RAG)
-
-        if (n8nWebhookUrl) {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 1200);
-
+        if (rule?.action === 'reply' && rule.replyText) {
             try {
-                const res = await fetch(n8nWebhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ events: [event] }), // Forward single event
-                    signal: controller.signal,
-                });
-
-                if (!res.ok) {
-                    const errText = await res.text().catch(() => '');
-                    throw new Error(`n8n webhook HTTP ${res.status}: ${errText.slice(0, 200)}`);
-                }
-
-                await logConversation(
-                    { type: 'event', userId, text: '[Forwarded to n8n]', meta: { url: n8nWebhookUrl } },
-                    { mongoUri, dbName }
-                );
+                await replyText(replyToken, rule.replyText, channelAccessToken);
             } catch (err) {
-                // Fallback: n8n not ready / workflow not active. Reply a short hint so user doesn't feel "no response".
+                console.error('LINE keyword reply failed:', err);
+            }
+            return NextResponse.json({ status: 'ok' });
+        }
+    }
+
+    // 2) Handoff to n8n (fast, bounded). This is the primary path for RAG/LLM.
+    if (n8nWebhookUrl) {
+        try {
+            await handoffToN8n(n8nWebhookUrl, firstTextEvent);
+        } catch (err) {
+            console.error('n8n handoff failed:', err);
+
+            // Fallback: send a short hint so user doesn't feel "no response"
+            if (replyToken && channelAccessToken) {
                 const hint =
                     '⚠️ 已收到訊息，但 n8n 工作流程尚未啟用或暫時不可用。\n\n請先打開 n8n，import `n8n/workflow.json` 並將 workflow 切到 Active，確認 Production URL 可用。';
-
                 try {
-                    await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, { type: 'text', text: hint });
+                    await replyText(replyToken, hint, channelAccessToken);
                 } catch (e) {
                     console.error('LINE fallback reply failed:', e);
                 }
-
-                await logConversation(
-                    { type: 'error', userId, text: '[n8n handoff failed]', meta: { url: n8nWebhookUrl, err: String(err) } },
-                    { mongoUri, dbName }
-                );
-            } finally {
-                clearTimeout(timeout);
             }
-        } else {
-            // Fallback: If n8n is not configured, reply with a friendly message
-            await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, {
-                type: 'text',
-                text: '⚠️ 系統提示：尚未設定 n8n Webhook URL，無法進行 AI 回覆。\n\n請檢查 .env.local 設定或部署狀態，確認 N8N_WEBHOOK_URL 已正確填寫。'
-            });
-            await logConversation({ type: 'error', userId, text: '[Missing N8N_WEBHOOK_URL]', meta: {} }, { mongoUri, dbName });
+        }
+
+        return NextResponse.json({ status: 'ok' });
+    }
+
+    // 3) Missing n8n config fallback
+    if (replyToken && channelAccessToken) {
+        const hint =
+            '⚠️ 系統提示：尚未設定 n8n Webhook URL，無法進行 AI 回覆。\n\n請檢查部署狀態或環境變數，確認 N8N_WEBHOOK_URL 已正確填寫。';
+        try {
+            await replyText(replyToken, hint, channelAccessToken);
+        } catch (err) {
+            console.error('LINE missing n8n reply failed:', err);
         }
     }
+
+    return NextResponse.json({ status: 'ok' });
 }
