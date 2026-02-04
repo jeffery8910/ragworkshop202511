@@ -4,6 +4,8 @@
 
 ## 0) 先準備環境變數（最少）
 
+> 這些腳本會自動讀取專案根目錄的 `.env.local` / `.env`（不會覆蓋你已經設定的環境變數）。
+
 - `MONGODB_URI`
 - `MONGODB_DB_NAME`（例如 `rag_db`）
 
@@ -50,4 +52,3 @@ npm run line:smoke-webhook
 
 - `/guide`：部署/LINE/向量庫設定指引
 - `/admin/status`：Mongo / n8n / Pinecone / Atlas Vector Search / LLM / LINE 健康檢查
-

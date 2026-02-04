@@ -40,3 +40,5 @@
 ## 快速 smoke test（本機）
 
 - LINE webhook（驗簽 + 200）：`npm run line:smoke-webhook`
+
+> 上述腳本會自動讀取 `.env.local` / `.env`（不覆蓋既有 env）。

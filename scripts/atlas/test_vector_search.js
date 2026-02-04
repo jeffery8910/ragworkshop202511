@@ -1,4 +1,7 @@
 const { MongoClient } = require('mongodb');
+const { loadEnv } = require('../_load_env');
+
+loadEnv();
 
 function readEnv(key, fallback = '') {
   return (process.env[key] || fallback).toString().trim();
@@ -66,4 +69,3 @@ main().catch((err) => {
   console.error('[ERROR]', err?.message || err);
   process.exit(1);
 });
-
