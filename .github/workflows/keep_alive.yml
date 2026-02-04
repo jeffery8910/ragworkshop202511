@@ -11,12 +11,12 @@ jobs:
     steps:
       - name: Ping Render
         run: |
-          if [ -z "${{ secrets.RENDER_URL }}" ]; then
-            echo "RENDER_URL secret not set (skipped)"
-            exit 0
+          BASE="${{ secrets.RENDER_URL }}"
+          if [ -z "$BASE" ]; then
+            # Fallback to the default workshop n8n URL (so the job still works even if the secret isn't set)
+            BASE="https://n8n-rag-workflow.onrender.com"
           fi
 
-          BASE="${{ secrets.RENDER_URL }}"
           case "$BASE" in
             */healthz|*/api/health) URL="$BASE" ;;
             *) URL="${BASE%/}/healthz" ;;
