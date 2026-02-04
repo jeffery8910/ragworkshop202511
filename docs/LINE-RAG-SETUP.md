@@ -13,6 +13,7 @@
 - **Vercel：放 LINE Webhook（最前面那一跳）**
   - 優點：Always-on、延遲低、適合「快速驗簽＋快速回 200」
   - 注意：如果你開了 Vercel 的 Protection（密碼/登入牆），LINE 會被擋 → webhook 直接掛
+  - 請避免把 LINE Webhook 指到 `*-git-main-*` / `*-<hash>-*` 這種 Preview 網域（常會套 Protection）；改用 production 網域（例如 `xxx.vercel.app` 或自訂網域）
 - **Render：放 n8n（慢的工作都丟這裡）**
   - 優點：適合跑「長流程」：RAG → LLM → 回覆 LINE
   - 注意：免費方案可能休眠 → 需要 keep-alive（本 repo 有 GitHub Actions 範例）
