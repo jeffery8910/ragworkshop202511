@@ -4,6 +4,7 @@
  */
 
 import { promises as fs } from 'fs';
+import os from 'os';
 import path from 'path';
 
 export interface Message {
@@ -24,8 +25,13 @@ interface StorageData {
 }
 
 // 本地儲存路徑（可透過環境變數自訂）
-const STORAGE_DIR = process.env.LOCAL_STORAGE_PATH || path.join(process.cwd(), 'data');
+const STORAGE_DIR =
+    process.env.LOCAL_STORAGE_PATH ||
+    (process.env.VERCEL ? path.join(os.tmpdir(), 'rag-workshop-data') : path.join(process.cwd(), 'data'));
 const STORAGE_FILE = path.join(STORAGE_DIR, 'conversations.json');
+
+// In-memory fallback: if FS is not writable (common on serverless), keep best-effort state
+let inMemoryStorage: StorageData = { conversations: {} };
 
 /**
  * 確保儲存目錄存在
@@ -45,10 +51,12 @@ async function readStorage(): Promise<StorageData> {
     try {
         await ensureStorageDir();
         const data = await fs.readFile(STORAGE_FILE, 'utf-8');
-        return JSON.parse(data);
+        const parsed: StorageData = JSON.parse(data);
+        inMemoryStorage = parsed;
+        return parsed;
     } catch (err) {
         // 檔案不存在或解析失敗，回傳空結構
-        return { conversations: {} };
+        return inMemoryStorage;
     }
 }
 
@@ -56,8 +64,13 @@ async function readStorage(): Promise<StorageData> {
  * 寫入本地 JSON 資料
  */
 async function writeStorage(data: StorageData): Promise<void> {
-    await ensureStorageDir();
-    await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    inMemoryStorage = data;
+    try {
+        await ensureStorageDir();
+        await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (err) {
+        // Best-effort fallback; ignore FS errors (serverless FS may be read-only)
+    }
 }
 
 /**

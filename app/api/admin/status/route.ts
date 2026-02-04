@@ -44,7 +44,8 @@ export async function GET() {
         },
         n8n: {
             webhookUrl: !!getConfig('N8N_WEBHOOK_URL'),
-            health: { status: 'unknown', latency: 0, message: '' }
+            health: { status: 'unknown', latency: 0, message: '' },
+            webhook: { status: 'unknown', latency: 0, message: '' }
         },
         pinecone: {
             apiKey: !!pineKey,
@@ -151,8 +152,30 @@ export async function GET() {
             const res = await fetch(healthUrl, { method: 'GET', cache: 'no-store' });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
         });
+
+        // 2.6 Check n8n Webhook registration (production URL requires workflow Active)
+        status.n8n.webhook = await measure(async () => {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 1500);
+            try {
+                const res = await fetch(n8nWebhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ events: [] }),
+                    signal: controller.signal,
+                    cache: 'no-store'
+                });
+                if (!res.ok) {
+                    const text = await res.text().catch(() => '');
+                    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+                }
+            } finally {
+                clearTimeout(timeout);
+            }
+        });
     } else {
         status.n8n.health = { status: 'missing', latency: 0, message: 'N8N_WEBHOOK_URL is not defined' };
+        status.n8n.webhook = { status: 'missing', latency: 0, message: 'N8N_WEBHOOK_URL is not defined' };
     }
 
     // 3. Check LLMs individually

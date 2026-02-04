@@ -22,6 +22,7 @@ interface DetailedStatus {
     n8n: {
         webhookUrl: boolean;
         health: StatusDetail;
+        webhook: StatusDetail;
     };
     pinecone: {
         apiKey: boolean;
@@ -214,9 +215,15 @@ jobs:
                     <div className="space-y-2 mb-4">
                         <BoolCheck label="N8N_WEBHOOK_URL" value={status.n8n.webhookUrl} />
                     </div>
-                    <div className="flex justify-between items-center pt-2 border-t">
-                        <span className="text-gray-600">Health (/healthz)</span>
-                        <StatusBadge {...status.n8n.health} />
+                    <div className="pt-2 border-t space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Health (/healthz)</span>
+                            <StatusBadge {...status.n8n.health} />
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Webhook (N8N_WEBHOOK_URL)</span>
+                            <StatusBadge {...status.n8n.webhook} />
+                        </div>
                     </div>
                 </div>
 

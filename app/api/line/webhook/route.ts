@@ -111,12 +111,44 @@ async function processEvents(events: any[]) {
         // 3. Async Handoff to n8n (Default RAG)
 
         if (n8nWebhookUrl) {
-            await fetch(n8nWebhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ events: [event] }) // Forward single event
-            });
-            await logConversation({ type: 'event', userId, text: '[Forwarded to n8n]', meta: { url: n8nWebhookUrl } }, { mongoUri, dbName });
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 1200);
+
+            try {
+                const res = await fetch(n8nWebhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ events: [event] }), // Forward single event
+                    signal: controller.signal,
+                });
+
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => '');
+                    throw new Error(`n8n webhook HTTP ${res.status}: ${errText.slice(0, 200)}`);
+                }
+
+                await logConversation(
+                    { type: 'event', userId, text: '[Forwarded to n8n]', meta: { url: n8nWebhookUrl } },
+                    { mongoUri, dbName }
+                );
+            } catch (err) {
+                // Fallback: n8n not ready / workflow not active. Reply a short hint so user doesn't feel "no response".
+                const hint =
+                    '⚠️ 已收到訊息，但 n8n 工作流程尚未啟用或暫時不可用。\n\n請先打開 n8n，import `n8n/workflow.json` 並將 workflow 切到 Active，確認 Production URL 可用。';
+
+                try {
+                    await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, { type: 'text', text: hint });
+                } catch (e) {
+                    console.error('LINE fallback reply failed:', e);
+                }
+
+                await logConversation(
+                    { type: 'error', userId, text: '[n8n handoff failed]', meta: { url: n8nWebhookUrl, err: String(err) } },
+                    { mongoUri, dbName }
+                );
+            } finally {
+                clearTimeout(timeout);
+            }
         } else {
             // Fallback: If n8n is not configured, reply with a friendly message
             await getClient(channelAccessToken, channelSecret).replyMessage(replyToken, {
