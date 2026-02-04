@@ -123,6 +123,9 @@ export default async function GuidePage() {
                 Atlas 模式需要你先在 Atlas 建好 <span className="font-mono">chunks.embedding</span> 的 vector index（預設索引名 <span className="font-mono">vector_index</span>；可用 <span className="font-mono">ATLAS_VECTOR_INDEX_NAME</span> 調整）
               </li>
               <li>
+                若你想把建索引自動化：可在本機執行 <span className="font-mono">npm run atlas:ensure-index</span>（需要先設好 <span className="font-mono">MONGODB_URI</span> 與 embedding 的 API key）
+              </li>
+              <li>
                 設定與索引建立細節請看：<span className="font-mono">docs/MONGODB-ATLAS-VECTOR-SEARCH.md</span>
               </li>
             </ul>

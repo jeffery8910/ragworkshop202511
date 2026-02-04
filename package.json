@@ -7,7 +7,10 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "atlas:ensure-index": "node scripts/atlas/ensure_vector_index.js",
+    "atlas:test": "node scripts/atlas/test_vector_search.js",
+    "line:smoke-webhook": "node scripts/line/smoke_webhook.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

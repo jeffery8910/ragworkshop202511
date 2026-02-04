@@ -50,6 +50,20 @@
 > 把 `numDimensions` 改成你實際 embedding 維度。
 > 索引名稱請設為 `vector_index`（或配合 `ATLAS_VECTOR_INDEX_NAME`）。
 
+## 自動化（推薦）
+
+如果你已經把 `MONGODB_URI` 等環境變數設好，可以用腳本自動建立 index：
+
+```bash
+npm run atlas:ensure-index
+```
+
+建立完後，用這個做快速測試：
+
+```bash
+npm run atlas:test
+```
+
 ## 產生 embedding 並寫入 MongoDB（兩種方式）
 
 1) 管理介面上傳文件：`/admin?tab=knowledge`
@@ -64,4 +78,3 @@
 2) 確認 Atlas 有建好 `chunks.embedding` 的 vector index
 3) 用 `/admin/status` 看 MongoDB 是否 OK
 4) 呼叫 `POST /api/workshop/retrieve` 做檢索（includeAnswer 可先設 false）
-

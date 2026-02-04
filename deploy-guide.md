@@ -15,6 +15,7 @@
 - **Vector DB 選擇**:
   - 有 `PINECONE_API_KEY` 時預設走 Pinecone
   - 沒有 Pinecone 時可改用 MongoDB Atlas Vector Search（需要先建立 `chunks.embedding` 的 vector index；見 `docs/MONGODB-ATLAS-VECTOR-SEARCH.md`）
+  - 可用腳本自動建立 index：`npm run atlas:ensure-index`（見 `docs/AUTOMATION.md`）
 
 ## 2. Render 部署 (n8n 自動化)
 我們已準備好 `render.yaml` (Blueprint)，可實現 Infrastructure as Code 自動部署。

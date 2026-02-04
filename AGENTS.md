@@ -24,6 +24,9 @@
   - 查詢：MongoDB `$vectorSearch`
   - 索引名：`ATLAS_VECTOR_INDEX_NAME`（預設 `vector_index`）
   - 細節：`docs/MONGODB-ATLAS-VECTOR-SEARCH.md`
+  - 自動化：
+    - 建 index：`npm run atlas:ensure-index`
+    - 測試 `$vectorSearch`：`npm run atlas:test`
 
 ## 必要環境變數（摘要）
 
@@ -34,3 +37,6 @@
 - Render（n8n）
   - `LINE_CHANNEL_ACCESS_TOKEN`, `RAG_RETRIEVE_URL`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`
 
+## 快速 smoke test（本機）
+
+- LINE webhook（驗簽 + 200）：`npm run line:smoke-webhook`
