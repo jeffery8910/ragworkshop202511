@@ -18,7 +18,7 @@
 
 > **注意**：
 > 1. 請先將本專案 Push 至您的 GitHub Repository。
-> 2. 點擊按鈕進行部署，建議至少填寫 `ADMIN_PASSWORD`。
+> 2. 點擊按鈕進行部署，建議至少填寫 `ADMIN_PASSWORD`（若未設定，管理後台預設密碼是 `admin`，請務必改成強密碼）。
 > 3. **資料庫設定**：部署後，建議至 Vercel Marketplace 安裝 **MongoDB Atlas** Integration，它會自動設定 `MONGODB_URI`。
 > 4. 其他設定 (如 Pinecone, AI Key) 可於部署後至 Vercel Settings 或 Admin 後台補填。
 

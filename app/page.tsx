@@ -22,6 +22,8 @@ export default async function Home() {
   const lineLoginId = readConfig('LINE_LOGIN_CHANNEL_ID');
   const lineLoginSecret = readConfig('LINE_LOGIN_CHANNEL_SECRET');
   const anyLlmKey = readConfig('GEMINI_API_KEY') || readConfig('OPENAI_API_KEY') || readConfig('OPENROUTER_API_KEY');
+  const adminPassword = readConfig('ADMIN_PASSWORD');
+  const adminPasswordWeak = !adminPassword || adminPassword === 'admin' || adminPassword.length < 12;
 
   const setupIssues = [
     !anyLlmKey ? '聊天 API Key 未設定（Gemini/OpenAI/OpenRouter 任一）' : '',
@@ -66,6 +68,30 @@ export default async function Home() {
             <BookOpen className="w-4 h-4" />
           </Link>
         </div>
+        {adminPasswordWeak && (
+          <div className="mt-6 max-w-3xl mx-auto rounded-2xl border border-red-200 bg-red-50 px-6 py-4 text-left">
+            <div className="font-semibold text-red-900 mb-1">安全提醒：請設定管理員密碼（ADMIN_PASSWORD）</div>
+            <div className="text-sm text-red-900/90 mb-3">
+              管理後台登入使用環境變數 <span className="font-mono">ADMIN_PASSWORD</span>。若未設定，預設密碼是 <span className="font-mono">admin</span>，建議立刻改成長且難猜的密碼。
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/admin/login"
+                className="inline-flex items-center gap-2 rounded-lg bg-red-700 text-white px-4 py-2 text-sm hover:bg-red-800"
+              >
+                前往管理登入
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                href="/guide"
+                className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm text-red-900 hover:bg-red-100"
+              >
+                看設定說明
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        )}
         {hasSetupIssues && (
           <div className="mt-6 max-w-3xl mx-auto rounded-2xl border border-amber-200 bg-amber-50 px-6 py-4 text-left">
             <div className="font-semibold text-amber-900 mb-1">系統尚未準備完成</div>

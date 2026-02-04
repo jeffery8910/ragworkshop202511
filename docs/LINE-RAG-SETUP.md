@@ -57,6 +57,7 @@
    - `LINE_CHANNEL_SECRET`
    - `LINE_CHANNEL_ACCESS_TOKEN`
    - `N8N_WEBHOOK_URL`：填剛剛的 `https://<your-n8n>.onrender.com/webhook/line-rag`
+   - `ADMIN_PASSWORD`：管理後台登入密碼（未設定時預設 `admin`，建議設定長且難猜的密碼）
 2. 確認你的 Vercel 專案是「公開」的（不要把整站鎖在 Protection 後面）
 3. 進 `/guide` 看你現在部署網域對應的 webhook URL
 4. 進 `/admin/status` 看狀態（Mongo/Pinecone/LLM/LINE）
@@ -88,3 +89,10 @@
 - 最簡單：在 n8n 把 `OpenRouter Chat` 那個節點改成你 NVIDIA 的推理端點（仍維持「先 Reply、後 Push」即可）
 - 原則不變：**webhook 只做快速回 200**，慢的（RAG/LLM）都在 n8n 裡做
 
+## 給 Agent / 自動化工具看的（Agent Notes）
+
+- **管理後台登入**：`POST /api/auth/login`，body `{ "password": "<ADMIN_PASSWORD>" }`，成功會設 `admin_session` cookie。
+- **Admin API 保護**：`/api/admin/*` 需要 `admin_session` cookie；未登入會回 `401`。
+- **Chat 對話刪除**：`DELETE /api/chat/session?userId=<id>`（前端會使用 `localStorage.rag_user_id` 當 userId）。
+- **LINE Webhook**：`POST /api/line/webhook` 必須能在 1–2 秒內回 200；慢的流程交給 n8n。
+- **n8n 健康檢查**：用 `GET https://<your-n8n>.onrender.com/healthz`（不是看 `GET /rest/ping`）。

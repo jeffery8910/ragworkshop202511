@@ -873,12 +873,18 @@ export default function ChatInterface({
             return;
         }
         if (!confirm('確定要刪除所有對話紀錄嗎？此動作無法復原。')) return;
-        setMessages([{ role: 'assistant', content: normalizedWelcome }]);
         try {
-            const res = await fetch(`/api/chat/session?userId=${userId}`, {
+            const res = await fetch(`/api/chat/session?userId=${encodeURIComponent(userId)}`, {
                 method: 'DELETE'
             });
-            if (!res.ok) throw new Error('Failed to clear history');
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || 'Failed to clear history');
+            setMessages([{ role: 'assistant', content: normalizedWelcome }]);
+            setWorkshopSeed('');
+            setInput('');
+            setIsEditingTitle(false);
+            setTempTitle(chatTitle);
+            setCurrentTitle(chatTitle);
         } catch (e) {
             alert('無法刪除紀錄，請稍後再試。');
         }
