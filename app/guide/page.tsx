@@ -96,6 +96,9 @@ export default async function GuidePage() {
             <p className="mt-3 text-sm text-gray-700">
               注意：如果你看到 401/unauthorized，通常表示「路徑存在但簽章不對」；用 LINE 的「Verify」測試會帶正確簽章，驗簽才會過。
             </p>
+            <p className="mt-2 text-sm text-gray-700">
+              另外：如果你用的是 <span className="font-mono">*-git-main-*</span> 或 <span className="font-mono">*-&lt;hash&gt;-*</span> 這種 Preview 網域，且你在 Vercel 開了 Authentication/Protection，LINE 會被擋（直接 401）。請改用 production 網域（例如 <span className="font-mono">xxx.vercel.app</span>）或關閉 protection。
+            </p>
           </section>
 
           <section className="rounded-2xl border border-gray-200 bg-white p-6">
