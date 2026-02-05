@@ -4,8 +4,14 @@ import { getConfigValue } from '@/lib/config-store';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function getConfig(key: string) {
-    return getConfigValue(key) || process.env[key] || '';
+function getConfig(key: string, legacyKeys: string[] = []) {
+    const primary = getConfigValue(key) || process.env[key] || '';
+    if (primary) return primary;
+    for (const k of legacyKeys) {
+        const v = getConfigValue(k) || process.env[k] || '';
+        if (v) return v;
+    }
+    return '';
 }
 
 type ProbeResult = {
@@ -53,7 +59,7 @@ async function probe(
 export async function GET(req: NextRequest) {
     const lineSecret = getConfig('LINE_CHANNEL_SECRET');
     const lineToken = getConfig('LINE_CHANNEL_ACCESS_TOKEN');
-    const n8nWebhookUrl = getConfig('N8N_WEBHOOK_URL');
+    const n8nWebhookUrl = getConfig('N8N_WEBHOOK_URL', ['FORWARD_TO_N8N_URL']);
 
     const problems: string[] = [];
     if (!lineSecret) problems.push('Missing LINE_CHANNEL_SECRET');

@@ -145,6 +145,9 @@ export default function SetupClient({
         <a href={deep ? readyDeepUrl : readyUrl} className="text-sm text-blue-600 hover:underline">
           /api/readyz{deep ? '?deep=1' : ''}
         </a>
+        <a href="/setup-guide.html" className="text-sm text-blue-600 hover:underline">
+          一頁式指南（HTML）
+        </a>
       </div>
 
       {error && (
@@ -259,4 +262,3 @@ export default function SetupClient({
     </div>
   );
 }
-

@@ -3,8 +3,11 @@ import { cookies } from 'next/headers';
 
 export async function POST(req: NextRequest) {
     try {
-        const { password } = await req.json();
-        const adminPassword = process.env.ADMIN_PASSWORD || 'admin';
+        const body = await req.json();
+        const password = body?.password ?? body?.token ?? '';
+
+        // legacy: usage-detailed.html uses ADMIN_TOKEN
+        const adminPassword = process.env.ADMIN_PASSWORD || process.env.ADMIN_TOKEN || 'admin';
 
         if (password === adminPassword) {
             // Set HTTP-only cookie

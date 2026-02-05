@@ -21,14 +21,14 @@ export default async function Home() {
   const mongoUri = readConfig('MONGODB_URI');
   const dbName = readConfig('MONGODB_DB_NAME');
   const vectorStore = resolveVectorStoreProvider({
-    explicit: readConfig('VECTOR_STORE_PROVIDER'),
+    explicit: readConfig('VECTOR_STORE_PROVIDER') || readConfig('VECTOR_BACKEND'),
     pineconeApiKey: pineconeKey,
     mongoUri,
   });
   const lineLoginId = readConfig('LINE_LOGIN_CHANNEL_ID');
   const lineLoginSecret = readConfig('LINE_LOGIN_CHANNEL_SECRET');
   const anyLlmKey = readConfig('GEMINI_API_KEY') || readConfig('OPENAI_API_KEY') || readConfig('OPENROUTER_API_KEY');
-  const adminPassword = readConfig('ADMIN_PASSWORD');
+  const adminPassword = readConfig('ADMIN_PASSWORD') || readConfig('ADMIN_TOKEN');
   const adminPasswordWeak = !adminPassword || adminPassword === 'admin' || adminPassword.length < 12;
 
   const setupIssues = [

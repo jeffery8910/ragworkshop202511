@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RAG 工作坊｜申請與串接一頁式指南（LINE + Vercel + Render + n8n）</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --card: rgba(255, 255, 255, 0.06);
+        --border: rgba(255, 255, 255, 0.12);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.68);
+        --accent: #7c3aed;
+        --ok: #22c55e;
+        --warn: #f59e0b;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(1200px 600px at 20% -10%, rgba(124, 58, 237, 0.35), transparent 60%),
+          radial-gradient(900px 500px at 90% 0%, rgba(34, 197, 94, 0.18), transparent 55%),
+          radial-gradient(900px 500px at 50% 120%, rgba(245, 158, 11, 0.12), transparent 55%),
+          var(--bg);
+      }
+
+      a { color: #c4b5fd; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+
+      .wrap { max-width: 980px; margin: 0 auto; padding: 28px 18px 56px; }
+      .hero { padding: 10px 0 18px; }
+      .title { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+      .sub { margin: 10px 0 0; color: var(--muted); line-height: 1.6; }
+      .pillrow { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px; }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--warn); }
+      .dot.ok { background: var(--ok); }
+      .dot.accent { background: var(--accent); }
+
+      .grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 16px; }
+      @media (min-width: 860px) {
+        .grid { grid-template-columns: 1fr 1fr; }
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(10px);
+      }
+      .card h2 { margin: 0; font-size: 16px; }
+      .card p { margin: 10px 0 0; color: var(--muted); line-height: 1.6; }
+      .card ul { margin: 10px 0 0; padding-left: 20px; color: var(--muted); line-height: 1.7; }
+      .card li { margin: 6px 0; }
+
+      .kbd, code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+      }
+      code {
+        padding: 2px 6px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(255,255,255,0.06);
+        color: rgba(255,255,255,0.88);
+      }
+      pre {
+        margin: 10px 0 0;
+        padding: 12px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(0,0,0,0.35);
+        overflow-x: auto;
+        color: rgba(255,255,255,0.9);
+      }
+
+      .callout {
+        margin-top: 14px;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        background: rgba(245, 158, 11, 0.12);
+        border-radius: 16px;
+        padding: 12px 14px;
+        color: rgba(255, 255, 255, 0.86);
+        line-height: 1.6;
+      }
+      .callout strong { color: rgba(255,255,255,0.95); }
+
+      .footer { margin-top: 18px; color: rgba(255,255,255,0.55); font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hero">
+        <h1 class="title">RAG 工作坊｜申請與串接一頁式指南</h1>
+        <p class="sub">
+          目標：LINE Webhook <strong>永遠可打到</strong>、<strong>1–2 秒內回 200</strong>（LLM/RAG 再慢也不能卡住 webhook），並且能用 <code>/setup</code> / <code>/api/readyz</code> / logs 觀測健康狀態。
+        </p>
+        <div class="pillrow">
+          <div class="pill"><span class="dot accent"></span> 推薦架構：LINE → Vercel（快回 200）→ Render（n8n 長流程）</div>
+          <div class="pill"><span class="dot ok"></span> Vercel：<code>/api/healthz</code>、<code>/setup</code>、<code>/admin/status</code></div>
+          <div class="pill"><span class="dot"></span> n8n：workflow 必須 Active（否則 webhook 404 not registered）</div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <section class="card">
+          <h2>0) 先確認你用的 production 網域</h2>
+          <p>請用 production 網域（不要用 preview）：</p>
+          <pre><code>https://202511ragw.vercel.app</code></pre>
+          <div class="callout">
+            <strong>提醒</strong>：如果你把 LINE Webhook 指到 <code>*-git-main-*</code> 這種 preview 網域，又開了 Vercel Protection/Auth，LINE 會直接被擋（401）。
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>1) LINE Developers（申請/設定）</h2>
+          <ul>
+            <li>建立 Messaging API Channel</li>
+            <li>開啟 Webhook（Use webhook：Enable）</li>
+            <li>拿到兩個值（要填到 Vercel）：<code>Channel secret</code>、<code>Channel access token</code></li>
+            <li>Webhook URL（建議）：<code>https://202511ragw.vercel.app/api/line/webhook</code></li>
+          </ul>
+        </section>
+
+        <section class="card">
+          <h2>2) Vercel（環境變數必填）</h2>
+          <p>到 Vercel → Project Settings → Environment Variables 設定：</p>
+          <ul>
+            <li><code>LINE_CHANNEL_SECRET</code>（必填）</li>
+            <li><code>LINE_CHANNEL_ACCESS_TOKEN</code>（必填）</li>
+            <li><code>N8N_WEBHOOK_URL</code>（已預設填：<code>https://n8n-rag-workflow.onrender.com/webhook/line-rag</code>）</li>
+            <li><code>ADMIN_PASSWORD</code>（務必改強密碼；未設時預設 admin）</li>
+          </ul>
+          <p>填完後請 Redeploy 一次（讓新 env 生效）。</p>
+        </section>
+
+        <section class="card">
+          <h2>3) Render n8n（申請/啟用 workflow）</h2>
+          <ul>
+            <li>開啟 n8n：<a href="https://n8n-rag-workflow.onrender.com/" target="_blank" rel="noreferrer">https://n8n-rag-workflow.onrender.com/</a></li>
+            <li>健康檢查：<a href="https://n8n-rag-workflow.onrender.com/healthz" target="_blank" rel="noreferrer">/healthz</a> 應回 <code>{"status":"ok"}</code></li>
+            <li>匯入：<code>rag-workshop-latest/n8n/workflow.json</code></li>
+            <li><strong>把 workflow 切到 Active</strong>（否則 <code>/webhook/line-rag</code> 會回 404 not registered）</li>
+          </ul>
+        </section>
+
+        <section class="card">
+          <h2>4) 一鍵檢核（不用猜哪裡壞）</h2>
+          <ul>
+            <li>Setup UI：<a href="https://202511ragw.vercel.app/setup" target="_blank" rel="noreferrer">/setup</a></li>
+            <li>Readiness JSON：<a href="https://202511ragw.vercel.app/api/readyz" target="_blank" rel="noreferrer">/api/readyz</a></li>
+            <li>深度檢查（含 n8n health + webhook）：<a href="https://202511ragw.vercel.app/api/readyz?deep=1" target="_blank" rel="noreferrer">/api/readyz?deep=1</a></li>
+            <li>系統狀態：<a href="https://202511ragw.vercel.app/admin/status" target="_blank" rel="noreferrer">/admin/status</a></li>
+          </ul>
+        </section>
+
+        <section class="card">
+          <h2>5) 常見錯誤快速對照</h2>
+          <ul>
+            <li><code>/api/line/webhook</code> 回 500：通常是 Vercel 沒填 <code>LINE_CHANNEL_SECRET</code></li>
+            <li>n8n <code>/webhook/line-rag</code> 回 404 not registered：workflow 還沒 Active</li>
+            <li>n8n 首頁開不起來：Render 冷啟動/休眠，先打 <code>/healthz</code> 喚醒等 30–60 秒</li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="footer">
+        檔案位置：部署後 <code>/setup-guide.html</code>（也可離線打開本機版本）。<br />
+        Repo 內更完整的文件：<code>docs/LINE-RAG-SETUP.md</code>、<code>docs/AUTOMATION.md</code>
+      </div>
+    </div>
+  </body>
+</html>

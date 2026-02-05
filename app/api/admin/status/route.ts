@@ -13,14 +13,22 @@ export async function GET() {
     const cookieStore = await cookies();
 
     // Helper to get config value (Env or Cookie)
-    const getConfig = (key: string) => process.env[key] || cookieStore.get(key)?.value || '';
+    const getConfig = (key: string, legacyKeys: string[] = []) => {
+        const primary = process.env[key] || cookieStore.get(key)?.value || '';
+        if (primary) return primary;
+        for (const k of legacyKeys) {
+            const v = process.env[k] || cookieStore.get(k)?.value || '';
+            if (v) return v;
+        }
+        return '';
+    };
 
     const mongoUri = getConfig('MONGODB_URI');
     const mongoDb = getConfig('MONGODB_DB_NAME') || 'rag_db';
     const pineKey = getConfig('PINECONE_API_KEY');
 
     const vectorStore = resolveVectorStoreProvider({
-        explicit: getConfig('VECTOR_STORE_PROVIDER'),
+        explicit: getConfig('VECTOR_STORE_PROVIDER') || getConfig('VECTOR_BACKEND'),
         pineconeApiKey: pineKey,
         mongoUri,
     });
@@ -43,7 +51,7 @@ export async function GET() {
             vectorSearch: { status: 'unknown', latency: 0, message: '' },
         },
         n8n: {
-            webhookUrl: !!getConfig('N8N_WEBHOOK_URL'),
+            webhookUrl: !!getConfig('N8N_WEBHOOK_URL', ['FORWARD_TO_N8N_URL']),
             health: { status: 'unknown', latency: 0, message: '' },
             webhook: { status: 'unknown', latency: 0, message: '' }
         },
@@ -144,7 +152,7 @@ export async function GET() {
     }
 
     // 2.5 Check n8n Health (derived from N8N_WEBHOOK_URL)
-    const n8nWebhookUrl = getConfig('N8N_WEBHOOK_URL');
+    const n8nWebhookUrl = getConfig('N8N_WEBHOOK_URL', ['FORWARD_TO_N8N_URL']);
     if (n8nWebhookUrl) {
         status.n8n.health = await measure(async () => {
             const u = new URL(n8nWebhookUrl);

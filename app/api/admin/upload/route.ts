@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
         if (!mongoUri) return NextResponse.json({ error: 'MONGODB_URI not set' }, { status: 400 });
 
         const vectorStore = resolveVectorStoreProvider({
-            explicit: get('VECTOR_STORE_PROVIDER'),
+            explicit: get('VECTOR_STORE_PROVIDER') || get('VECTOR_BACKEND'),
             pineconeApiKey: pineKey,
             mongoUri,
         });

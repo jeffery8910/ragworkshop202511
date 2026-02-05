@@ -68,7 +68,7 @@ async function pickConfig() {
         mongoDb: get('MONGODB_DB_NAME') || 'rag_db',
         pineKey: get('PINECONE_API_KEY'),
         pineIndex: get('PINECONE_INDEX_NAME') || 'rag-index',
-        vectorStoreProvider: get('VECTOR_STORE_PROVIDER'),
+        vectorStoreProvider: get('VECTOR_STORE_PROVIDER') || get('VECTOR_BACKEND'),
         geminiKey: get('GEMINI_API_KEY'),
         openaiKey: get('OPENAI_API_KEY'),
         openrouterKey: get('OPENROUTER_API_KEY'),

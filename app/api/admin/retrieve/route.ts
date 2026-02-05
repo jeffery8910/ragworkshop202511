@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         const mongoDb = get('MONGODB_DB_NAME') || 'rag_db';
 
         const vectorStore = resolveVectorStoreProvider({
-            explicit: get('VECTOR_STORE_PROVIDER'),
+            explicit: get('VECTOR_STORE_PROVIDER') || get('VECTOR_BACKEND'),
             pineconeApiKey,
             mongoUri,
         });
@@ -53,7 +53,20 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'VECTOR_STORE_PROVIDER=atlas but MONGODB_URI is not set' }, { status: 400 });
         }
 
-        const topK = Number(body?.topK || get('RAG_TOP_K') || 5);
+        const topK = Math.max(
+            1,
+            Math.min(
+                50,
+                Number(
+                    body?.topK ??
+                    body?.top_k ??
+                    get('RAG_TOP_K') ??
+                    get('TOP_K') ??
+                    get('TOPK') ??
+                    5
+                )
+            )
+        );
         const embeddingModel = get('EMBEDDING_MODEL') || '';
         const chatModel = get('CHAT_MODEL') || '';
         const includeAnswer = body?.includeAnswer !== false;

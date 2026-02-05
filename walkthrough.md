@@ -48,7 +48,7 @@ npm run dev
 
 ### LINE Bot 測試
 1. 加入 Bot 好友。
-2. 輸入 **「測驗 微積分」** -> 應回傳微積分測驗題 (Flex Message)。
+2. 輸入 **「測驗 微積分」** ->（可選）需要 n8n workflow 另外加「測驗」分支才會回 Flex；預設可改用 `/student/quiz` 或 `/api/student/quiz?topic=微積分` 測試。
 3. 輸入 **「ping」** -> 應回傳 "Pong! 系統運作正常"。
 4. 輸入 **「什麼是極限？」** -> 應觸發 RAG 檢索並回傳答案。
 

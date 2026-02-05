@@ -10,11 +10,22 @@ export const dynamic = 'force-dynamic';
 const N8N_TIMEOUT_MS = 900;
 const LINE_REPLY_TIMEOUT_MS = 900;
 
+function getConfig(key: string, legacyKeys: string[] = []) {
+    const primary = getConfigValue(key) || process.env[key] || '';
+    if (primary) return primary;
+    for (const k of legacyKeys) {
+        const v = getConfigValue(k) || process.env[k] || '';
+        if (v) return v;
+    }
+    return '';
+}
+
 function getRuntimeConfig() {
     return {
-        channelSecret: getConfigValue('LINE_CHANNEL_SECRET') || process.env.LINE_CHANNEL_SECRET || '',
-        channelAccessToken: getConfigValue('LINE_CHANNEL_ACCESS_TOKEN') || process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-        n8nWebhookUrl: getConfigValue('N8N_WEBHOOK_URL') || process.env.N8N_WEBHOOK_URL || '',
+        channelSecret: getConfig('LINE_CHANNEL_SECRET'),
+        channelAccessToken: getConfig('LINE_CHANNEL_ACCESS_TOKEN'),
+        // legacy: usage-detailed.html uses FORWARD_TO_N8N_URL
+        n8nWebhookUrl: getConfig('N8N_WEBHOOK_URL', ['FORWARD_TO_N8N_URL']),
     };
 }
 

@@ -1,7 +1,7 @@
 # RAG 工作坊 - Advanced Hybrid Architecture
 
 這是一個結合 **Next.js (Vercel)** 與 **n8n (Render)** 的進階 RAG 工作坊專案。
-支援多模態 (文字/語音)、多模型 (OpenAI/Gemini/OpenRouter) 與進階 RAG 技術 (結構化輸出、父子索引、元數據增強)。
+支援文字、多模型 (OpenAI/Gemini/OpenRouter) 與進階 RAG 技術 (結構化輸出、父子索引、元數據增強)。
 
 ## 作品集 / HR 入口
 
@@ -83,3 +83,8 @@ Web UI 檢核入口（部署後直接打網址）：
 - `/setup`：一鍵檢核（env var + n8n health + webhook 是否註冊）
 - `/guide`：部署/LINE 指引
 - `/admin/status`：系統狀態（n8n/MongoDB/向量庫/LLM/LINE）
+
+相容舊版 sample（避免文件/流程對不上）：
+- `/admin/setup` → 會導向 `/setup`
+- `/api/test` → 轉送到 `/api/workshop/retrieve`
+- `FORWARD_TO_N8N_URL` / `VECTOR_BACKEND` / `TOP_K` / `ADMIN_TOKEN` 仍可用（新版對應 `N8N_WEBHOOK_URL` / `VECTOR_STORE_PROVIDER` / `RAG_TOP_K` / `ADMIN_PASSWORD`）
