@@ -8,6 +8,14 @@ function getConfig(key: string) {
     return getConfigValue(key) || process.env[key] || '';
 }
 
+type ProbeResult = {
+    ok: boolean;
+    status?: number;
+    error?: string;
+    contentType?: string;
+    bodySnippet?: string;
+};
+
 async function fetchWithTimeout(
     url: string,
     init: RequestInit,
@@ -19,6 +27,26 @@ async function fetchWithTimeout(
         return await fetch(url, { ...init, cache: 'no-store', signal: controller.signal });
     } finally {
         clearTimeout(timeout);
+    }
+}
+
+async function probe(
+    url: string,
+    init: RequestInit,
+    timeoutMs: number,
+    bodyLimit = 600
+): Promise<ProbeResult> {
+    try {
+        const res = await fetchWithTimeout(url, init, timeoutMs);
+        const contentType = res.headers.get('content-type') || undefined;
+        let bodySnippet: string | undefined;
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            bodySnippet = text ? text.slice(0, bodyLimit) : undefined;
+        }
+        return { ok: res.ok, status: res.status, contentType, bodySnippet };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || String(e) };
     }
 }
 
@@ -35,23 +63,37 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const deep = searchParams.get('deep') === '1';
 
-    let n8nHealth: { ok: boolean; status?: number; error?: string } | undefined;
-    let n8nWebhook: { ok: boolean; status?: number; error?: string } | undefined;
+    let n8nBaseUrl: string | undefined;
+    let n8nHealth: ProbeResult | undefined;
+    let n8nWebhook: ProbeResult | undefined;
+    let n8nUi: ProbeResult | undefined;
+    let n8nPing: ProbeResult | undefined;
 
     if (deep && n8nWebhookUrl) {
         try {
             const u = new URL(n8nWebhookUrl);
-            const healthUrl = `${u.protocol}//${u.host}/healthz`;
-            const res = await fetchWithTimeout(healthUrl, { method: 'GET' }, 1200);
-            n8nHealth = { ok: res.ok, status: res.status };
-            if (!res.ok) problems.push(`n8n health: HTTP ${res.status}`);
-        } catch (e: any) {
-            n8nHealth = { ok: false, error: e?.message || String(e) };
-            problems.push(`n8n health: ${n8nHealth.error}`);
+            n8nBaseUrl = `${u.protocol}//${u.host}`;
+        } catch {
+            // ignore
         }
 
         try {
-            const res = await fetchWithTimeout(
+            const healthUrl = n8nBaseUrl ? `${n8nBaseUrl}/healthz` : '';
+            if (healthUrl) {
+                n8nHealth = await probe(healthUrl, { method: 'GET' }, 1200);
+                if (!n8nHealth.ok) problems.push(`n8n health: HTTP ${n8nHealth.status ?? 'ERR'}`);
+            }
+        } catch {
+            // ignore (probe already captures errors)
+        }
+
+        if (n8nBaseUrl) {
+            n8nUi = await probe(`${n8nBaseUrl}/`, { method: 'GET' }, 1200);
+            n8nPing = await probe(`${n8nBaseUrl}/rest/ping`, { method: 'GET' }, 1200);
+        }
+
+        try {
+            n8nWebhook = await probe(
                 n8nWebhookUrl,
                 {
                     method: 'POST',
@@ -60,11 +102,9 @@ export async function GET(req: NextRequest) {
                 },
                 1200
             );
-            n8nWebhook = { ok: res.ok, status: res.status };
-            if (!res.ok) problems.push(`n8n webhook: HTTP ${res.status}`);
-        } catch (e: any) {
-            n8nWebhook = { ok: false, error: e?.message || String(e) };
-            problems.push(`n8n webhook: ${n8nWebhook.error}`);
+            if (!n8nWebhook.ok) problems.push(`n8n webhook: HTTP ${n8nWebhook.status ?? 'ERR'}`);
+        } catch {
+            // ignore (probe already captures errors)
         }
     }
 
@@ -77,7 +117,7 @@ export async function GET(req: NextRequest) {
             lineToken: !!lineToken,
             n8nWebhookUrl: !!n8nWebhookUrl,
         },
-        deep: deep ? { n8nHealth, n8nWebhook } : undefined,
+        deep: deep ? { n8nBaseUrl, n8nHealth, n8nUi, n8nPing, n8nWebhook } : undefined,
         problems,
     });
 }

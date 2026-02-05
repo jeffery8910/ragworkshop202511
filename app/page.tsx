@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bot, GraduationCap, Settings, ArrowRight, FlaskConical, BookOpen } from 'lucide-react';
+import { Bot, GraduationCap, Settings, ArrowRight, FlaskConical, BookOpen, ListChecks } from 'lucide-react';
 import { cookies } from 'next/headers';
 import { getConfigValue } from '@/lib/config-store';
 import { resolveVectorStoreProvider } from '@/lib/vector/store';
@@ -68,10 +68,17 @@ export default async function Home() {
             </div>
           )}
           <Link
+            href="/setup"
+            className="inline-flex items-center gap-2 rounded-full bg-gray-900 text-white px-4 py-2 text-sm hover:bg-black"
+          >
+            一鍵檢核 / Setup
+            <ListChecks className="w-4 h-4" />
+          </Link>
+          <Link
             href="/guide"
             className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
-            部署/LINE 指南
+            部署/LINE 指引
             <BookOpen className="w-4 h-4" />
           </Link>
         </div>

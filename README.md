@@ -78,3 +78,8 @@ n8n 建議部署於 Render (Docker)：
 - [完整操作指南 (Walkthrough)](./walkthrough.md)
 - [部署指南 (Deployment Guide)](./deploy-guide.md)
 - [LINE RAG 串接指南（Vercel + Render + n8n）](./docs/LINE-RAG-SETUP.md)
+
+Web UI 檢核入口（部署後直接打網址）：
+- `/setup`：一鍵檢核（env var + n8n health + webhook 是否註冊）
+- `/guide`：部署/LINE 指引
+- `/admin/status`：系統狀態（n8n/MongoDB/向量庫/LLM/LINE）

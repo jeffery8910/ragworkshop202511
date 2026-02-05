@@ -50,5 +50,6 @@ npm run line:smoke-webhook
 
 ## 4) Web UI 檢核（不用 CLI）
 
-- `/guide`：部署/LINE/向量庫設定指引
+- `/setup`：一鍵檢核（env var + n8n health + n8n webhook）
+- `/guide`：部署/LINE/向量庫設定指引（含 Preview 網域保護提醒）
 - `/admin/status`：Mongo / n8n / Pinecone / Atlas Vector Search / LLM / LINE 健康檢查

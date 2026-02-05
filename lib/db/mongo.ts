@@ -1,7 +1,10 @@
 import { MongoClient } from 'mongodb';
 import { getConfigValue } from '@/lib/config-store';
 
-const options = {};
+const options = {
+    serverSelectionTimeoutMS: Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS) || 3000,
+    connectTimeoutMS: Number(process.env.MONGO_CONNECT_TIMEOUT_MS) || 3000,
+};
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient> | null = null;
@@ -31,7 +34,10 @@ export async function getMongoClient(dynamicUri?: string): Promise<MongoClient> 
 
         if (!globalWithMongo._mongoClientPromise) {
             client = new MongoClient(uri, options);
-            globalWithMongo._mongoClientPromise = client.connect();
+            globalWithMongo._mongoClientPromise = client.connect().catch((err) => {
+                globalWithMongo._mongoClientPromise = undefined;
+                throw err;
+            });
         }
         clientPromise = globalWithMongo._mongoClientPromise;
     } else {
@@ -40,7 +46,10 @@ export async function getMongoClient(dynamicUri?: string): Promise<MongoClient> 
         clientPromise = client.connect();
     }
 
-    clientCache[uri] = clientPromise;
+    clientCache[uri] = clientPromise?.catch((err) => {
+        delete clientCache[uri];
+        throw err;
+    });
     return clientPromise!;
 }
 

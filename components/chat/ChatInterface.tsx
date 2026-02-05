@@ -914,8 +914,16 @@ export default function ChatInterface({
 
                     <div className="flex-1 overflow-y-auto">
                         <div className="text-xs font-semibold text-gray-400 mb-2 px-2">最近對話</div>
-                        <div className="p-2 bg-blue-50 text-blue-700 rounded text-sm cursor-pointer truncate">
-                            {currentTitle}
+                        <div className="flex items-center justify-between gap-2 p-2 bg-blue-50 text-blue-700 rounded text-sm">
+                            <div className="truncate" title={currentTitle}>{currentTitle}</div>
+                            <button
+                                type="button"
+                                onClick={handleClearHistory}
+                                className="p-1 rounded hover:bg-blue-100 text-blue-700"
+                                title="清除對話"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
                         </div>
                     </div>
                 </div>

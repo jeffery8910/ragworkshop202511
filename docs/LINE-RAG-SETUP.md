@@ -69,8 +69,9 @@
      - 需要先在 Atlas 建 `chunks.embedding` 的 vector index（預設名稱 `vector_index`）
      - 詳細：`docs/MONGODB-ATLAS-VECTOR-SEARCH.md`
 3. 確認你的 Vercel 專案是「公開」的（不要把整站鎖在 Protection 後面）
-4. 進 `/guide` 看你現在部署網域對應的 webhook URL
-5. 進 `/admin/status` 看狀態（Mongo / Pinecone 或 Atlas / LLM / LINE / n8n health + webhook）
+4. 進 `/setup` 做「一鍵檢核」（env var + n8n health + n8n webhook 是否註冊）
+5. 進 `/guide` 看你現在部署網域對應的 webhook URL（含 Preview 網域保護提醒）
+6. 進 `/admin/status` 看狀態（Mongo / Pinecone 或 Atlas / LLM / LINE / n8n health + webhook）
 
 ### C) LINE Developers
 
